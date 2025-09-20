@@ -1,9 +1,20 @@
 import { getSupabase } from '@/services/supabaseClient'
 
-export async function getWalletBalance(userId) {
+export async function getWalletBalance(userId = null) {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
+  }
+
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
   }
 
   const { data, error } = await supabase
@@ -22,10 +33,21 @@ export async function getWalletBalance(userId) {
   return data
 }
 
-export async function createWallet(userId) {
+export async function createWallet(userId = null) {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
+  }
+
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
   }
 
   const { data, error } = await supabase
@@ -46,10 +68,21 @@ export async function createWallet(userId) {
   return data
 }
 
-export async function getTransactions(userId, limit = 50) {
+export async function getTransactions(userId = null, limit = 50) {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
+  }
+
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
   }
 
   // First get the wallet account for this user
@@ -68,6 +101,7 @@ export async function getTransactions(userId, limit = 50) {
     .from('wallet_transactions')
     .select('*')
     .eq('account_id', walletAccount.id)
+    .order('created_at', { ascending: false })
     .limit(limit)
 
   if (error) {
@@ -94,16 +128,27 @@ export async function createTransaction(transactionData) {
   return data
 }
 
-export async function updateWalletBalance(userId, amount, transactionType = 'topup') {
+export async function updateWalletBalance(userId = null, amount, transactionType = 'topup') {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
   }
 
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
+  }
+
   // Get current balance
   const { data: wallet, error: walletError } = await supabase
     .from('wallet_accounts')
-    .select('balance')
+    .select('current_balance')
     .eq('user_id', userId)
     .single()
 
@@ -112,7 +157,7 @@ export async function updateWalletBalance(userId, amount, transactionType = 'top
   }
 
   // Calculate new balance
-  const currentBalance = wallet.balance || 0
+  const currentBalance = wallet.current_balance || 0
   const newBalance = transactionType === 'topup' ? currentBalance + amount : currentBalance - amount
 
   if (newBalance < 0) {
@@ -122,7 +167,7 @@ export async function updateWalletBalance(userId, amount, transactionType = 'top
   // Update wallet balance
   const { data, error } = await supabase
     .from('wallet_accounts')
-    .update({ balance: newBalance })
+    .update({ current_balance: newBalance })
     .eq('user_id', userId)
     .select()
     .single()
@@ -135,11 +180,38 @@ export async function updateWalletBalance(userId, amount, transactionType = 'top
 }
 
 // Payment gateway integration functions
-export async function initiateTopUp(userId, amount, paymentMethod = 'gcash') {
+export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcash') {
+  const supabase = getSupabase()
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
+  }
+
   try {
+    // Get wallet account ID
+    const { data: walletAccount, error: walletError } = await supabase
+      .from('wallet_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    if (walletError || !walletAccount) {
+      throw new Error('Wallet account not found')
+    }
+
     // Create pending transaction
     const transaction = await createTransaction({
-      user_id: userId,
+      account_id: walletAccount.id,
       amount: amount,
       type: 'topup',
       status: 'pending',
@@ -166,17 +238,44 @@ export async function initiateTopUp(userId, amount, paymentMethod = 'gcash') {
   }
 }
 
-export async function initiateWithdrawal(userId, amount, paymentMethod = 'gcash') {
+export async function initiateWithdrawal(userId = null, amount, paymentMethod = 'gcash') {
+  const supabase = getSupabase()
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  // Get user ID from session if not provided
+  if (!userId) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
+    userId = user.id
+  }
+
   try {
     // Check balance first
     const wallet = await getWalletBalance(userId)
-    if (wallet.balance < amount) {
+    if (wallet.current_balance < amount) {
       throw new Error('Insufficient balance for withdrawal')
+    }
+
+    // Get wallet account ID
+    const { data: walletAccount, error: walletError } = await supabase
+      .from('wallet_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .single()
+
+    if (walletError || !walletAccount) {
+      throw new Error('Wallet account not found')
     }
 
     // Create pending transaction
     const transaction = await createTransaction({
-      user_id: userId,
+      account_id: walletAccount.id,
       amount: amount,
       type: 'withdrawal',
       status: 'pending',

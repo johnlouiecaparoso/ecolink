@@ -125,13 +125,13 @@ onMounted(() => {
           <h2 class="balance-title">Wallet Balance</h2>
           <div class="balance-currency">{{ walletBalance.currency }}</div>
         </div>
-        <div class="balance-amount">{{ formatAmount(walletBalance.balance) }}</div>
+        <div class="balance-amount">{{ formatAmount(walletBalance.current_balance) }}</div>
         <div class="balance-actions">
           <button class="btn btn-primary" @click="showTopUpModal">+ Top Up</button>
           <button
             class="btn btn-ghost"
             @click="showWithdrawModal"
-            :disabled="walletBalance.balance === 0"
+            :disabled="walletBalance.current_balance === 0"
           >
             - Withdraw
           </button>

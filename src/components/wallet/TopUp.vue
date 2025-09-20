@@ -45,7 +45,7 @@ async function handleSubmit() {
   loading.value = true
   try {
     const amount = parseFloat(formData.value.amount)
-    await initiateTopUp(null, amount, formData.value.paymentMethod) // userId will be set in service
+    await initiateTopUp(amount, formData.value.paymentMethod) // userId will be set in service
     emit('success', { amount, paymentMethod: formData.value.paymentMethod })
 
     // Reset form
