@@ -426,7 +426,7 @@ async function loadUserProjects() {
 
   loadingProjects.value = true
   try {
-    userProjects.value = await getUserProjects(store.session.user.id)
+    userProjects.value = await getUserProjects()
   } catch (error) {
     console.error('Error loading projects:', error)
   } finally {
