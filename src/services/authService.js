@@ -23,7 +23,35 @@ export async function registerWithEmail({ name, email, password }) {
   if (error) {
     throw new Error(error.message || 'Unable to register. Please try again.')
   }
+
+  // Create profile if user was created successfully
+  if (data.user) {
+    try {
+      await createUserProfile(data.user.id, { full_name: name })
+    } catch (profileError) {
+      console.warn('Failed to create profile:', profileError)
+      // Don't fail registration if profile creation fails
+    }
+  }
+
   return data
+}
+
+async function createUserProfile(userId, profileData) {
+  const supabase = getSupabase()
+  if (!supabase) return
+
+  const { error } = await supabase.from('profiles').insert([
+    {
+      id: userId,
+      full_name: profileData.full_name,
+      role: 'user',
+    },
+  ])
+
+  if (error) {
+    console.error('Profile creation error:', error)
+  }
 }
 
 export async function getSession() {
