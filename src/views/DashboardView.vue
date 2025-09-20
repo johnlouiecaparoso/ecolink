@@ -50,6 +50,7 @@ const navItems = [
   { id: 'reports', label: 'Reports', route: '/analytics' },
   { id: 'settings', label: 'Settings', route: '/admin' },
   { id: 'developer', label: 'Developer', route: '/verifier' },
+  { id: 'database', label: 'Database', route: '/database' },
 ]
 
 function navigateTo(route) {
