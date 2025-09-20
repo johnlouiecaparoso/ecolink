@@ -45,7 +45,8 @@ async function createUserProfile(userId, profileData) {
     {
       id: userId,
       full_name: profileData.full_name,
-      role: 'user',
+      role: profileData.role || 'user',
+      kyc_level: 0,
     },
   ])
 

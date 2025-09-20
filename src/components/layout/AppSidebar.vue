@@ -26,7 +26,7 @@
         <div class="user-avatar">{{ userInitials }}</div>
         <div class="user-details">
           <div class="user-name">{{ userProfile?.full_name || 'User' }}</div>
-          <div class="user-role">{{ userProfile?.role || 'user' }}</div>
+          <div class="user-role">{{ userRoleDisplay }}</div>
         </div>
       </div>
       <button class="nav-item logout" type="button" @click="onSignOut">
@@ -42,6 +42,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getProfile } from '@/services/profileService'
+import { ROLES, PERMISSIONS } from '@/constants/roles'
 
 export default {
   name: 'AppSidebar',
@@ -50,18 +51,85 @@ export default {
     const store = useUserStore()
     const userProfile = ref(null)
 
-    const navItems = [
-      { id: 'overview', label: 'Dashboard', route: '/dashboard', icon: '🏠' },
-      { id: 'projects', label: 'Projects', route: '/projects', icon: '🌱' },
-      { id: 'wallet', label: 'Wallet', route: '/wallet', icon: '💰' },
-      { id: 'marketplace', label: 'Marketplace', route: '/marketplace', icon: '🏪' },
-      { id: 'users', label: 'Users', route: '/users', icon: '👥' },
-      { id: 'verifier', label: 'Verifier', route: '/verifier', icon: '✅' },
-      { id: 'analytics', label: 'Analytics', route: '/analytics', icon: '📊' },
-      { id: 'admin', label: 'Admin', route: '/admin', icon: '⚙️' },
-      { id: 'database', label: 'Database', route: '/database', icon: '🗄️' },
-      { id: 'tables', label: 'Tables', route: '/tables', icon: '📋' },
+    const allNavItems = [
+      {
+        id: 'overview',
+        label: 'Dashboard',
+        route: '/dashboard',
+        icon: '🏠',
+        permission: PERMISSIONS.VIEW_DASHBOARD,
+      },
+      {
+        id: 'projects',
+        label: 'Projects',
+        route: '/projects',
+        icon: '🌱',
+        permission: PERMISSIONS.MANAGE_PROJECTS,
+      },
+      {
+        id: 'wallet',
+        label: 'Wallet',
+        route: '/wallet',
+        icon: '💰',
+        permission: PERMISSIONS.MANAGE_WALLET,
+      },
+      {
+        id: 'marketplace',
+        label: 'Marketplace',
+        route: '/marketplace',
+        icon: '🏪',
+        permission: PERMISSIONS.VIEW_MARKETPLACE,
+      },
+      {
+        id: 'users',
+        label: 'Users',
+        route: '/users',
+        icon: '👥',
+        permission: PERMISSIONS.MANAGE_USERS,
+      },
+      {
+        id: 'verifier',
+        label: 'Verifier',
+        route: '/verifier',
+        icon: '✅',
+        permission: PERMISSIONS.VIEW_VERIFIER_PANEL,
+      },
+      {
+        id: 'analytics',
+        label: 'Analytics',
+        route: '/analytics',
+        icon: '📊',
+        permission: PERMISSIONS.VIEW_ANALYTICS,
+      },
+      {
+        id: 'admin',
+        label: 'Admin',
+        route: '/admin',
+        icon: '⚙️',
+        permission: PERMISSIONS.VIEW_ADMIN_PANEL,
+      },
+      {
+        id: 'database',
+        label: 'Database',
+        route: '/database',
+        icon: '🗄️',
+        permission: PERMISSIONS.MANAGE_DATABASE,
+      },
+      {
+        id: 'tables',
+        label: 'Tables',
+        route: '/tables',
+        icon: '📋',
+        permission: PERMISSIONS.MANAGE_TABLES,
+      },
     ]
+
+    const navItems = computed(() => {
+      return allNavItems.filter((item) => {
+        if (!item.permission) return true
+        return store.hasPermission(item.permission)
+      })
+    })
 
     const userInitials = computed(() => {
       if (userProfile.value?.full_name) {
@@ -73,6 +141,21 @@ export default {
           .slice(0, 2)
       }
       return 'U'
+    })
+
+    const userRoleDisplay = computed(() => {
+      const role = userProfile.value?.role || store.role
+      switch (role) {
+        case ROLES.SUPER_ADMIN:
+          return 'Super Admin'
+        case ROLES.ADMIN:
+          return 'Administrator'
+        case ROLES.VERIFIER:
+          return 'Verifier'
+        case ROLES.USER:
+        default:
+          return 'User'
+      }
     })
 
     async function loadUserProfile() {
@@ -107,6 +190,7 @@ export default {
       navItems,
       userProfile,
       userInitials,
+      userRoleDisplay,
       navigateTo,
       onSignOut,
     }

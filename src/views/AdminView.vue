@@ -1,7 +1,10 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
+import AdminDashboard from '@/components/admin/AdminDashboard.vue'
 
 const router = useRouter()
+const userStore = useUserStore()
 </script>
 
 <template>
@@ -13,18 +16,7 @@ const router = useRouter()
     </header>
 
     <main class="module-content">
-      <div class="placeholder-card">
-        <div class="placeholder-icon">⚙️</div>
-        <h2>Admin Panel Module</h2>
-        <p>This module will contain administrative functionality including:</p>
-        <ul>
-          <li>System configuration</li>
-          <li>User role management</li>
-          <li>Platform settings</li>
-          <li>Audit logs</li>
-          <li>System monitoring</li>
-        </ul>
-      </div>
+      <AdminDashboard />
     </main>
   </div>
 </template>

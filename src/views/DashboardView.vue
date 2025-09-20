@@ -8,11 +8,22 @@ import ProjectForm from '@/components/ProjectForm.vue'
 import { tableService } from '@/services/tableService'
 import RecordDetailView from '@/components/tables/RecordDetailView.vue'
 import RecordCreateForm from '@/components/tables/RecordCreateForm.vue'
+import UserDashboard from '@/components/user/UserDashboard.vue'
+import AdminDashboard from '@/components/admin/AdminDashboard.vue'
 
 const router = useRouter()
 const store = useUserStore()
 
 const user = ref({ name: 'EcoLink User', email: 'user@ecolink.io' })
+
+// Role-based dashboard selection
+const showUserDashboard = computed(() => {
+  return store.role === 'user' || store.role === 'verifier'
+})
+
+const showAdminDashboard = computed(() => {
+  return store.isAdmin || store.isSuperAdmin
+})
 const showDebug = ref(import.meta.env?.MODE !== 'production')
 const storageKeys = ref([])
 const windowOrigin = ref('')
@@ -464,7 +475,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="layout">
+  <!-- Role-based dashboard rendering -->
+  <div v-if="showUserDashboard">
+    <UserDashboard />
+  </div>
+  <div v-else-if="showAdminDashboard">
+    <AdminDashboard />
+  </div>
+  <div v-else class="layout">
     <aside class="sidebar">
       <div class="sidebar-brand">
         <div class="brand-badge"><span class="brand-initials">EC</span></div>
@@ -551,14 +569,151 @@ onMounted(async () => {
           </div>
         </section>
 
-        <!-- Table Management Section -->
-        <section class="table-management-section">
-          <div class="section-header">
-            <h2 class="section-title">Data Management</h2>
-            <div class="section-actions">
+        <!-- Data Management Grid -->
+        <section class="grid">
+          <!-- Table Management Card (Large) -->
+          <div class="card large">
+            <div class="card-title">Data Management</div>
+            <div class="table-management-content">
+              <!-- Table Selection -->
+              <div class="table-selector">
+                <button
+                  v-for="table in availableTables"
+                  :key="table.name"
+                  @click="selectTable(table)"
+                  class="table-select-btn"
+                  :class="{ active: selectedTable?.name === table.name }"
+                >
+                  <span class="table-icon">{{ table.icon }}</span>
+                  <span class="table-name">{{ table.displayName }}</span>
+                  <span class="table-count">{{ table.count }}</span>
+                </button>
+              </div>
+
+              <!-- Table Data Display -->
+              <div v-if="selectedTable" class="table-data-section">
+                <!-- Search and Filters -->
+                <div class="search-section">
+                  <div class="search-box">
+                    <input
+                      v-model="searchTerm"
+                      @input="handleSearch"
+                      type="text"
+                      placeholder="Search records..."
+                      class="search-input"
+                    />
+                    <span class="search-icon">🔍</span>
+                  </div>
+                  <div class="filter-controls">
+                    <select v-model="statusFilter" @change="applyFilters" class="filter-select">
+                      <option value="">All Status</option>
+                      <option v-for="status in statusOptions" :key="status" :value="status">
+                        {{ status }}
+                      </option>
+                    </select>
+                    <select v-model="sortBy" @change="applyFilters" class="filter-select">
+                      <option v-for="field in sortFields" :key="field" :value="field">
+                        Sort by {{ field }}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Data Table -->
+                <div class="data-section">
+                  <div v-if="loadingTables" class="loading-state">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">
+                      Loading {{ selectedTable.displayName.toLowerCase() }}...
+                    </p>
+                  </div>
+
+                  <div v-else-if="tableData.length === 0" class="empty-state">
+                    <div class="empty-icon">📋</div>
+                    <h3>No {{ selectedTable.displayName.toLowerCase() }} found</h3>
+                    <p>
+                      Create your first
+                      {{ selectedTable.displayName.slice(0, -1).toLowerCase() }} to get started.
+                    </p>
+                  </div>
+
+                  <div v-else class="data-table-container">
+                    <table class="data-table">
+                      <thead>
+                        <tr>
+                          <th v-for="column in visibleColumns" :key="column.key">
+                            {{ column.label }}
+                          </th>
+                          <th class="actions-column">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="record in paginatedData" :key="record.id">
+                          <td v-for="column in visibleColumns" :key="column.key">
+                            <span v-if="column.type === 'date'">
+                              {{ formatDate(record[column.key]) }}
+                            </span>
+                            <span v-else-if="column.type === 'currency'">
+                              {{ formatCurrency(record[column.key]) }}
+                            </span>
+                            <span
+                              v-else-if="column.type === 'status'"
+                              :class="getStatusClass(record[column.key])"
+                            >
+                              {{ record[column.key] }}
+                            </span>
+                            <span v-else>
+                              {{ record[column.key] }}
+                            </span>
+                          </td>
+                          <td class="actions-cell">
+                            <button @click="viewRecord(record)" class="btn btn-sm btn-secondary">
+                              View
+                            </button>
+                            <button @click="editRecord(record)" class="btn btn-sm btn-primary">
+                              Edit
+                            </button>
+                            <button @click="deleteRecord(record)" class="btn btn-sm btn-danger">
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+
+                    <!-- Pagination -->
+                    <div class="pagination">
+                      <button
+                        @click="previousPage"
+                        :disabled="currentPage === 1"
+                        class="btn btn-secondary"
+                      >
+                        Previous
+                      </button>
+                      <span class="page-info">
+                        Page {{ currentPage }} of {{ totalPages }} ({{ totalRecords }} records)
+                      </span>
+                      <button
+                        @click="nextPage"
+                        :disabled="currentPage === totalPages"
+                        class="btn btn-secondary"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions Card -->
+          <div class="card">
+            <div class="card-title">Quick Actions</div>
+            <div class="quick-actions">
               <button @click="refreshTableData" class="btn btn-secondary" :disabled="loadingTables">
                 <span v-if="loadingTables" class="loading-spinner"></span>
-                Refresh
+                Refresh Data
               </button>
               <button v-if="selectedTable" @click="showCreateForm" class="btn btn-primary">
                 Add New {{ selectedTable?.displayName?.slice(0, -1) || 'Record' }}
@@ -566,130 +721,37 @@ onMounted(async () => {
             </div>
           </div>
 
-          <!-- Table Selection -->
-          <div class="table-selector">
-            <button
-              v-for="table in availableTables"
-              :key="table.name"
-              @click="selectTable(table)"
-              class="table-select-btn"
-              :class="{ active: selectedTable?.name === table.name }"
-            >
-              <span class="table-icon">{{ table.icon }}</span>
-              <span class="table-name">{{ table.displayName }}</span>
-              <span class="table-count">{{ table.count }}</span>
-            </button>
-          </div>
-
-          <!-- Table Data Display -->
-          <div v-if="selectedTable" class="table-data-section">
-            <!-- Search and Filters -->
-            <div class="search-section">
-              <div class="search-box">
-                <input
-                  v-model="searchTerm"
-                  @input="handleSearch"
-                  type="text"
-                  placeholder="Search records..."
-                  class="search-input"
-                />
-                <span class="search-icon">🔍</span>
-              </div>
-              <div class="filter-controls">
-                <select v-model="statusFilter" @change="applyFilters" class="filter-select">
-                  <option value="">All Status</option>
-                  <option v-for="status in statusOptions" :key="status" :value="status">
-                    {{ status }}
-                  </option>
-                </select>
-                <select v-model="sortBy" @change="applyFilters" class="filter-select">
-                  <option v-for="field in sortFields" :key="field" :value="field">
-                    Sort by {{ field }}
-                  </option>
-                </select>
+          <!-- Table Stats Card -->
+          <div class="card">
+            <div class="card-title">Table Statistics</div>
+            <div class="table-stats">
+              <div v-for="table in availableTables" :key="table.name" class="stat-item">
+                <div class="stat-icon">{{ table.icon }}</div>
+                <div class="stat-info">
+                  <div class="stat-name">{{ table.displayName }}</div>
+                  <div class="stat-count">{{ table.count }} records</div>
+                </div>
               </div>
             </div>
+          </div>
 
-            <!-- Data Table -->
-            <div class="data-section">
-              <div v-if="loadingTables" class="loading-state">
-                <div class="loading-spinner"></div>
-                <p class="loading-text">Loading {{ selectedTable.displayName.toLowerCase() }}...</p>
+          <!-- Data Summary Card -->
+          <div class="card large">
+            <div class="card-title">Data Summary</div>
+            <div class="data-summary">
+              <div class="summary-item">
+                <div class="summary-label">Total Tables</div>
+                <div class="summary-value">{{ availableTables.length }}</div>
               </div>
-
-              <div v-else-if="tableData.length === 0" class="empty-state">
-                <div class="empty-icon">📋</div>
-                <h3>No {{ selectedTable.displayName.toLowerCase() }} found</h3>
-                <p>
-                  Create your first {{ selectedTable.displayName.slice(0, -1).toLowerCase() }} to
-                  get started.
-                </p>
-              </div>
-
-              <div v-else class="data-table-container">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th v-for="column in visibleColumns" :key="column.key">
-                        {{ column.label }}
-                      </th>
-                      <th class="actions-column">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="record in paginatedData" :key="record.id">
-                      <td v-for="column in visibleColumns" :key="column.key">
-                        <span v-if="column.type === 'date'">
-                          {{ formatDate(record[column.key]) }}
-                        </span>
-                        <span v-else-if="column.type === 'currency'">
-                          {{ formatCurrency(record[column.key]) }}
-                        </span>
-                        <span
-                          v-else-if="column.type === 'status'"
-                          :class="getStatusClass(record[column.key])"
-                        >
-                          {{ record[column.key] }}
-                        </span>
-                        <span v-else>
-                          {{ record[column.key] }}
-                        </span>
-                      </td>
-                      <td class="actions-cell">
-                        <button @click="viewRecord(record)" class="btn btn-sm btn-secondary">
-                          View
-                        </button>
-                        <button @click="editRecord(record)" class="btn btn-sm btn-primary">
-                          Edit
-                        </button>
-                        <button @click="deleteRecord(record)" class="btn btn-sm btn-danger">
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <!-- Pagination -->
-                <div class="pagination">
-                  <button
-                    @click="previousPage"
-                    :disabled="currentPage === 1"
-                    class="btn btn-secondary"
-                  >
-                    Previous
-                  </button>
-                  <span class="page-info">
-                    Page {{ currentPage }} of {{ totalPages }} ({{ totalRecords }} records)
-                  </span>
-                  <button
-                    @click="nextPage"
-                    :disabled="currentPage === totalPages"
-                    class="btn btn-secondary"
-                  >
-                    Next
-                  </button>
+              <div class="summary-item">
+                <div class="summary-label">Total Records</div>
+                <div class="summary-value">
+                  {{ availableTables.reduce((sum, table) => sum + table.count, 0) }}
                 </div>
+              </div>
+              <div class="summary-item">
+                <div class="summary-label">Active Table</div>
+                <div class="summary-value">{{ selectedTable?.displayName || 'None' }}</div>
               </div>
             </div>
           </div>
@@ -1136,8 +1198,8 @@ onMounted(async () => {
 }
 
 /* Table Management Styles */
-.table-management-section {
-  margin-top: 2rem;
+.table-management-content {
+  padding: 0;
 }
 
 .table-selector {
@@ -1355,5 +1417,75 @@ onMounted(async () => {
   .actions-cell {
     flex-direction: column;
   }
+}
+
+/* New Grid Layout Styles */
+.quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.table-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.stat-icon {
+  font-size: 20px;
+  width: 32px;
+  text-align: center;
+}
+
+.stat-info {
+  flex: 1;
+}
+
+.stat-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.stat-count {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.data-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+}
+
+.summary-item {
+  text-align: center;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.summary-label {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
 }
 </style>
