@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/store/userStore'
 import { ROLES, PERMISSIONS } from '@/constants/roles'
+import { projectService } from '@/services/projectService'
 import UserProfile from './UserProfile.vue'
 
 const userStore = useUserStore()
@@ -11,6 +12,14 @@ const userStats = ref({
   projects: 0,
   walletBalance: 0,
   kycLevel: 0,
+})
+
+const recentProjects = ref([])
+const projectStats = ref({
+  total: 0,
+  pending: 0,
+  approved: 0,
+  rejected: 0,
 })
 
 const tabs = computed(() => {
@@ -56,7 +65,10 @@ const quickActions = computed(() => {
       id: 'create-project',
       label: 'Create Project',
       icon: '➕',
-      action: () => console.log('Create project'),
+      action: () => {
+        // Navigate to projects page with form open
+        window.location.href = '/projects?action=create'
+      },
     })
   }
 
@@ -81,12 +93,38 @@ const quickActions = computed(() => {
   return actions
 })
 
-function loadUserStats() {
-  // Mock data - replace with actual API calls
-  userStats.value = {
-    projects: 3,
-    walletBalance: 1250.5,
-    kycLevel: userProfile.value?.kyc_level || 0,
+async function loadUserStats() {
+  try {
+    // Load project statistics
+    const projects = await projectService.getUserProjects()
+    const stats = await projectService.getProjectStats()
+
+    userStats.value = {
+      projects: projects.length,
+      walletBalance: 1250.5, // Mock data - replace with actual wallet API
+      kycLevel: userProfile.value?.kyc_level || 0,
+    }
+
+    // Update project stats
+    projectStats.value = {
+      total: projects.length,
+      pending: projects.filter((p) => p.status === 'pending').length,
+      approved: projects.filter((p) => p.status === 'approved').length,
+      rejected: projects.filter((p) => p.status === 'rejected').length,
+    }
+
+    // Get recent projects (last 3)
+    recentProjects.value = projects
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 3)
+  } catch (error) {
+    console.error('Error loading user stats:', error)
+    // Fallback to mock data
+    userStats.value = {
+      projects: 0,
+      walletBalance: 0,
+      kycLevel: userProfile.value?.kyc_level || 0,
+    }
   }
 }
 
@@ -122,7 +160,23 @@ onMounted(() => {
             <div class="stat-icon">📁</div>
             <div class="stat-content">
               <h3>{{ userStats.projects }}</h3>
-              <p>Active Projects</p>
+              <p>Total Projects</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-content">
+              <h3>{{ projectStats.pending }}</h3>
+              <p>Pending Review</p>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-content">
+              <h3>{{ projectStats.approved }}</h3>
+              <p>Approved</p>
             </div>
           </div>
 
@@ -131,14 +185,6 @@ onMounted(() => {
             <div class="stat-content">
               <h3>${{ userStats.walletBalance.toLocaleString() }}</h3>
               <p>Wallet Balance</p>
-            </div>
-          </div>
-
-          <div class="stat-card">
-            <div class="stat-icon">🛡️</div>
-            <div class="stat-content">
-              <h3>Level {{ userStats.kycLevel }}</h3>
-              <p>KYC Verification</p>
             </div>
           </div>
         </div>
@@ -159,27 +205,31 @@ onMounted(() => {
         </div>
 
         <div class="recent-activity">
-          <h3>Recent Activity</h3>
-          <div class="activity-list">
-            <div class="activity-item">
+          <h3>Recent Projects</h3>
+          <div v-if="recentProjects.length === 0" class="no-projects">
+            <p>No projects yet. Create your first project to get started!</p>
+            <button
+              class="action-btn"
+              @click="() => (window.location.href = '/projects?action=create')"
+            >
+              <span class="action-icon">➕</span>
+              Create Project
+            </button>
+          </div>
+          <div v-else class="activity-list">
+            <div
+              v-for="project in recentProjects"
+              :key="project.id"
+              class="activity-item"
+              @click="() => (window.location.href = '/projects')"
+            >
               <div class="activity-icon">📁</div>
               <div class="activity-content">
-                <p>Created new project "Eco Initiative"</p>
-                <span class="activity-time">2 hours ago</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-icon">💰</div>
-              <div class="activity-content">
-                <p>Received payment of $500</p>
-                <span class="activity-time">1 day ago</span>
-              </div>
-            </div>
-            <div class="activity-item">
-              <div class="activity-icon">✅</div>
-              <div class="activity-content">
-                <p>Project "Green Energy" was verified</p>
-                <span class="activity-time">3 days ago</span>
+                <p>{{ project.title }}</p>
+                <span class="activity-time">
+                  {{ new Date(project.created_at).toLocaleDateString() }}
+                  • {{ project.status }}
+                </span>
               </div>
             </div>
           </div>
@@ -398,6 +448,36 @@ onMounted(() => {
 .activity-time {
   color: var(--ecolink-muted);
   font-size: 12px;
+}
+
+.no-projects {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--ecolink-muted);
+}
+
+.no-projects p {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+}
+
+.no-projects .action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: var(--ecolink-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.no-projects .action-btn:hover {
+  background: var(--ecolink-primary-dark);
 }
 
 .placeholder {
