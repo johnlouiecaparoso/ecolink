@@ -59,7 +59,7 @@ async function handleSubmit() {
   loading.value = true
   try {
     const amount = parseFloat(formData.value.amount)
-    await initiateWithdrawal(null, amount, formData.value.paymentMethod) // userId will be set in service
+    await initiateWithdrawal(amount, formData.value.paymentMethod) // userId will be set in service
     emit('success', { amount, paymentMethod: formData.value.paymentMethod })
 
     // Reset form
@@ -85,8 +85,8 @@ function setMaxAmount() {
 
 async function loadBalance() {
   try {
-    const wallet = await getWalletBalance(null) // userId will be set in service
-    currentBalance.value = wallet.balance || 0
+    const wallet = await getWalletBalance() // userId will be set in service
+    currentBalance.value = wallet.current_balance || 0
   } catch (error) {
     console.error('Error loading balance:', error)
   }

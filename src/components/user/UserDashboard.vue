@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/store/userStore'
 import { ROLES, PERMISSIONS } from '@/constants/roles'
 import { projectService } from '@/services/projectService'
+import { getWalletBalance } from '@/services/walletService'
 import UserProfile from './UserProfile.vue'
 
 const userStore = useUserStore()
@@ -99,9 +100,19 @@ async function loadUserStats() {
     const projects = await projectService.getUserProjects()
     const stats = await projectService.getProjectStats()
 
+    // Load wallet balance
+    let walletBalance = 0
+    try {
+      const wallet = await getWalletBalance()
+      walletBalance = wallet.current_balance || 0
+    } catch (error) {
+      console.error('Error loading wallet balance:', error)
+      // Fallback to 0 if wallet not found
+    }
+
     userStats.value = {
       projects: projects.length,
-      walletBalance: 1250.5, // Mock data - replace with actual wallet API
+      walletBalance: walletBalance,
       kycLevel: userProfile.value?.kyc_level || 0,
     }
 
