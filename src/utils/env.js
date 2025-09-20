@@ -17,3 +17,20 @@ export function requireEnv(name) {
   }
   return value
 }
+
+// Utility function to clear all auth data
+export function clearAuthData() {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          window.localStorage.removeItem(key)
+          console.log('Cleared auth key:', key)
+        }
+      })
+      console.log('All auth data cleared')
+    } catch (e) {
+      console.error('Error clearing auth data:', e)
+    }
+  }
+}

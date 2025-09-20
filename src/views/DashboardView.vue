@@ -1,337 +1,304 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
 
 const router = useRouter()
-const user = ref({ name: 'EcoLink User', email: 'user@ecolink.io' })
+const store = useUserStore()
 
-const modules = [
-  {
-    id: 'user-management',
-    title: 'User Management',
-    description: 'Manage user accounts, roles, and permissions',
-    icon: '👥',
-    color: 'blue',
-    route: '/users',
-  },
-  {
-    id: 'project-registry',
-    title: 'Project Registry',
-    description: 'Register and manage climate projects',
-    icon: '🌱',
-    color: 'green',
-    route: '/projects',
-  },
-  {
-    id: 'marketplace',
-    title: 'Marketplace',
-    description: 'Trade carbon credits and impact tokens',
-    icon: '🏪',
-    color: 'purple',
-    route: '/marketplace',
-  },
-  {
-    id: 'wallet-finance',
-    title: 'Wallet & Finance',
-    description: 'Manage payments and financial transactions',
-    icon: '💳',
-    color: 'orange',
-    route: '/wallet',
-  },
-  {
-    id: 'admin-panel',
-    title: 'Admin Panel',
-    description: 'System administration and configuration',
-    icon: '⚙️',
-    color: 'red',
-    route: '/admin',
-  },
-  {
-    id: 'verifier-panel',
-    title: 'Verifier Panel',
-    description: 'Verify and validate project claims',
-    icon: '✅',
-    color: 'teal',
-    route: '/verifier',
-  },
-  {
-    id: 'analytics-reports',
-    title: 'Analytics & Reports',
-    description: 'View insights and generate reports',
-    icon: '📊',
-    color: 'indigo',
-    route: '/analytics',
-  },
+const user = ref({ name: 'EcoLink User', email: 'user@ecolink.io' })
+const showDebug = ref(import.meta.env?.MODE !== 'production')
+const storageKeys = ref([])
+const windowOrigin = ref('')
+
+function refreshStorageKeys() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      storageKeys.value = Object.keys(window.localStorage).filter((k) => k.startsWith('sb-'))
+    } else {
+      storageKeys.value = []
+    }
+  } catch (e) {
+    storageKeys.value = []
+  }
+}
+refreshStorageKeys()
+
+// Set window origin safely
+if (typeof window !== 'undefined') {
+  windowOrigin.value = window.location.origin
+}
+
+const metrics = ref([
+  { id: 'mrr', title: 'Current MRR', value: '$12.4k' },
+  { id: 'customers', title: 'Current Customers', value: '16,601' },
+  { id: 'active', title: 'Active Customers', value: '33%' },
+  { id: 'churn', title: 'Churn Rate', value: '2%' },
+])
+
+const navItems = [
+  { id: 'overview', label: 'Overview', route: '/dashboard' },
+  { id: 'transactions', label: 'Transactions', route: '/marketplace' },
+  { id: 'customers', label: 'Customers', route: '/users' },
+  { id: 'reports', label: 'Reports', route: '/analytics' },
+  { id: 'settings', label: 'Settings', route: '/admin' },
+  { id: 'developer', label: 'Developer', route: '/verifier' },
 ]
 
-function navigateToModule(route) {
+function navigateTo(route) {
   router.push(route)
+}
+
+async function onSignOut() {
+  await store.logout().catch(() => {})
+  // Ensure local state is cleared and navigate regardless of remote result
+  store.session = null
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith('sb-')) window.localStorage.removeItem(key)
+      })
+    }
+  } catch {}
+  router.replace({ name: 'login' })
 }
 </script>
 
 <template>
-  <div class="dashboard">
-    <header class="dashboard-header">
-      <div class="header-content">
-        <div class="brand-section">
-          <div class="brand-badge">
-            <span class="brand-initials">EC</span>
-          </div>
-          <div>
-            <h1 class="brand-title">EcoLink</h1>
-            <p class="brand-subtitle">Climate Impact Platform</p>
-          </div>
-        </div>
-        <div class="user-section">
-          <div class="user-info">
-            <span class="user-name">{{ user.name }}</span>
-            <span class="user-email">{{ user.email }}</span>
-          </div>
-          <button class="btn btn-ghost" @click="router.push('/login')">Sign Out</button>
-        </div>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-badge"><span class="brand-initials">EC</span></div>
+        <div class="brand-text">EcoLink</div>
       </div>
-    </header>
+      <nav class="sidebar-nav">
+        <button
+          v-for="item in navItems"
+          :key="item.id"
+          type="button"
+          class="nav-item"
+          @click="navigateTo(item.route)"
+        >
+          {{ item.label }}
+        </button>
+      </nav>
+      <div class="sidebar-spacer"></div>
+      <button class="nav-item logout" type="button" @click="onSignOut">Log out</button>
+    </aside>
 
-    <main class="dashboard-main">
-      <div class="dashboard-content">
-        <section class="welcome-section">
-          <h2 class="welcome-title">Welcome back, {{ user.name.split(' ')[0] }}!</h2>
-          <p class="welcome-subtitle">
-            Choose a module to get started with your climate impact work.
-          </p>
+    <div class="content">
+      <header class="topbar">
+        <h1 class="page-title">Dashboard</h1>
+        <div class="user-inline">
+          <div class="user-name">{{ user.name }}</div>
+          <div class="user-email">{{ user.email }}</div>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="metrics">
+          <div v-for="m in metrics" :key="m.id" class="metric-card">
+            <div class="metric-title">{{ m.title }}</div>
+            <div class="metric-value">{{ m.value }}</div>
+          </div>
         </section>
 
-        <section class="modules-grid">
-          <div
-            v-for="module in modules"
-            :key="module.id"
-            class="module-card"
-            :class="`module-card--${module.color}`"
-            @click="navigateToModule(module.route)"
-          >
-            <div class="module-icon">{{ module.icon }}</div>
-            <h3 class="module-title">{{ module.title }}</h3>
-            <p class="module-description">{{ module.description }}</p>
-            <div class="module-arrow">→</div>
+        <section class="grid">
+          <div class="card large">
+            <div class="card-title">Trend</div>
+            <div class="placeholder">Chart placeholder</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Sales</div>
+            <div class="placeholder">Donut placeholder</div>
+          </div>
+          <div class="card">
+            <div class="card-title">Transactions</div>
+            <div class="placeholder">List placeholder</div>
+          </div>
+          <div class="card large">
+            <div class="card-title">Support Tickets</div>
+            <div class="placeholder">Table placeholder</div>
+          </div>
+          <div class="card large">
+            <div class="card-title">Customer Demographic</div>
+            <div class="placeholder">Map placeholder</div>
           </div>
         </section>
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.dashboard {
+.layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
   min-height: 100vh;
   background: var(--ecolink-bg);
 }
 
-.dashboard-header {
-  background: var(--ecolink-surface);
-  border-bottom: 1px solid var(--ecolink-border);
-  box-shadow: var(--shadow-md);
+.sidebar {
+  background: var(--ecolink-primary-700);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 16px;
 }
 
-.header-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px 24px;
+.sidebar-brand {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 8px 18px 8px;
 }
-
-.brand-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
 .brand-badge {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
   background: linear-gradient(135deg, var(--ecolink-primary-500), var(--ecolink-primary-700));
   display: grid;
   place-items: center;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
 }
-
 .brand-initials {
+  color: #fff;
   font-weight: 800;
-  letter-spacing: 0.5px;
-  color: white;
-  font-size: 14px;
+}
+.brand-text {
+  font-weight: 800;
+  font-size: 18px;
 }
 
-.brand-title {
+.sidebar-nav {
+  display: grid;
+  gap: 8px;
+}
+.nav-item {
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.logout {
+  margin-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  padding-top: 14px;
+}
+.sidebar-spacer {
+  flex: 1;
+}
+
+.content {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+.topbar {
+  background: var(--ecolink-surface);
+  border-bottom: 1px solid var(--ecolink-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+}
+.page-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   color: var(--ecolink-primary-700);
 }
-
-.brand-subtitle {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ecolink-muted);
+.user-inline {
+  text-align: right;
 }
-
-.user-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
 .user-name {
   font-weight: 600;
-  color: var(--ecolink-text);
 }
-
 .user-email {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--ecolink-muted);
 }
 
-.dashboard-main {
-  padding: 40px 24px;
+.main {
+  padding: 20px;
 }
-
-.dashboard-content {
-  max-width: 1200px;
-  margin: 0 auto;
+.debug {
+  margin-bottom: 14px;
+  padding: 10px;
+  background: #fff8e1;
+  border: 1px solid #f0d48a;
+  color: #7a5b00;
+  border-radius: 10px;
 }
-
-.welcome-section {
-  text-align: center;
-  margin-bottom: 48px;
-}
-
-.welcome-title {
-  margin: 0 0 12px 0;
-  font-size: 36px;
-  font-weight: 800;
-  color: var(--ecolink-text);
-}
-
-.welcome-subtitle {
-  margin: 0;
-  font-size: 18px;
-  color: var(--ecolink-muted);
-}
-
-.modules-grid {
+.metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.metric-card {
+  background: var(--ecolink-primary-700);
+  color: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow-md);
+}
+.metric-title {
+  opacity: 0.9;
+  font-size: 13px;
+}
+.metric-value {
+  font-size: 28px;
+  font-weight: 800;
+  margin-top: 8px;
 }
 
-.module-card {
+.grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+.card {
   background: var(--ecolink-surface);
   border: 1px solid var(--ecolink-border);
   border-radius: var(--radius);
-  padding: 24px;
-  cursor: pointer;
-  transition: all 200ms ease;
-  position: relative;
-  overflow: hidden;
+  padding: 16px;
 }
-
-.module-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+.card.large {
+  grid-column: span 2;
 }
-
-.module-card--blue {
-  border-left: 4px solid #3b82f6;
-}
-
-.module-card--green {
-  border-left: 4px solid var(--ecolink-primary-500);
-}
-
-.module-card--purple {
-  border-left: 4px solid #8b5cf6;
-}
-
-.module-card--orange {
-  border-left: 4px solid #f59e0b;
-}
-
-.module-card--red {
-  border-left: 4px solid #ef4444;
-}
-
-.module-card--teal {
-  border-left: 4px solid #14b8a6;
-}
-
-.module-card--indigo {
-  border-left: 4px solid #6366f1;
-}
-
-.module-icon {
-  font-size: 32px;
-  margin-bottom: 16px;
-}
-
-.module-title {
-  margin: 0 0 8px 0;
-  font-size: 20px;
+.card-title {
   font-weight: 700;
-  color: var(--ecolink-text);
+  margin-bottom: 10px;
 }
-
-.module-description {
-  margin: 0 0 16px 0;
+.placeholder {
+  height: 220px;
+  border: 1px dashed var(--ecolink-border);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
   color: var(--ecolink-muted);
-  line-height: 1.5;
 }
 
-.module-arrow {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  font-size: 20px;
-  color: var(--ecolink-primary-500);
-  opacity: 0.6;
-  transition: all 200ms ease;
-}
-
-.module-card:hover .module-arrow {
-  opacity: 1;
-  transform: translateX(4px);
-}
-
-@media (max-width: 768px) {
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-    text-align: center;
-  }
-
-  .user-section {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .user-info {
-    align-items: center;
-  }
-
-  .modules-grid {
+@media (max-width: 1100px) {
+  .layout {
     grid-template-columns: 1fr;
-    gap: 16px;
   }
-
-  .welcome-title {
-    font-size: 28px;
+  .sidebar {
+    display: none;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .card.large {
+    grid-column: auto;
   }
 }
 </style>
