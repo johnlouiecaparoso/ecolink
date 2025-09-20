@@ -1,22 +1,52 @@
 import { createClient } from '@supabase/supabase-js'
 import { requireEnv } from '@/utils/env'
 
-// Initialize Supabase using Vite env vars
-// Ensure you set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env
 let supabase
 
-try {
-  const url = requireEnv('VITE_SUPABASE_URL')
-  const key = requireEnv('VITE_SUPABASE_ANON_KEY')
-  supabase = createClient(url, key)
-} catch (err) {
-  // Defer throwing to runtime use-sites to avoid breaking dev server if unset
-  console.warn('[supabase] Not initialized:', err?.message)
+export function initSupabase() {
+  try {
+    const url = requireEnv('VITE_SUPABASE_URL')
+    const key = requireEnv('VITE_SUPABASE_ANON_KEY')
+
+    // Clear any stale tokens before initializing
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        Object.keys(window.localStorage).forEach((key) => {
+          if (key.startsWith('sb-') || key.includes('supabase')) {
+            window.localStorage.removeItem(key)
+          }
+        })
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+    }
+
+    supabase = createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+
+    // Add error handler for auth state changes
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        console.log('Auth state changed:', event)
+      }
+    })
+
+    return supabase
+  } catch (error) {
+    console.error('Failed to initialize Supabase client:', error)
+    // Return a mock client to prevent app crash
+    return null
+  }
 }
 
 export function getSupabase() {
   if (!supabase) {
-    throw new Error('Supabase client not initialized. Check your .env values.')
+    return initSupabase()
   }
   return supabase
 }

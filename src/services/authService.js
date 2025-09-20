@@ -1,34 +1,61 @@
-import { getEnv } from '@/utils/env'
-
-const API_BASE_URL = getEnv('VITE_API_BASE_URL', { optional: true, fallback: '' })
-
-async function post(path, body) {
-  const url = API_BASE_URL ? `${API_BASE_URL}${path}` : path
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(text || `Request failed: ${res.status}`)
-  }
-  return res.json().catch(() => ({}))
-}
+import { getSupabase } from '@/services/supabaseClient'
 
 export async function loginWithEmail({ email, password }) {
-  // If API base not provided, simulate for now
-  if (!API_BASE_URL) {
-    await new Promise((r) => setTimeout(r, 600))
-    return { user: { email } }
+  const supabase = getSupabase()
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) {
+    throw new Error(error.message || 'Invalid credentials or account not registered.')
   }
-  return post('/auth/login', { email, password })
+  return data
 }
 
 export async function registerWithEmail({ name, email, password }) {
-  if (!API_BASE_URL) {
-    await new Promise((r) => setTimeout(r, 700))
-    return { user: { name, email } }
+  const supabase = getSupabase()
+  const redirectTo = typeof window !== 'undefined' ? window.location.origin + '/login' : undefined
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: { name },
+      emailRedirectTo: redirectTo,
+    },
+  })
+  if (error) {
+    throw new Error(error.message || 'Unable to register. Please try again.')
   }
-  return post('/auth/register', { name, email, password })
+  return data
+}
+
+export async function getSession() {
+  try {
+    const supabase = getSupabase()
+    if (!supabase) {
+      console.warn('Supabase client not available')
+      return null
+    }
+    const { data } = await supabase.auth.getSession()
+    return data.session || null
+  } catch (error) {
+    console.error('Error getting session:', error)
+    return null
+  }
+}
+
+export async function signOut() {
+  const supabase = getSupabase()
+  try {
+    await supabase.auth.signOut({ scope: 'global' })
+  } catch (e) {
+    // ignore but continue clearing local state
+  }
+  try {
+    // Clear any persisted Supabase auth tokens to avoid stale sessions after refresh
+    if (typeof window !== 'undefined' && window.localStorage) {
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          window.localStorage.removeItem(key)
+        }
+      })
+    }
+  } catch (e) {}
 }
