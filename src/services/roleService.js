@@ -2,6 +2,7 @@ import { getSupabase } from '@/services/supabaseClient'
 import {
   ROLES,
   PERMISSIONS,
+  ROLE_PERMISSIONS,
   hasPermission,
   hasAnyPermission,
   hasAllPermissions,
