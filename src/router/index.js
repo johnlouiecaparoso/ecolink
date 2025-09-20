@@ -11,6 +11,7 @@ const WalletView = () => import('@/views/WalletView.vue')
 const AdminView = () => import('@/views/AdminView.vue')
 const VerifierView = () => import('@/views/VerifierView.vue')
 const AnalyticsView = () => import('@/views/AnalyticsView.vue')
+const DatabaseManagementView = () => import('@/views/DatabaseManagementView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -39,6 +40,12 @@ const router = createRouter({
       path: '/analytics',
       name: 'analytics',
       component: AnalyticsView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/database',
+      name: 'database',
+      component: DatabaseManagementView,
       meta: { requiresAuth: true },
     },
   ],
