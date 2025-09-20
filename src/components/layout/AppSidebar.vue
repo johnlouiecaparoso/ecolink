@@ -60,6 +60,7 @@ export default {
       { id: 'analytics', label: 'Analytics', route: '/analytics', icon: '📊' },
       { id: 'admin', label: 'Admin', route: '/admin', icon: '⚙️' },
       { id: 'database', label: 'Database', route: '/database', icon: '🗄️' },
+      { id: 'tables', label: 'Tables', route: '/tables', icon: '📋' },
     ]
 
     const userInitials = computed(() => {

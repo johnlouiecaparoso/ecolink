@@ -8,7 +8,7 @@ export async function getWalletBalance(userId) {
 
   const { data, error } = await supabase
     .from('wallet_accounts')
-    .select('balance, currency')
+    .select('current_balance, currency')
     .eq('user_id', userId)
     .single()
 
@@ -33,7 +33,7 @@ export async function createWallet(userId) {
     .insert([
       {
         user_id: userId,
-        balance: 0,
+        current_balance: 0,
         currency: 'PHP',
       },
     ])
@@ -52,11 +52,22 @@ export async function getTransactions(userId, limit = 50) {
     throw new Error('Supabase client not available')
   }
 
+  // First get the wallet account for this user
+  const { data: walletAccount, error: walletError } = await supabase
+    .from('wallet_accounts')
+    .select('id')
+    .eq('user_id', userId)
+    .single()
+
+  if (walletError || !walletAccount) {
+    return []
+  }
+
+  // Then get transactions for this account
   const { data, error } = await supabase
     .from('wallet_transactions')
     .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
+    .eq('account_id', walletAccount.id)
     .limit(limit)
 
   if (error) {
