@@ -18,7 +18,6 @@ const metrics = ref([
 
 // Navigation items
 const navItems = [
-  { id: 'overview', label: 'Overview', route: '/home', icon: '📊' },
   { id: 'dashboard', label: 'Dashboard', route: '/dashboard', icon: '📊' },
   { id: 'transactions', label: 'Transactions', route: '/marketplace', icon: '🔄' },
   { id: 'customers', label: 'Customers', route: '/users', icon: '👥' },

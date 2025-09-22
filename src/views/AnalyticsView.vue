@@ -10,6 +10,10 @@ const router = useRouter()
     <div class="analytics-content">
       <div class="content-header">
         <div class="header-info">
+          <button class="btn btn-ghost back-btn" @click="router.push('/dashboard')">
+            <span class="back-icon">←</span>
+            Back to Dashboard
+          </button>
           <h1 class="page-title">Analytics & Reports</h1>
           <p class="page-subtitle">View insights and generate reports</p>
         </div>
@@ -157,6 +161,33 @@ const router = useRouter()
   justify-content: space-between;
   padding: 1.5rem 0;
   border-bottom: 1px solid var(--ecolink-border);
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.back-btn:hover {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #10b981;
+}
+
+.back-icon {
+  font-size: 16px;
+  font-weight: bold;
 }
 
 .header-info {
