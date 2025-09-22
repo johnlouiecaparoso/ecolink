@@ -30,30 +30,58 @@ const router = createRouter({
     { path: '/login', name: 'login', component: LoginView },
     { path: '/register', name: 'register', component: RegisterView },
 
-    // User routes
+    // General User routes
     {
       path: '/dashboard',
       name: 'dashboard',
       component: DashboardView,
-      meta: { requiresAuth: true, roles: [ROLES.USER, ROLES.ADMIN, ROLES.SUPER_ADMIN] },
-    },
-    {
-      path: '/projects',
-      name: 'projects',
-      component: ProjectsView,
-      meta: { requiresAuth: true, roles: [ROLES.USER, ROLES.ADMIN, ROLES.SUPER_ADMIN] },
-    },
-    {
-      path: '/marketplace',
-      name: 'marketplace',
-      component: MarketplaceView,
-      meta: { requiresAuth: true, roles: [ROLES.USER, ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.GENERAL_USER] },
     },
     {
       path: '/wallet',
       name: 'wallet',
       component: WalletView,
-      meta: { requiresAuth: true, roles: [ROLES.USER, ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.GENERAL_USER] },
+    },
+    {
+      path: '/certificates',
+      name: 'certificates',
+      component: () => import('@/views/CertificatesView.vue'),
+      meta: { requiresAuth: true, roles: [ROLES.GENERAL_USER] },
+    },
+
+    // Project Developer routes
+    {
+      path: '/projects',
+      name: 'projects',
+      component: ProjectsView,
+      meta: { requiresAuth: true, roles: [ROLES.PROJECT_DEVELOPER] },
+    },
+    {
+      path: '/sales',
+      name: 'sales',
+      component: () => import('@/views/SalesView.vue'),
+      meta: { requiresAuth: true, roles: [ROLES.PROJECT_DEVELOPER] },
+    },
+
+    // Buyer/Investor routes
+    {
+      path: '/marketplace',
+      name: 'marketplace',
+      component: MarketplaceView,
+      meta: { requiresAuth: true, roles: [ROLES.BUYER_INVESTOR] },
+    },
+    {
+      path: '/buy-credits',
+      name: 'buy-credits',
+      component: () => import('@/views/BuyCreditsView.vue'),
+      meta: { requiresAuth: true, roles: [ROLES.BUYER_INVESTOR] },
+    },
+    {
+      path: '/receipts',
+      name: 'receipts',
+      component: () => import('@/views/ReceiptsView.vue'),
+      meta: { requiresAuth: true, roles: [ROLES.BUYER_INVESTOR] },
     },
 
     // Admin routes
@@ -61,31 +89,31 @@ const router = createRouter({
       path: '/admin',
       name: 'admin',
       component: AdminView,
-      meta: { requiresAuth: true, roles: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
     {
       path: '/users',
       name: 'users',
       component: UsersView,
-      meta: { requiresAuth: true, roles: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
     {
       path: '/analytics',
       name: 'analytics',
       component: AnalyticsView,
-      meta: { requiresAuth: true, roles: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
     {
       path: '/database',
       name: 'database',
       component: DatabaseManagementView,
-      meta: { requiresAuth: true, roles: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
     {
       path: '/tables',
       name: 'tables',
       component: TableManagementView,
-      meta: { requiresAuth: true, roles: [ROLES.ADMIN, ROLES.SUPER_ADMIN] },
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
 
     // Verifier routes

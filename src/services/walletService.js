@@ -24,12 +24,15 @@ export async function getWalletBalance(userId = null) {
     .single()
 
   if (error) {
+    console.log('Wallet fetch error:', error)
     // If no wallet exists, create one
     if (error.code === 'PGRST116') {
+      console.log('No wallet found, creating new wallet for user:', userId)
       return await createWallet(userId)
     }
     throw new Error(error.message || 'Failed to fetch wallet balance')
   }
+  console.log('Wallet balance fetched:', data)
   return data
 }
 
@@ -210,6 +213,11 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
     }
 
     // Create pending transaction
+    console.log('Creating top-up transaction:', {
+      account_id: walletAccount.id,
+      amount,
+      paymentMethod,
+    })
     const transaction = await createTransaction({
       account_id: walletAccount.id,
       amount: amount,
@@ -219,6 +227,7 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
       description: `Top-up via ${paymentMethod.toUpperCase()}`,
       reference_id: generateReferenceId(),
     })
+    console.log('Transaction created:', transaction)
 
     // In a real implementation, this would call the payment gateway API
     // For now, we'll simulate a successful payment after 2 seconds
@@ -304,12 +313,23 @@ export async function initiateWithdrawal(userId = null, amount, paymentMethod = 
 
 async function updateTransactionStatus(transactionId, status) {
   const supabase = getSupabase()
-  if (!supabase) return
+  if (!supabase) {
+    console.error('Supabase client not available for transaction update')
+    return
+  }
 
-  await supabase
-    .from('wallet_transactions')
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', transactionId)
+  try {
+    const { error } = await supabase
+      .from('wallet_transactions')
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq('id', transactionId)
+
+    if (error) {
+      console.error('Error updating transaction status:', error)
+    }
+  } catch (error) {
+    console.error('Failed to update transaction status:', error)
+  }
 }
 
 function generateReferenceId() {

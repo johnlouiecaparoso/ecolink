@@ -9,8 +9,10 @@ const userInfo = computed(() => ({
   name: userStore.profile?.full_name || 'User',
   role: userStore.role,
   isAdmin: userStore.isAdmin,
-  isSuperAdmin: userStore.isSuperAdmin,
+  isGeneralUser: userStore.isGeneralUser,
+  isProjectDeveloper: userStore.isProjectDeveloper,
   isVerifier: userStore.isVerifier,
+  isBuyerInvestor: userStore.isBuyerInvestor,
   permissions: userStore.permissions,
 }))
 
@@ -28,8 +30,10 @@ const canManageProjects = computed(() => userStore.hasPermission(PERMISSIONS.MAN
       <p><strong>Name:</strong> {{ userInfo.name }}</p>
       <p><strong>Role:</strong> {{ userInfo.role }}</p>
       <p><strong>Is Admin:</strong> {{ userInfo.isAdmin ? 'Yes' : 'No' }}</p>
-      <p><strong>Is Super Admin:</strong> {{ userInfo.isSuperAdmin ? 'Yes' : 'No' }}</p>
+      <p><strong>Is General User:</strong> {{ userInfo.isGeneralUser ? 'Yes' : 'No' }}</p>
+      <p><strong>Is Project Developer:</strong> {{ userInfo.isProjectDeveloper ? 'Yes' : 'No' }}</p>
       <p><strong>Is Verifier:</strong> {{ userInfo.isVerifier ? 'Yes' : 'No' }}</p>
+      <p><strong>Is Buyer/Investor:</strong> {{ userInfo.isBuyerInvestor ? 'Yes' : 'No' }}</p>
     </div>
 
     <div class="permissions">
@@ -67,12 +71,6 @@ const canManageProjects = computed(() => userStore.hasPermission(PERMISSIONS.MAN
       <div v-if="userInfo.isAdmin" class="admin-content">
         <p>This content is only visible to administrators.</p>
         <p>You have access to user management and system settings.</p>
-      </div>
-
-      <!-- Super Admin content -->
-      <div v-if="userInfo.isSuperAdmin" class="super-admin-content">
-        <p>This content is only visible to super administrators.</p>
-        <p>You have full system access and can manage all roles.</p>
       </div>
 
       <!-- Verifier content -->
