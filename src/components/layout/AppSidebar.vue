@@ -42,7 +42,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getProfile } from '@/services/profileService'
-import { ROLES, PERMISSIONS } from '@/constants/roles'
+import { ROLES, PERMISSIONS, getRoleDisplayName } from '@/constants/roles'
 
 export default {
   name: 'AppSidebar',
@@ -52,7 +52,7 @@ export default {
     const userProfile = ref(null)
 
     const allNavItems = [
-      // General User items
+      // General User items - Dashboard, Wallet, Certificates
       {
         id: 'dashboard',
         label: 'Dashboard',
@@ -78,7 +78,7 @@ export default {
         roles: [ROLES.GENERAL_USER],
       },
 
-      // Project Developer items
+      // Project Developer items - Projects, Sales Dashboard
       {
         id: 'projects',
         label: 'Projects',
@@ -96,7 +96,7 @@ export default {
         roles: [ROLES.PROJECT_DEVELOPER],
       },
 
-      // Buyer/Investor items
+      // Buyer/Investor items - Marketplace, Buy Credits, Receipts
       {
         id: 'marketplace',
         label: 'Marketplace',
@@ -122,20 +122,20 @@ export default {
         roles: [ROLES.BUYER_INVESTOR],
       },
 
-      // Verifier items
+      // Verifier items - Only Verifier dashboard
       {
         id: 'verifier',
-        label: 'Verifier',
+        label: 'Verifier Dashboard',
         route: '/verifier',
         icon: '✅',
         permission: PERMISSIONS.ACCESS_PROJECTS,
         roles: [ROLES.VERIFIER],
       },
 
-      // Admin items
+      // Admin items - All admin features
       {
         id: 'admin',
-        label: 'Admin',
+        label: 'Admin Dashboard',
         route: '/admin',
         icon: '⚙️',
         permission: PERMISSIONS.VIEW_ADMIN_PANEL,
@@ -205,19 +205,7 @@ export default {
 
     const userRoleDisplay = computed(() => {
       const role = userProfile.value?.role || store.role
-      switch (role) {
-        case ROLES.ADMIN:
-          return 'Administrator'
-        case ROLES.VERIFIER:
-          return 'Verifier'
-        case ROLES.PROJECT_DEVELOPER:
-          return 'Project Developer'
-        case ROLES.BUYER_INVESTOR:
-          return 'Buyer/Investor'
-        case ROLES.GENERAL_USER:
-        default:
-          return 'General User'
-      }
+      return getRoleDisplayName(role)
     })
 
     async function loadUserProfile() {

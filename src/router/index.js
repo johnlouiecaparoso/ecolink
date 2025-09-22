@@ -148,7 +148,7 @@ router.beforeEach(async (to) => {
         console.warn(`Access denied: User with role '${userRole}' cannot access route '${to.path}'`)
         // Redirect to appropriate default route based on user role
         const defaultRoute = getDefaultRouteForRole(userRole)
-        return { name: defaultRoute.replace('/', '') }
+        return { path: defaultRoute }
       }
     }
   }
@@ -156,7 +156,7 @@ router.beforeEach(async (to) => {
   // If user is logged in and trying to access login/register, redirect to appropriate dashboard
   if ((to.name === 'login' || to.name === 'register') && store.session && store.session.user) {
     const defaultRoute = getDefaultRouteForRole(store.role)
-    return { name: defaultRoute.replace('/', '') }
+    return { path: defaultRoute }
   }
 })
 

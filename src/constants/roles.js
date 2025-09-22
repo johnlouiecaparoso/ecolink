@@ -1,6 +1,6 @@
 // User roles and permissions
 export const ROLES = {
-  GENERAL_USER: 'general_user',
+  GENERAL_USER: 'user', // Changed to match database
   PROJECT_DEVELOPER: 'project_developer',
   VERIFIER: 'verifier',
   BUYER_INVESTOR: 'buyer_investor',
@@ -191,4 +191,31 @@ export function getDefaultRouteForRole(userRole) {
     default:
       return '/dashboard'
   }
+}
+
+// Helper function to get role display name
+export function getRoleDisplayName(userRole) {
+  switch (userRole) {
+    case ROLES.ADMIN:
+      return 'Administrator'
+    case ROLES.VERIFIER:
+      return 'Verifier'
+    case ROLES.PROJECT_DEVELOPER:
+      return 'Project Developer'
+    case ROLES.BUYER_INVESTOR:
+      return 'Buyer/Investor'
+    case ROLES.GENERAL_USER:
+    default:
+      return 'General User'
+  }
+}
+
+// Helper function to check if role is a standard user (not admin/verifier)
+export function isStandardUser(userRole) {
+  return [ROLES.GENERAL_USER, ROLES.PROJECT_DEVELOPER, ROLES.BUYER_INVESTOR].includes(userRole)
+}
+
+// Helper function to check if role is a management user
+export function isManagementUser(userRole) {
+  return [ROLES.ADMIN, ROLES.VERIFIER].includes(userRole)
 }

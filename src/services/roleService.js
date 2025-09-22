@@ -25,7 +25,7 @@ export class RoleService {
    * @returns {Promise<string>} User role
    */
   async getUserRole(userId) {
-    if (!this.supabase || !userId) return ROLES.USER
+    if (!this.supabase || !userId) return ROLES.GENERAL_USER
 
     try {
       const { data, error } = await this.supabase
