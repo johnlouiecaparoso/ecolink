@@ -1,98 +1,295 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import PageLayout from '@/components/layout/PageLayout.vue'
 
 const router = useRouter()
 </script>
 
 <template>
-  <div class="module-page">
-    <header class="module-header">
-      <button class="btn btn-ghost" @click="router.push('/dashboard')">← Back to Dashboard</button>
-      <h1 class="module-title">User Management</h1>
-      <p class="module-subtitle">Manage user accounts, roles, and permissions</p>
-    </header>
-
-    <main class="module-content">
-      <div class="placeholder-card">
-        <div class="placeholder-icon">👥</div>
-        <h2>User Management Module</h2>
-        <p>This module will contain user management functionality including:</p>
-        <ul>
-          <li>User account creation and management</li>
-          <li>Role and permission assignment</li>
-          <li>User activity monitoring</li>
-          <li>Account verification and approval</li>
-        </ul>
+  <PageLayout>
+    <div class="users-content">
+      <div class="content-header">
+        <div class="header-info">
+          <h1 class="page-title">User Management</h1>
+          <p class="page-subtitle">Manage user accounts, roles, and permissions</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary">+ Add User</button>
+        </div>
       </div>
-    </main>
-  </div>
+
+      <div class="users-grid">
+        <!-- User Statistics -->
+        <div class="stats-cards">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <h3>Total Users</h3>
+              <p class="stat-number">1,247</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-content">
+              <h3>Active Users</h3>
+              <p class="stat-number">1,156</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🆕</div>
+            <div class="stat-content">
+              <h3>New This Month</h3>
+              <p class="stat-number">89</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🔒</div>
+            <div class="stat-content">
+              <h3>Pending Approval</h3>
+              <p class="stat-number">23</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- User Management Table -->
+        <div class="users-table-card">
+          <div class="table-header">
+            <h3>All Users</h3>
+            <div class="table-actions">
+              <input type="text" placeholder="Search users..." class="search-input" />
+              <select class="filter-select">
+                <option>All Roles</option>
+                <option>User</option>
+                <option>Verifier</option>
+                <option>Admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="table-content">
+            <div class="placeholder-content">
+              <div class="placeholder-icon">👥</div>
+              <h3>User Management Coming Soon</h3>
+              <p>This module will contain user management functionality including:</p>
+              <ul>
+                <li>User account creation and management</li>
+                <li>Role and permission assignment</li>
+                <li>User activity monitoring</li>
+                <li>Account verification and approval</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </PageLayout>
 </template>
 
 <style scoped>
-.module-page {
-  min-height: 100vh;
-  background: var(--ecolink-bg);
+.users-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
-.module-header {
-  background: var(--ecolink-surface);
+.content-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 0;
   border-bottom: 1px solid var(--ecolink-border);
-  padding: 24px;
 }
 
-.module-title {
-  margin: 16px 0 8px 0;
-  font-size: 32px;
+.header-info {
+  flex: 1;
+}
+
+.page-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 2rem;
   font-weight: 800;
   color: var(--ecolink-text);
 }
 
-.module-subtitle {
+.page-subtitle {
   margin: 0;
-  font-size: 16px;
+  font-size: 1rem;
   color: var(--ecolink-muted);
 }
 
-.module-content {
-  padding: 40px 24px;
-  max-width: 1200px;
-  margin: 0 auto;
+.header-actions {
+  display: flex;
+  gap: 1rem;
 }
 
-.placeholder-card {
+.users-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.stats-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
   background: var(--ecolink-surface);
   border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
-  padding: 48px;
-  text-align: center;
+  border-radius: 12px;
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
   box-shadow: var(--shadow-md);
 }
 
-.placeholder-icon {
-  font-size: 64px;
-  margin-bottom: 24px;
+.stat-icon {
+  font-size: 2rem;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ecolink-primary-50);
+  border-radius: 8px;
 }
 
-.placeholder-card h2 {
-  margin: 0 0 16px 0;
-  font-size: 24px;
+.stat-content {
+  flex: 1;
+}
+
+.stat-content h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ecolink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-number {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--ecolink-text);
+}
+
+.users-table-card {
+  background: var(--ecolink-surface);
+  border: 1px solid var(--ecolink-border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+}
+
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: var(--ecolink-primary-50);
+  border-bottom: 1px solid var(--ecolink-primary-200);
+}
+
+.table-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ecolink-primary-700);
+}
+
+.table-actions {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.search-input {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ecolink-border);
+  border-radius: 6px;
+  background: var(--ecolink-surface);
+  color: var(--ecolink-text);
+  font-size: 0.875rem;
+  min-width: 200px;
+}
+
+.filter-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--ecolink-border);
+  border-radius: 6px;
+  background: var(--ecolink-surface);
+  color: var(--ecolink-text);
+  font-size: 0.875rem;
+}
+
+.table-content {
+  padding: 2rem;
+}
+
+.placeholder-content {
+  text-align: center;
+  padding: 2rem;
+}
+
+.placeholder-icon {
+  font-size: 4rem;
+  margin-bottom: 1.5rem;
+  opacity: 0.5;
+}
+
+.placeholder-content h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.5rem;
   font-weight: 700;
   color: var(--ecolink-text);
 }
 
-.placeholder-card p {
-  margin: 0 0 16px 0;
+.placeholder-content p {
+  margin: 0 0 1.5rem 0;
   color: var(--ecolink-muted);
+  font-size: 1rem;
 }
 
-.placeholder-card ul {
+.placeholder-content ul {
   text-align: left;
-  max-width: 400px;
+  max-width: 500px;
   margin: 0 auto;
   color: var(--ecolink-muted);
+  font-size: 0.875rem;
 }
 
-.placeholder-card li {
-  margin-bottom: 8px;
+.placeholder-content li {
+  margin-bottom: 0.5rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .content-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .stats-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .table-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .table-actions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input {
+    min-width: auto;
+  }
 }
 </style>

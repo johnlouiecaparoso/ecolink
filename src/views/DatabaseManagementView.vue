@@ -3,213 +3,221 @@
     <AppSidebar />
     <div class="main-content">
       <div class="database-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1 class="page-title">Database Management</h1>
-        <p class="page-subtitle">Manage your Supabase database tables and schemas</p>
-      </div>
-    </div>
-
-    <!-- Content -->
-    <div class="page-content">
-      <!-- Tables Overview -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">Database Tables</h2>
-          <div class="section-actions">
-            <button @click="refreshTables" class="btn btn-secondary" :disabled="loading">
-              <span v-if="loading" class="loading-spinner"></span>
-              Refresh Tables
-            </button>
+        <!-- Header -->
+        <div class="page-header">
+          <div class="header-content">
+            <h1 class="page-title">Database Management</h1>
+            <p class="page-subtitle">Manage your Supabase database tables and schemas</p>
           </div>
         </div>
 
-        <!-- Tables Grid -->
-        <div class="tables-grid" v-if="!loading && tables.length > 0">
-          <div
-            v-for="table in tables"
-            :key="table.table_name"
-            class="table-card"
-            @click="selectTable(table.table_name)"
-            :class="{ active: selectedTable === table.table_name }"
-          >
-            <div class="table-header">
-              <h3 class="table-name">{{ table.table_name }}</h3>
-              <span class="table-type">{{ table.table_type }}</span>
+        <!-- Content -->
+        <div class="page-content">
+          <!-- Tables Overview -->
+          <div class="section">
+            <div class="section-header">
+              <h2 class="section-title">Database Tables</h2>
+              <div class="section-actions">
+                <button @click="refreshTables" class="btn btn-secondary" :disabled="loading">
+                  <span v-if="loading" class="loading-spinner"></span>
+                  Refresh Tables
+                </button>
+              </div>
             </div>
-            <div class="table-actions">
-              <button @click.stop="viewTableData(table.table_name)" class="btn btn-sm btn-primary">
-                View Data
-              </button>
-              <button @click.stop="viewTableSchema(table.table_name)" class="btn btn-sm btn-secondary">
-                Schema
-              </button>
-              <button @click.stop="dropTable(table.table_name)" class="btn btn-sm btn-danger">
-                Drop
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <!-- Loading State -->
-        <div v-if="loading" class="loading-state">
-          <div class="loading-spinner"></div>
-          <p class="loading-text">Loading tables...</p>
-        </div>
-
-        <!-- Empty State -->
-        <div v-if="!loading && tables.length === 0" class="empty-state">
-          <div class="empty-icon">🗄️</div>
-          <h3>No Tables Found</h3>
-          <p>No database tables were found. Create some tables to get started.</p>
-        </div>
-      </div>
-
-      <!-- Quick Actions -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">Quick Actions</h2>
-        </div>
-
-        <div class="quick-actions">
-          <div class="action-group">
-            <h3>Create Tables</h3>
-            <div class="action-buttons">
-              <button
-                v-for="(schema, tableName) in tableSchemas"
-                :key="tableName"
-                @click="createTable(tableName, schema)"
-                class="btn btn-primary"
-                :disabled="creatingTable"
+            <!-- Tables Grid -->
+            <div class="tables-grid" v-if="!loading && tables.length > 0">
+              <div
+                v-for="table in tables"
+                :key="table.table_name"
+                class="table-card"
+                @click="selectTable(table.table_name)"
+                :class="{ active: selectedTable === table.table_name }"
               >
-                Create {{ tableName.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) }}
-              </button>
+                <div class="table-header">
+                  <h3 class="table-name">{{ table.table_name }}</h3>
+                  <span class="table-type">{{ table.table_type }}</span>
+                </div>
+                <div class="table-actions">
+                  <button
+                    @click.stop="viewTableData(table.table_name)"
+                    class="btn btn-sm btn-primary"
+                  >
+                    View Data
+                  </button>
+                  <button
+                    @click.stop="viewTableSchema(table.table_name)"
+                    class="btn btn-sm btn-secondary"
+                  >
+                    Schema
+                  </button>
+                  <button @click.stop="dropTable(table.table_name)" class="btn btn-sm btn-danger">
+                    Drop
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Loading State -->
+            <div v-if="loading" class="loading-state">
+              <div class="loading-spinner"></div>
+              <p class="loading-text">Loading tables...</p>
+            </div>
+
+            <!-- Empty State -->
+            <div v-if="!loading && tables.length === 0" class="empty-state">
+              <div class="empty-icon">🗄️</div>
+              <h3>No Tables Found</h3>
+              <p>No database tables were found. Create some tables to get started.</p>
             </div>
           </div>
 
-          <div class="action-group">
-            <h3>Database Setup</h3>
-            <div class="action-buttons">
-              <button @click="runFullSetup" class="btn btn-success" :disabled="runningSetup">
-                Run Complete Setup
-              </button>
-              <button @click="enableRLS" class="btn btn-warning" :disabled="runningSetup">
-                Enable RLS
-              </button>
-              <button @click="createIndexes" class="btn btn-info" :disabled="runningSetup">
-                Create Indexes
-              </button>
+          <!-- Quick Actions -->
+          <div class="section">
+            <div class="section-header">
+              <h2 class="section-title">Quick Actions</h2>
+            </div>
+
+            <div class="quick-actions">
+              <div class="action-group">
+                <h3>Create Tables</h3>
+                <div class="action-buttons">
+                  <button
+                    v-for="(schema, tableName) in tableSchemas"
+                    :key="tableName"
+                    @click="createTable(tableName, schema)"
+                    class="btn btn-primary"
+                    :disabled="creatingTable"
+                  >
+                    Create
+                    {{ tableName.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase()) }}
+                  </button>
+                </div>
+              </div>
+
+              <div class="action-group">
+                <h3>Database Setup</h3>
+                <div class="action-buttons">
+                  <button @click="runFullSetup" class="btn btn-success" :disabled="runningSetup">
+                    Run Complete Setup
+                  </button>
+                  <button @click="enableRLS" class="btn btn-warning" :disabled="runningSetup">
+                    Enable RLS
+                  </button>
+                  <button @click="createIndexes" class="btn btn-info" :disabled="runningSetup">
+                    Create Indexes
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SQL Query Interface -->
+          <div class="section">
+            <div class="section-header">
+              <h2 class="section-title">SQL Query Interface</h2>
+            </div>
+
+            <div class="sql-interface">
+              <div class="sql-input">
+                <textarea
+                  v-model="sqlQuery"
+                  placeholder="Enter your SQL query here..."
+                  class="sql-textarea"
+                  rows="6"
+                ></textarea>
+              </div>
+              <div class="sql-actions">
+                <button @click="executeQuery" class="btn btn-primary" :disabled="executingQuery">
+                  <span v-if="executingQuery" class="loading-spinner"></span>
+                  Execute Query
+                </button>
+                <button @click="clearQuery" class="btn btn-secondary">Clear</button>
+              </div>
+            </div>
+
+            <!-- Query Results -->
+            <div v-if="queryResult" class="query-results">
+              <div class="results-header">
+                <h3>Query Results</h3>
+                <span class="result-status" :class="queryResult.success ? 'success' : 'error'">
+                  {{ queryResult.success ? 'Success' : 'Error' }}
+                </span>
+              </div>
+              <div class="results-content">
+                <pre v-if="queryResult.success">{{
+                  JSON.stringify(queryResult.data, null, 2)
+                }}</pre>
+                <pre v-else class="error-message">{{ queryResult.error }}</pre>
+              </div>
+            </div>
+          </div>
+
+          <!-- Table Details Modal -->
+          <div v-if="showTableModal" class="modal-overlay" @click="closeTableModal">
+            <div class="modal-content" @click.stop>
+              <div class="modal-header">
+                <h3>{{ modalTitle }}</h3>
+                <button @click="closeTableModal" class="modal-close">&times;</button>
+              </div>
+              <div class="modal-body">
+                <div v-if="modalType === 'data'" class="table-data">
+                  <div v-if="tableData.length === 0" class="empty-data">
+                    <p>No data found in this table.</p>
+                  </div>
+                  <div v-else class="data-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th v-for="column in Object.keys(tableData[0])" :key="column">
+                            {{ column }}
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, index) in tableData.slice(0, 50)" :key="index">
+                          <td v-for="(value, column) in row" :key="column">
+                            {{ value }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p v-if="tableData.length > 50" class="data-note">
+                      Showing first 50 rows of {{ tableData.length }} total rows.
+                    </p>
+                  </div>
+                </div>
+
+                <div v-if="modalType === 'schema'" class="table-schema">
+                  <div v-if="tableSchema.length === 0" class="empty-schema">
+                    <p>No schema information found.</p>
+                  </div>
+                  <div v-else class="schema-table">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Column Name</th>
+                          <th>Data Type</th>
+                          <th>Nullable</th>
+                          <th>Default Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="column in tableSchema" :key="column.column_name">
+                          <td>{{ column.column_name }}</td>
+                          <td>{{ column.data_type }}</td>
+                          <td>{{ column.is_nullable }}</td>
+                          <td>{{ column.column_default }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
-
-      <!-- SQL Query Interface -->
-      <div class="section">
-        <div class="section-header">
-          <h2 class="section-title">SQL Query Interface</h2>
-        </div>
-
-        <div class="sql-interface">
-          <div class="sql-input">
-            <textarea
-              v-model="sqlQuery"
-              placeholder="Enter your SQL query here..."
-              class="sql-textarea"
-              rows="6"
-            ></textarea>
-          </div>
-          <div class="sql-actions">
-            <button @click="executeQuery" class="btn btn-primary" :disabled="executingQuery">
-              <span v-if="executingQuery" class="loading-spinner"></span>
-              Execute Query
-            </button>
-            <button @click="clearQuery" class="btn btn-secondary">
-              Clear
-            </button>
-          </div>
-        </div>
-
-        <!-- Query Results -->
-        <div v-if="queryResult" class="query-results">
-          <div class="results-header">
-            <h3>Query Results</h3>
-            <span class="result-status" :class="queryResult.success ? 'success' : 'error'">
-              {{ queryResult.success ? 'Success' : 'Error' }}
-            </span>
-          </div>
-          <div class="results-content">
-            <pre v-if="queryResult.success">{{ JSON.stringify(queryResult.data, null, 2) }}</pre>
-            <pre v-else class="error-message">{{ queryResult.error }}</pre>
-          </div>
-        </div>
-      </div>
-
-      <!-- Table Details Modal -->
-      <div v-if="showTableModal" class="modal-overlay" @click="closeTableModal">
-        <div class="modal-content" @click.stop>
-          <div class="modal-header">
-            <h3>{{ modalTitle }}</h3>
-            <button @click="closeTableModal" class="modal-close">&times;</button>
-          </div>
-          <div class="modal-body">
-            <div v-if="modalType === 'data'" class="table-data">
-              <div v-if="tableData.length === 0" class="empty-data">
-                <p>No data found in this table.</p>
-              </div>
-              <div v-else class="data-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th v-for="column in Object.keys(tableData[0])" :key="column">
-                        {{ column }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, index) in tableData.slice(0, 50)" :key="index">
-                      <td v-for="(value, column) in row" :key="column">
-                        {{ value }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-                <p v-if="tableData.length > 50" class="data-note">
-                  Showing first 50 rows of {{ tableData.length }} total rows.
-                </p>
-              </div>
-            </div>
-
-            <div v-if="modalType === 'schema'" class="table-schema">
-              <div v-if="tableSchema.length === 0" class="empty-schema">
-                <p>No schema information found.</p>
-              </div>
-              <div v-else class="schema-table">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Column Name</th>
-                      <th>Data Type</th>
-                      <th>Nullable</th>
-                      <th>Default Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="column in tableSchema" :key="column.column_name">
-                      <td>{{ column.column_name }}</td>
-                      <td>{{ column.data_type }}</td>
-                      <td>{{ column.is_nullable }}</td>
-                      <td>{{ column.column_default }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
     </div>
   </div>
 </template>
@@ -222,7 +230,7 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 export default {
   name: 'DatabaseManagementView',
   components: {
-    AppSidebar
+    AppSidebar,
   },
   setup() {
     const tables = ref([])
@@ -311,7 +319,11 @@ export default {
     }
 
     const dropTable = async (tableName) => {
-      if (!confirm(`Drop table "${tableName}"? This will show you the SQL to run in Supabase. This action cannot be undone.`)) {
+      if (
+        !confirm(
+          `Drop table "${tableName}"? This will show you the SQL to run in Supabase. This action cannot be undone.`,
+        )
+      ) {
         return
       }
 
@@ -325,7 +337,9 @@ export default {
           const sqlToRun = `DROP TABLE IF EXISTS public.${tableName} CASCADE;`
           if (navigator.clipboard) {
             await navigator.clipboard.writeText(sqlToRun)
-            alert(`SQL copied to clipboard! Please run it in Supabase SQL Editor.\n\nTable: ${tableName}`)
+            alert(
+              `SQL copied to clipboard! Please run it in Supabase SQL Editor.\n\nTable: ${tableName}`,
+            )
           } else {
             alert(`Please copy and run this SQL in Supabase SQL Editor:\n\n${sqlToRun}`)
           }
@@ -355,7 +369,9 @@ export default {
           if (sqlToRun) {
             if (navigator.clipboard) {
               await navigator.clipboard.writeText(sqlToRun)
-              alert(`SQL copied to clipboard! Please run it in Supabase SQL Editor.\n\nTable: ${tableName}`)
+              alert(
+                `SQL copied to clipboard! Please run it in Supabase SQL Editor.\n\nTable: ${tableName}`,
+              )
             } else {
               alert(`Please copy and run this SQL in Supabase SQL Editor:\n\n${sqlToRun}`)
             }
@@ -401,7 +417,11 @@ export default {
     }
 
     const runFullSetup = async () => {
-      if (!confirm('This will show you all SQL commands to run in Supabase SQL Editor for complete setup. Continue?')) {
+      if (
+        !confirm(
+          'This will show you all SQL commands to run in Supabase SQL Editor for complete setup. Continue?',
+        )
+      ) {
         return
       }
 
@@ -429,21 +449,32 @@ export default {
 
         // Add index commands
         allSqlCommands.push('-- Create indexes')
-        allSqlCommands.push('CREATE INDEX IF NOT EXISTS idx_wallet_accounts_user_id ON public.wallet_accounts(user_id);')
-        allSqlCommands.push('CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_id ON public.wallet_transactions(user_id);')
-        allSqlCommands.push('CREATE INDEX IF NOT EXISTS idx_verifications_project_id ON public.verifications(project_id);')
-        allSqlCommands.push('CREATE INDEX IF NOT EXISTS idx_listings_status ON public.listings(status);')
-        allSqlCommands.push('CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON public.orders(buyer_id);')
+        allSqlCommands.push(
+          'CREATE INDEX IF NOT EXISTS idx_wallet_accounts_user_id ON public.wallet_accounts(user_id);',
+        )
+        allSqlCommands.push(
+          'CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_id ON public.wallet_transactions(user_id);',
+        )
+        allSqlCommands.push(
+          'CREATE INDEX IF NOT EXISTS idx_verifications_project_id ON public.verifications(project_id);',
+        )
+        allSqlCommands.push(
+          'CREATE INDEX IF NOT EXISTS idx_listings_status ON public.listings(status);',
+        )
+        allSqlCommands.push(
+          'CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON public.orders(buyer_id);',
+        )
 
         const fullSqlScript = allSqlCommands.join('\n')
 
         if (navigator.clipboard) {
           await navigator.clipboard.writeText(fullSqlScript)
-          alert('Complete SQL setup script copied to clipboard! Please run it in Supabase SQL Editor.')
+          alert(
+            'Complete SQL setup script copied to clipboard! Please run it in Supabase SQL Editor.',
+          )
         } else {
           alert(`Complete SQL setup script:\n\n${fullSqlScript}`)
         }
-
       } catch (error) {
         console.error('Error in full setup:', error)
         alert(`Error in setup: ${error.message}`)
@@ -459,7 +490,7 @@ export default {
         'ALTER TABLE public.verifications ENABLE ROW LEVEL SECURITY;',
         'ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;',
         'ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;',
-        'ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;'
+        'ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;',
       ]
 
       const rlsScript = rlsQueries.join('\n')
@@ -478,7 +509,7 @@ export default {
         'CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_id ON public.wallet_transactions(user_id);',
         'CREATE INDEX IF NOT EXISTS idx_verifications_project_id ON public.verifications(project_id);',
         'CREATE INDEX IF NOT EXISTS idx_listings_status ON public.listings(status);',
-        'CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON public.orders(buyer_id);'
+        'CREATE INDEX IF NOT EXISTS idx_orders_buyer_id ON public.orders(buyer_id);',
       ]
 
       const indexScript = indexQueries.join('\n')
@@ -518,9 +549,9 @@ export default {
       closeTableModal,
       runFullSetup,
       enableRLS,
-      createIndexes
+      createIndexes,
     }
-  }
+  },
 }
 </script>
 
@@ -860,24 +891,29 @@ export default {
   flex: 1;
 }
 
-.data-table, .schema-table {
+.data-table,
+.schema-table {
   overflow-x: auto;
 }
 
-.data-table table, .schema-table table {
+.data-table table,
+.schema-table table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
 
-.data-table th, .data-table td,
-.schema-table th, .schema-table td {
+.data-table th,
+.data-table td,
+.schema-table th,
+.schema-table td {
   padding: 0.75rem;
   text-align: left;
   border-bottom: 1px solid #e2e8f0;
 }
 
-.data-table th, .schema-table th {
+.data-table th,
+.schema-table th {
   background: #f7fafc;
   font-weight: 600;
   color: #1a202c;
@@ -892,7 +928,8 @@ export default {
   font-size: 0.875rem;
 }
 
-.empty-data, .empty-schema {
+.empty-data,
+.empty-schema {
   text-align: center;
   padding: 2rem;
   color: #718096;
@@ -1008,7 +1045,8 @@ export default {
     margin: 1rem;
   }
 
-  .modal-header, .modal-body {
+  .modal-header,
+  .modal-body {
     padding: 1rem;
   }
 }

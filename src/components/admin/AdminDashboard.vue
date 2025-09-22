@@ -19,10 +19,8 @@ const tabs = computed(() => {
     { id: 'roles', label: 'Role Management', icon: '🔐' },
   ]
 
-  // Only super admins can see system settings
-  if (userStore.isSuperAdmin) {
-    baseTabs.push({ id: 'settings', label: 'System Settings', icon: '⚙️' })
-  }
+  // All admins can see system settings
+  baseTabs.push({ id: 'settings', label: 'System Settings', icon: '⚙️' })
 
   return baseTabs
 })

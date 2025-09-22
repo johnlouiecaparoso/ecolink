@@ -32,10 +32,7 @@ const roleOptions = computed(() => {
     { value: ROLES.ADMIN, label: 'Admin' },
   ]
 
-  // Only super admins can assign super admin role
-  if (userStore.isSuperAdmin) {
-    options.push({ value: ROLES.SUPER_ADMIN, label: 'Super Admin' })
-  }
+  // All admins can assign any role
 
   return options
 })

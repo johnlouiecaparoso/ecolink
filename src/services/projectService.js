@@ -8,7 +8,9 @@ export class ProjectService {
   get supabase() {
     const client = getSupabase()
     if (!client) {
-      throw new Error('Supabase client not available')
+      throw new Error(
+        'Supabase client not available. Please check your environment variables and try refreshing the page.',
+      )
     }
     return client
   }
@@ -360,16 +362,14 @@ export class ProjectService {
 // Export singleton instance
 export const projectService = new ProjectService()
 
-// Export individual functions for convenience
-export const {
-  createProject,
-  getUserProjects,
-  getProject,
-  updateProject,
-  deleteProject,
-  getAllProjects,
-  updateProjectStatus,
-  getProjectStats,
-  getProjectCategories,
-  getProjectStatuses,
-} = projectService
+// Export individual functions for convenience (bound to service instance)
+export const createProject = projectService.createProject.bind(projectService)
+export const getUserProjects = projectService.getUserProjects.bind(projectService)
+export const getProject = projectService.getProject.bind(projectService)
+export const updateProject = projectService.updateProject.bind(projectService)
+export const deleteProject = projectService.deleteProject.bind(projectService)
+export const getAllProjects = projectService.getAllProjects.bind(projectService)
+export const updateProjectStatus = projectService.updateProjectStatus.bind(projectService)
+export const getProjectStats = projectService.getProjectStats.bind(projectService)
+export const getProjectCategories = projectService.getProjectCategories.bind(projectService)
+export const getProjectStatuses = projectService.getProjectStatuses.bind(projectService)

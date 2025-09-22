@@ -9,7 +9,7 @@ import Withdraw from '@/components/wallet/Withdraw.vue'
 const router = useRouter()
 const store = useUserStore()
 
-const walletBalance = ref({ balance: 0, currency: 'PHP' })
+const walletBalance = ref({ current_balance: 0, currency: 'PHP' })
 const transactions = ref([])
 const loading = ref(false)
 const showTopUp = ref(false)

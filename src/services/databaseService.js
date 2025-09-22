@@ -1,4 +1,4 @@
-import { supabase } from './supabaseClient'
+import { getSupabase } from './supabaseClient'
 
 export const databaseService = {
   // Execute raw SQL queries (Note: This requires a custom RPC function in Supabase)
@@ -17,6 +17,11 @@ export const databaseService = {
   // Get table information
   async getTableInfo() {
     try {
+      const supabase = getSupabase()
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not available' }
+      }
+
       const { data, error } = await supabase
         .from('information_schema.tables')
         .select('table_name, table_type')
@@ -33,6 +38,11 @@ export const databaseService = {
   // Get table schema
   async getTableSchema(tableName) {
     try {
+      const supabase = getSupabase()
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not available' }
+      }
+
       const { data, error } = await supabase
         .from('information_schema.columns')
         .select('column_name, data_type, is_nullable, column_default')
@@ -50,6 +60,11 @@ export const databaseService = {
   // Get table data
   async getTableData(tableName, limit = 100) {
     try {
+      const supabase = getSupabase()
+      if (!supabase) {
+        return { success: false, error: 'Supabase client not available' }
+      }
+
       const { data, error } = await supabase
         .from(tableName)
         .select('*')

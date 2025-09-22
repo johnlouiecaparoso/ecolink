@@ -7,8 +7,10 @@ import {
   hasAnyPermission,
   hasAllPermissions,
   isAdmin,
-  isSuperAdmin,
+  isGeneralUser,
+  isProjectDeveloper,
   isVerifier,
+  isBuyerInvestor,
   canAccessRoute,
 } from '@/constants/roles'
 
@@ -34,13 +36,13 @@ export class RoleService {
 
       if (error) {
         console.error('Error fetching user role:', error)
-        return ROLES.USER // Default to user role
+        return ROLES.GENERAL_USER // Default to general user role
       }
 
-      return data?.role || ROLES.USER
+      return data?.role || ROLES.GENERAL_USER
     } catch (error) {
       console.error('Error in getUserRole:', error)
-      return ROLES.USER
+      return ROLES.GENERAL_USER
     }
   }
 
@@ -110,12 +112,21 @@ export class RoleService {
   }
 
   /**
-   * Check if user is super admin
+   * Check if user is general user
    * @param {string} userRole - User role
-   * @returns {boolean} Is super admin
+   * @returns {boolean} Is general user
    */
-  isSuperAdmin(userRole) {
-    return isSuperAdmin(userRole)
+  isGeneralUser(userRole) {
+    return isGeneralUser(userRole)
+  }
+
+  /**
+   * Check if user is project developer
+   * @param {string} userRole - User role
+   * @returns {boolean} Is project developer
+   */
+  isProjectDeveloper(userRole) {
+    return isProjectDeveloper(userRole)
   }
 
   /**
@@ -125,6 +136,15 @@ export class RoleService {
    */
   isVerifier(userRole) {
     return isVerifier(userRole)
+  }
+
+  /**
+   * Check if user is buyer/investor
+   * @param {string} userRole - User role
+   * @returns {boolean} Is buyer/investor
+   */
+  isBuyerInvestor(userRole) {
+    return isBuyerInvestor(userRole)
   }
 
   /**
@@ -187,7 +207,7 @@ export class RoleService {
       }
 
       const stats = data.reduce((acc, profile) => {
-        const role = profile.role || ROLES.USER
+        const role = profile.role || ROLES.GENERAL_USER
         acc[role] = (acc[role] || 0) + 1
         return acc
       }, {})
@@ -215,18 +235,13 @@ export class RoleService {
    * @returns {boolean} Can assign role
    */
   canAssignRole(currentUserRole, targetRole) {
-    // Only super admins can assign super admin role
-    if (targetRole === ROLES.SUPER_ADMIN) {
-      return currentUserRole === ROLES.SUPER_ADMIN
-    }
-
-    // Only admins and super admins can assign admin role
+    // Only admins can assign admin role
     if (targetRole === ROLES.ADMIN) {
-      return currentUserRole === ROLES.ADMIN || currentUserRole === ROLES.SUPER_ADMIN
+      return currentUserRole === ROLES.ADMIN
     }
 
-    // Admins and super admins can assign any role
-    return currentUserRole === ROLES.ADMIN || currentUserRole === ROLES.SUPER_ADMIN
+    // Admins can assign any role
+    return currentUserRole === ROLES.ADMIN
   }
 }
 

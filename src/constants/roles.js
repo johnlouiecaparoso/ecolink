@@ -1,22 +1,43 @@
 // User roles and permissions
 export const ROLES = {
-  USER: 'user',
-  ADMIN: 'admin',
+  GENERAL_USER: 'general_user',
+  PROJECT_DEVELOPER: 'project_developer',
   VERIFIER: 'verifier',
-  SUPER_ADMIN: 'super_admin',
+  BUYER_INVESTOR: 'buyer_investor',
+  ADMIN: 'admin',
 }
 
 // Permission definitions
 export const PERMISSIONS = {
-  // User permissions
-  VIEW_DASHBOARD: 'view_dashboard',
-  MANAGE_PROJECTS: 'manage_projects',
-  VIEW_MARKETPLACE: 'view_marketplace',
+  // General User permissions
+  SIGN_UP: 'sign_up',
+  VIEW_CREDITS: 'view_credits',
   MANAGE_WALLET: 'manage_wallet',
-  VIEW_PROFILE: 'view_profile',
-  UPDATE_PROFILE: 'update_profile',
+  BUY_VIA_GCASH_MAYA: 'buy_via_gcash_maya',
+  VIEW_CERTIFICATES: 'view_certificates',
+
+  // Project Developer permissions
+  SUBMIT_PROJECTS: 'submit_projects',
+  TRACK_STATUS: 'track_status',
+  CREDIT_ISSUANCE: 'credit_issuance',
+  SALES_DASHBOARD: 'sales_dashboard',
+
+  // Verifier permissions
+  ACCESS_PROJECTS: 'access_projects',
+  REVIEW_PROJECTS: 'review_projects',
+  APPROVE_PROJECTS: 'approve_projects',
+  UPLOAD_REPORTS: 'upload_reports',
+
+  // Buyer/Investor permissions
+  SEARCH_PROJECTS: 'search_projects',
+  BUY_CREDITS: 'buy_credits',
+  DOWNLOAD_RECEIPTS: 'download_receipts',
 
   // Admin permissions
+  AUDIT_LOGS: 'audit_logs',
+  APPROVE_USERS: 'approve_users',
+  APPROVE_PROJECTS: 'approve_projects',
+  GENERATE_REPORTS: 'generate_reports',
   MANAGE_USERS: 'manage_users',
   VIEW_ANALYTICS: 'view_analytics',
   MANAGE_DATABASE: 'manage_database',
@@ -24,35 +45,61 @@ export const PERMISSIONS = {
   VIEW_ADMIN_PANEL: 'view_admin_panel',
   MANAGE_SYSTEM_SETTINGS: 'manage_system_settings',
 
-  // Verifier permissions
-  VERIFY_PROJECTS: 'verify_projects',
-  VIEW_VERIFIER_PANEL: 'view_verifier_panel',
-
-  // Super admin permissions
-  MANAGE_ROLES: 'manage_roles',
-  MANAGE_ALL_USERS: 'manage_all_users',
-  SYSTEM_ADMINISTRATION: 'system_administration',
+  // Common permissions
+  VIEW_DASHBOARD: 'view_dashboard',
+  VIEW_PROFILE: 'view_profile',
+  UPDATE_PROFILE: 'update_profile',
 }
 
 // Define base permissions for each role
-const USER_PERMISSIONS = [
+const GENERAL_USER_PERMISSIONS = [
   PERMISSIONS.VIEW_DASHBOARD,
-  PERMISSIONS.MANAGE_PROJECTS,
-  PERMISSIONS.VIEW_MARKETPLACE,
-  PERMISSIONS.MANAGE_WALLET,
   PERMISSIONS.VIEW_PROFILE,
   PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.SIGN_UP,
+  PERMISSIONS.VIEW_CREDITS,
+  PERMISSIONS.MANAGE_WALLET,
+  PERMISSIONS.BUY_VIA_GCASH_MAYA,
+  PERMISSIONS.VIEW_CERTIFICATES,
+]
+
+const PROJECT_DEVELOPER_PERMISSIONS = [
+  PERMISSIONS.VIEW_DASHBOARD,
+  PERMISSIONS.VIEW_PROFILE,
+  PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.SUBMIT_PROJECTS,
+  PERMISSIONS.TRACK_STATUS,
+  PERMISSIONS.CREDIT_ISSUANCE,
+  PERMISSIONS.SALES_DASHBOARD,
 ]
 
 const VERIFIER_PERMISSIONS = [
   PERMISSIONS.VIEW_DASHBOARD,
   PERMISSIONS.VIEW_PROFILE,
-  PERMISSIONS.VERIFY_PROJECTS,
-  PERMISSIONS.VIEW_VERIFIER_PANEL,
+  PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.ACCESS_PROJECTS,
+  PERMISSIONS.REVIEW_PROJECTS,
+  PERMISSIONS.APPROVE_PROJECTS,
+  PERMISSIONS.UPLOAD_REPORTS,
+]
+
+const BUYER_INVESTOR_PERMISSIONS = [
+  PERMISSIONS.VIEW_DASHBOARD,
+  PERMISSIONS.VIEW_PROFILE,
+  PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.SEARCH_PROJECTS,
+  PERMISSIONS.BUY_CREDITS,
+  PERMISSIONS.DOWNLOAD_RECEIPTS,
 ]
 
 const ADMIN_PERMISSIONS = [
-  ...USER_PERMISSIONS, // Inherit user permissions
+  PERMISSIONS.VIEW_DASHBOARD,
+  PERMISSIONS.VIEW_PROFILE,
+  PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.AUDIT_LOGS,
+  PERMISSIONS.APPROVE_USERS,
+  PERMISSIONS.APPROVE_PROJECTS,
+  PERMISSIONS.GENERATE_REPORTS,
   PERMISSIONS.MANAGE_USERS,
   PERMISSIONS.VIEW_ANALYTICS,
   PERMISSIONS.MANAGE_DATABASE,
@@ -61,33 +108,31 @@ const ADMIN_PERMISSIONS = [
   PERMISSIONS.MANAGE_SYSTEM_SETTINGS,
 ]
 
-const SUPER_ADMIN_PERMISSIONS = [
-  ...ADMIN_PERMISSIONS, // Inherit admin permissions
-  PERMISSIONS.MANAGE_ROLES,
-  PERMISSIONS.MANAGE_ALL_USERS,
-  PERMISSIONS.SYSTEM_ADMINISTRATION,
-]
-
 // Role-based permission mapping
 export const ROLE_PERMISSIONS = {
-  [ROLES.USER]: USER_PERMISSIONS,
+  [ROLES.GENERAL_USER]: GENERAL_USER_PERMISSIONS,
+  [ROLES.PROJECT_DEVELOPER]: PROJECT_DEVELOPER_PERMISSIONS,
   [ROLES.VERIFIER]: VERIFIER_PERMISSIONS,
+  [ROLES.BUYER_INVESTOR]: BUYER_INVESTOR_PERMISSIONS,
   [ROLES.ADMIN]: ADMIN_PERMISSIONS,
-  [ROLES.SUPER_ADMIN]: SUPER_ADMIN_PERMISSIONS,
 }
 
 // Route-based permission mapping
 export const ROUTE_PERMISSIONS = {
   '/dashboard': PERMISSIONS.VIEW_DASHBOARD,
-  '/projects': PERMISSIONS.MANAGE_PROJECTS,
-  '/marketplace': PERMISSIONS.VIEW_MARKETPLACE,
+  '/projects': PERMISSIONS.SUBMIT_PROJECTS,
+  '/marketplace': PERMISSIONS.SEARCH_PROJECTS,
   '/wallet': PERMISSIONS.MANAGE_WALLET,
   '/admin': PERMISSIONS.VIEW_ADMIN_PANEL,
   '/users': PERMISSIONS.MANAGE_USERS,
   '/analytics': PERMISSIONS.VIEW_ANALYTICS,
   '/database': PERMISSIONS.MANAGE_DATABASE,
   '/tables': PERMISSIONS.MANAGE_TABLES,
-  '/verifier': PERMISSIONS.VIEW_VERIFIER_PANEL,
+  '/verifier': PERMISSIONS.ACCESS_PROJECTS,
+  '/certificates': PERMISSIONS.VIEW_CERTIFICATES,
+  '/sales': PERMISSIONS.SALES_DASHBOARD,
+  '/buy-credits': PERMISSIONS.BUY_CREDITS,
+  '/receipts': PERMISSIONS.DOWNLOAD_RECEIPTS,
 }
 
 // Helper functions
@@ -107,19 +152,43 @@ export function hasAllPermissions(userRole, permissions) {
 }
 
 export function isAdmin(userRole) {
-  return userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN
+  return userRole === ROLES.ADMIN
 }
 
-export function isSuperAdmin(userRole) {
-  return userRole === ROLES.SUPER_ADMIN
+export function isGeneralUser(userRole) {
+  return userRole === ROLES.GENERAL_USER
+}
+
+export function isProjectDeveloper(userRole) {
+  return userRole === ROLES.PROJECT_DEVELOPER
 }
 
 export function isVerifier(userRole) {
   return userRole === ROLES.VERIFIER
 }
 
+export function isBuyerInvestor(userRole) {
+  return userRole === ROLES.BUYER_INVESTOR
+}
+
 export function canAccessRoute(userRole, routePath) {
   const permission = ROUTE_PERMISSIONS[routePath]
   if (!permission) return true // No permission required
   return hasPermission(userRole, permission)
+}
+
+export function getDefaultRouteForRole(userRole) {
+  switch (userRole) {
+    case ROLES.ADMIN:
+      return '/admin'
+    case ROLES.VERIFIER:
+      return '/verifier'
+    case ROLES.PROJECT_DEVELOPER:
+      return '/projects'
+    case ROLES.BUYER_INVESTOR:
+      return '/marketplace'
+    case ROLES.GENERAL_USER:
+    default:
+      return '/dashboard'
+  }
 }

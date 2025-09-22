@@ -9,14 +9,16 @@ export const useUserStore = defineStore('user', {
     session: null,
     profile: null,
     loading: false,
-    role: ROLES.USER,
+    role: ROLES.GENERAL_USER,
     permissions: [],
   }),
   getters: {
     isAuthenticated: (state) => !!state.session?.user,
     isAdmin: (state) => roleService.isAdmin(state.role),
-    isSuperAdmin: (state) => roleService.isSuperAdmin(state.role),
+    isGeneralUser: (state) => roleService.isGeneralUser(state.role),
+    isProjectDeveloper: (state) => roleService.isProjectDeveloper(state.role),
     isVerifier: (state) => roleService.isVerifier(state.role),
+    isBuyerInvestor: (state) => roleService.isBuyerInvestor(state.role),
     hasPermission: (state) => (permission) => roleService.hasPermission(state.role, permission),
     hasAnyPermission: (state) => (permissions) =>
       roleService.hasAnyPermission(state.role, permissions),
@@ -59,11 +61,11 @@ export const useUserStore = defineStore('user', {
       try {
         const profile = await getProfile(this.session.user.id)
         this.profile = profile
-        this.role = profile.role || ROLES.USER
+        this.role = profile.role || ROLES.GENERAL_USER
         this.updatePermissions()
       } catch (error) {
         console.error('Error fetching user profile:', error)
-        this.role = ROLES.USER
+        this.role = ROLES.GENERAL_USER
         this.updatePermissions()
       }
     },
@@ -89,7 +91,7 @@ export const useUserStore = defineStore('user', {
     clearUserData() {
       this.session = null
       this.profile = null
-      this.role = ROLES.USER
+      this.role = ROLES.GENERAL_USER
       this.permissions = []
       this.clearLocalStorage()
     },

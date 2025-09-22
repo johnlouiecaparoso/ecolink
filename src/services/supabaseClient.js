@@ -16,7 +16,7 @@ export function initSupabase() {
             window.localStorage.removeItem(key)
           }
         })
-      } catch (e) {
+      } catch {
         // Ignore localStorage errors
       }
     }
@@ -30,7 +30,7 @@ export function initSupabase() {
     })
 
     // Add error handler for auth state changes
-    supabase.auth.onAuthStateChange((event, session) => {
+    supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
         console.log('Auth state changed:', event)
       }

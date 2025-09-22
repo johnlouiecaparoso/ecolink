@@ -52,19 +52,14 @@ export default {
     const userProfile = ref(null)
 
     const allNavItems = [
+      // General User items
       {
-        id: 'overview',
+        id: 'dashboard',
         label: 'Dashboard',
         route: '/dashboard',
         icon: '🏠',
         permission: PERMISSIONS.VIEW_DASHBOARD,
-      },
-      {
-        id: 'projects',
-        label: 'Projects',
-        route: '/projects',
-        icon: '🌱',
-        permission: PERMISSIONS.MANAGE_PROJECTS,
+        roles: [ROLES.GENERAL_USER],
       },
       {
         id: 'wallet',
@@ -72,13 +67,79 @@ export default {
         route: '/wallet',
         icon: '💰',
         permission: PERMISSIONS.MANAGE_WALLET,
+        roles: [ROLES.GENERAL_USER],
       },
+      {
+        id: 'certificates',
+        label: 'Certificates',
+        route: '/certificates',
+        icon: '📜',
+        permission: PERMISSIONS.VIEW_CERTIFICATES,
+        roles: [ROLES.GENERAL_USER],
+      },
+
+      // Project Developer items
+      {
+        id: 'projects',
+        label: 'Projects',
+        route: '/projects',
+        icon: '🌱',
+        permission: PERMISSIONS.SUBMIT_PROJECTS,
+        roles: [ROLES.PROJECT_DEVELOPER],
+      },
+      {
+        id: 'sales',
+        label: 'Sales Dashboard',
+        route: '/sales',
+        icon: '📈',
+        permission: PERMISSIONS.SALES_DASHBOARD,
+        roles: [ROLES.PROJECT_DEVELOPER],
+      },
+
+      // Buyer/Investor items
       {
         id: 'marketplace',
         label: 'Marketplace',
         route: '/marketplace',
         icon: '🏪',
-        permission: PERMISSIONS.VIEW_MARKETPLACE,
+        permission: PERMISSIONS.SEARCH_PROJECTS,
+        roles: [ROLES.BUYER_INVESTOR],
+      },
+      {
+        id: 'buy-credits',
+        label: 'Buy Credits',
+        route: '/buy-credits',
+        icon: '💳',
+        permission: PERMISSIONS.BUY_CREDITS,
+        roles: [ROLES.BUYER_INVESTOR],
+      },
+      {
+        id: 'receipts',
+        label: 'Receipts',
+        route: '/receipts',
+        icon: '🧾',
+        permission: PERMISSIONS.DOWNLOAD_RECEIPTS,
+        roles: [ROLES.BUYER_INVESTOR],
+      },
+
+      // Verifier items
+      {
+        id: 'verifier',
+        label: 'Verifier',
+        route: '/verifier',
+        icon: '✅',
+        permission: PERMISSIONS.ACCESS_PROJECTS,
+        roles: [ROLES.VERIFIER],
+      },
+
+      // Admin items
+      {
+        id: 'admin',
+        label: 'Admin',
+        route: '/admin',
+        icon: '⚙️',
+        permission: PERMISSIONS.VIEW_ADMIN_PANEL,
+        roles: [ROLES.ADMIN],
       },
       {
         id: 'users',
@@ -86,13 +147,7 @@ export default {
         route: '/users',
         icon: '👥',
         permission: PERMISSIONS.MANAGE_USERS,
-      },
-      {
-        id: 'verifier',
-        label: 'Verifier',
-        route: '/verifier',
-        icon: '✅',
-        permission: PERMISSIONS.VIEW_VERIFIER_PANEL,
+        roles: [ROLES.ADMIN],
       },
       {
         id: 'analytics',
@@ -100,13 +155,7 @@ export default {
         route: '/analytics',
         icon: '📊',
         permission: PERMISSIONS.VIEW_ANALYTICS,
-      },
-      {
-        id: 'admin',
-        label: 'Admin',
-        route: '/admin',
-        icon: '⚙️',
-        permission: PERMISSIONS.VIEW_ADMIN_PANEL,
+        roles: [ROLES.ADMIN],
       },
       {
         id: 'database',
@@ -114,6 +163,7 @@ export default {
         route: '/database',
         icon: '🗄️',
         permission: PERMISSIONS.MANAGE_DATABASE,
+        roles: [ROLES.ADMIN],
       },
       {
         id: 'tables',
@@ -121,13 +171,23 @@ export default {
         route: '/tables',
         icon: '📋',
         permission: PERMISSIONS.MANAGE_TABLES,
+        roles: [ROLES.ADMIN],
       },
     ]
 
     const navItems = computed(() => {
       return allNavItems.filter((item) => {
-        if (!item.permission) return true
-        return store.hasPermission(item.permission)
+        // Check if user has the required permission
+        if (item.permission && !store.hasPermission(item.permission)) {
+          return false
+        }
+
+        // Check if user's role is allowed for this item
+        if (item.roles && !item.roles.includes(store.role)) {
+          return false
+        }
+
+        return true
       })
     })
 
@@ -146,15 +206,17 @@ export default {
     const userRoleDisplay = computed(() => {
       const role = userProfile.value?.role || store.role
       switch (role) {
-        case ROLES.SUPER_ADMIN:
-          return 'Super Admin'
         case ROLES.ADMIN:
           return 'Administrator'
         case ROLES.VERIFIER:
           return 'Verifier'
-        case ROLES.USER:
+        case ROLES.PROJECT_DEVELOPER:
+          return 'Project Developer'
+        case ROLES.BUYER_INVESTOR:
+          return 'Buyer/Investor'
+        case ROLES.GENERAL_USER:
         default:
-          return 'User'
+          return 'General User'
       }
     })
 

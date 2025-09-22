@@ -24,8 +24,12 @@ export function createRoleGuard(userStore) {
       // Redirect based on user role
       if (userRole === ROLES.VERIFIER) {
         return { name: 'verifier' }
-      } else if (userRole === ROLES.ADMIN || userRole === ROLES.SUPER_ADMIN) {
+      } else if (userRole === ROLES.ADMIN) {
         return { name: 'admin' }
+      } else if (userRole === ROLES.PROJECT_DEVELOPER) {
+        return { name: 'projects' }
+      } else if (userRole === ROLES.BUYER_INVESTOR) {
+        return { name: 'marketplace' }
       } else {
         return { name: 'dashboard' }
       }
@@ -49,28 +53,6 @@ export function createAdminGuard(userStore) {
     if (!userStore.isAdmin) {
       console.warn(
         `Admin access denied: User with role '${userStore.role}' cannot access admin routes`,
-      )
-      return { name: 'dashboard' }
-    }
-
-    return undefined
-  }
-}
-
-/**
- * Super admin-only route guard
- * @param {Object} userStore - User store instance
- * @returns {Function} Route guard function
- */
-export function createSuperAdminGuard(userStore) {
-  return async (to, from) => {
-    if (!userStore.isAuthenticated) {
-      return { name: 'login', query: { redirect: to.fullPath } }
-    }
-
-    if (!userStore.isSuperAdmin) {
-      console.warn(
-        `Super admin access denied: User with role '${userStore.role}' cannot access super admin routes`,
       )
       return { name: 'dashboard' }
     }
@@ -137,11 +119,14 @@ export function createPermissionGuard(requiredPermissions, userStore) {
 export function getDefaultRouteForRole(userRole) {
   switch (userRole) {
     case ROLES.ADMIN:
-    case ROLES.SUPER_ADMIN:
       return '/admin'
     case ROLES.VERIFIER:
       return '/verifier'
-    case ROLES.USER:
+    case ROLES.PROJECT_DEVELOPER:
+      return '/projects'
+    case ROLES.BUYER_INVESTOR:
+      return '/marketplace'
+    case ROLES.GENERAL_USER:
     default:
       return '/dashboard'
   }
