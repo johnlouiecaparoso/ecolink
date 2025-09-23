@@ -9,6 +9,7 @@ import {
 import { ROLES } from '@/constants/roles'
 
 const HomeView = () => import('@/views/HomeView.vue')
+const HomepageView = () => import('@/views/HomepageView.vue')
 const LoginView = () => import('@/views/LoginView.vue')
 const RegisterView = () => import('@/views/RegisterView.vue')
 const DashboardView = () => import('@/views/DashboardView.vue')
@@ -27,7 +28,7 @@ const ProfileView = () => import('@/views/ProfileView.vue')
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', redirect: '/home' },
+    { path: '/', name: 'homepage', component: HomepageView },
     { path: '/home', name: 'home', component: HomeView, meta: { requiresAuth: true } },
     { path: '/login', name: 'login', component: LoginView },
     { path: '/register', name: 'register', component: RegisterView },
@@ -37,7 +38,7 @@ const router = createRouter({
       path: '/dashboard',
       name: 'dashboard',
       component: DashboardView,
-      meta: { requiresAuth: true, roles: [ROLES.GENERAL_USER] },
+      meta: { requiresAuth: true },
     },
     {
       path: '/wallet',
@@ -78,13 +79,24 @@ const router = createRouter({
       meta: { requiresAuth: true, roles: [ROLES.PROJECT_DEVELOPER] },
     },
 
-    // Buyer/Investor routes
+    // Marketplace (publicly accessible)
     {
       path: '/marketplace',
       name: 'marketplace',
       component: MarketplaceView,
-      meta: { requiresAuth: true, roles: [ROLES.BUYER_INVESTOR] },
     },
+    {
+      path: '/project/:id',
+      name: 'project-detail',
+      component: () => import('@/views/ProjectDetailView.vue'),
+    },
+    {
+      path: '/retire',
+      name: 'retire',
+      component: () => import('@/views/RetireView.vue'),
+    },
+
+    // Buyer/Investor routes
     {
       path: '/buy-credits',
       name: 'buy-credits',
@@ -154,15 +166,53 @@ router.beforeEach(async (to) => {
     await store.fetchSession()
   }
 
-  // Check if the route requires authentication
-  if (to.meta.requiresAuth) {
-    // If no valid session, redirect to login
-    if (!store.session || !store.session.user) {
+  // Public routes that don't require authentication
+  const publicRoutes = ['login', 'register']
+
+  // If user is not authenticated and trying to access a protected route
+  if (!store.session || !store.session.user) {
+    // If trying to access homepage or any route that's not login/register, redirect to login
+    if (to.name === 'homepage' || (!publicRoutes.includes(to.name) && !to.meta.requiresAuth)) {
       return { name: 'login', query: { redirect: to.fullPath } }
     }
 
-    // Check role-based access
-    if (to.meta.roles && to.meta.roles.length > 0) {
+    // If trying to access a route that requires auth, redirect to login
+    if (to.meta.requiresAuth) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+  } else {
+    // User is authenticated
+    // If trying to access login/register, redirect to homepage (new interface)
+    if (publicRoutes.includes(to.name)) {
+      return { name: 'homepage' }
+    }
+
+    // Allow authenticated users to access homepage (new interface)
+    // Remove the redirect to old dashboard
+
+    // Temporarily redirect old dashboard routes to homepage (new interface)
+    // Note: /wallet and /profile are kept accessible as they are part of the new interface
+    const oldDashboardRoutes = [
+      '/dashboard',
+      '/certificates',
+      '/projects',
+      '/sales',
+      '/admin',
+      '/users',
+      '/analytics',
+      '/database',
+      '/tables',
+      '/audit-logs',
+      '/verifier',
+      '/buy-credits',
+      '/receipts',
+    ]
+    if (oldDashboardRoutes.includes(to.path)) {
+      return { name: 'homepage' }
+    }
+
+    // Check role-based access for protected routes
+    if (to.meta.requiresAuth && to.meta.roles && to.meta.roles.length > 0) {
       const userRole = store.role
       if (!to.meta.roles.includes(userRole)) {
         console.warn(`Access denied: User with role '${userRole}' cannot access route '${to.path}'`)
@@ -171,12 +221,6 @@ router.beforeEach(async (to) => {
         return { path: defaultRoute }
       }
     }
-  }
-
-  // If user is logged in and trying to access login/register, redirect to appropriate dashboard
-  if ((to.name === 'login' || to.name === 'register') && store.session && store.session.user) {
-    const defaultRoute = getDefaultRouteForRole(store.role)
-    return { path: defaultRoute }
   }
 })
 

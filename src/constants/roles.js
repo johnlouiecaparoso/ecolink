@@ -178,19 +178,8 @@ export function canAccessRoute(userRole, routePath) {
 }
 
 export function getDefaultRouteForRole(userRole) {
-  switch (userRole) {
-    case ROLES.ADMIN:
-      return '/admin'
-    case ROLES.VERIFIER:
-      return '/verifier'
-    case ROLES.PROJECT_DEVELOPER:
-      return '/projects'
-    case ROLES.BUYER_INVESTOR:
-      return '/marketplace'
-    case ROLES.GENERAL_USER:
-    default:
-      return '/dashboard'
-  }
+  // Redirect all users to homepage (new interface) instead of old dashboard
+  return '/'
 }
 
 // Helper function to get role display name

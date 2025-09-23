@@ -3,8 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getProfile } from '@/services/profileService'
-import UserDashboard from '@/components/user/UserDashboard.vue'
-import AdminDashboard from '@/components/admin/AdminDashboard.vue'
+import ComprehensiveDashboard from '@/components/dashboard/ComprehensiveDashboard.vue'
 
 const router = useRouter()
 const store = useUserStore()
@@ -20,14 +19,6 @@ const mobileMenuOpen = ref(false)
 
 // User profile dropdown functionality
 const userDropdownOpen = ref(false)
-
-// Overview metrics data (moved from HomeView)
-const overviewMetrics = ref([
-  { id: 'mrr', title: 'Current MRR', value: '$12.4k' },
-  { id: 'customers', title: 'Current Customers', value: '16,601' },
-  { id: 'active', title: 'Active Customers', value: '33%' },
-  { id: 'churn', title: 'Churn Rate', value: '2%' },
-])
 
 // Navigation items based on user role
 const navItems = computed(() => {
@@ -64,15 +55,6 @@ const navItems = computed(() => {
   }
 
   return baseItems
-})
-
-// Role-based dashboard selection
-const showUserDashboard = computed(() => {
-  return store.role === 'user' || store.role === 'verifier'
-})
-
-const showAdminDashboard = computed(() => {
-  return store.isAdmin
 })
 
 // User initials for avatar
@@ -292,53 +274,9 @@ onMounted(async () => {
         </div>
       </header>
 
-      <!-- Role-based dashboard rendering -->
-      <div v-if="showUserDashboard" class="dashboard-content">
-        <UserDashboard />
-      </div>
-      <div v-else-if="showAdminDashboard" class="dashboard-content">
-        <AdminDashboard />
-      </div>
-      <div v-else class="dashboard-content">
-        <!-- Overview Section (moved from HomeView) -->
-        <section class="overview-section">
-          <div class="section-header">
-            <h2 class="section-title">Overview</h2>
-          </div>
-
-          <div class="metrics-grid">
-            <div v-for="metric in overviewMetrics" :key="metric.id" class="metric-card">
-              <div class="metric-title">{{ metric.title }}</div>
-              <div class="metric-value">{{ metric.value }}</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Quick Actions Section -->
-        <section class="quick-actions-section">
-          <div class="section-header">
-            <h2 class="section-title">Quick Actions</h2>
-          </div>
-
-          <div class="quick-actions-grid">
-            <button class="action-btn" @click="navigateTo('/marketplace')">
-              <span class="action-icon">🔄</span>
-              <span class="action-text">Transactions</span>
-            </button>
-            <button class="action-btn" @click="navigateTo('/users')">
-              <span class="action-icon">👥</span>
-              <span class="action-text">Customers</span>
-            </button>
-            <button class="action-btn" @click="navigateTo('/analytics')">
-              <span class="action-icon">📈</span>
-              <span class="action-text">Reports</span>
-            </button>
-            <button class="action-btn" @click="navigateTo('/verifier')">
-              <span class="action-icon">🐛</span>
-              <span class="action-text">Developer</span>
-            </button>
-          </div>
-        </section>
+      <!-- Comprehensive Dashboard -->
+      <div class="dashboard-content">
+        <ComprehensiveDashboard />
       </div>
 
       <!-- Mobile Menu Overlay -->

@@ -28,18 +28,13 @@ const classes = computed(() => [
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 16px;
-  border-radius: 12px;
+  gap: var(--spacing-sm);
+  padding: 0.75rem var(--spacing-md);
+  border-radius: var(--radius-lg);
   border: 1px solid transparent;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition:
-    transform 120ms ease,
-    box-shadow 160ms ease,
-    background 160ms ease,
-    color 160ms ease,
-    border-color 160ms ease;
+  transition: var(--transition);
 }
 
 .ui-btn:active {
@@ -65,29 +60,31 @@ const classes = computed(() => [
 
 /* Variants */
 .ui-btn--primary {
-  background: linear-gradient(180deg, var(--ecolink-primary-500), var(--ecolink-primary-700));
-  color: #fff;
+  background: var(--primary-color);
+  color: white;
   box-shadow: var(--shadow-md);
 }
 .ui-btn--primary:hover {
-  filter: brightness(1.02);
+  background: var(--primary-hover);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
 }
 
 .ui-btn--outline {
-  background: #fff;
-  color: var(--ecolink-primary-700);
-  border-color: var(--ecolink-primary-500);
+  background: var(--bg-primary);
+  color: var(--primary-color);
+  border-color: var(--primary-color);
 }
 .ui-btn--outline:hover {
-  background: rgba(6, 158, 45, 0.06);
+  background: var(--primary-light);
 }
 
 .ui-btn--ghost {
   background: transparent;
-  color: var(--ecolink-primary-700);
+  color: var(--primary-color);
 }
 .ui-btn--ghost:hover {
-  background: rgba(6, 158, 45, 0.06);
+  background: var(--primary-light);
 }
 
 button[disabled] {
