@@ -1,11 +1,17 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { logUserAction, logSystemEvent } from '@/services/auditService'
 
 export async function loginWithEmail({ email, password }) {
   const supabase = getSupabase()
   const { data, error } = await supabase.auth.signInWithPassword({ email, password })
   if (error) {
+    // Log failed login attempt
+    await logUserAction('LOGIN_FAILED', 'user', null, null, { email, error: error.message })
     throw new Error(error.message || 'Invalid credentials or account not registered.')
   }
+
+  // Log successful login
+  await logUserAction('LOGIN_SUCCESS', 'user', data.user?.id, null, { email })
   return data
 }
 
@@ -21,15 +27,26 @@ export async function registerWithEmail({ name, email, password }) {
     },
   })
   if (error) {
+    // Log failed registration attempt
+    await logUserAction('REGISTRATION_FAILED', 'user', null, null, { email, error: error.message })
     throw new Error(error.message || 'Unable to register. Please try again.')
   }
+
+  // Log successful registration
+  await logUserAction('REGISTRATION_SUCCESS', 'user', data.user?.id, null, { email, name })
 
   // Create profile if user was created successfully
   if (data.user) {
     try {
       await createUserProfile(data.user.id, { full_name: name })
+      // Log profile creation
+      await logUserAction('PROFILE_CREATED', 'profile', data.user.id, null, { full_name: name })
     } catch (profileError) {
       console.warn('Failed to create profile:', profileError)
+      // Log profile creation failure
+      await logUserAction('PROFILE_CREATION_FAILED', 'profile', data.user.id, null, {
+        error: profileError.message,
+      })
       // Don't fail registration if profile creation fails
     }
   }
@@ -72,9 +89,19 @@ export async function getSession() {
 
 export async function signOut() {
   const supabase = getSupabase()
+
+  // Get current user before signing out
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   try {
     await supabase.auth.signOut({ scope: 'global' })
+    // Log successful logout
+    await logUserAction('LOGOUT_SUCCESS', 'user', user?.id, null, {})
   } catch (e) {
+    // Log failed logout
+    await logUserAction('LOGOUT_FAILED', 'user', user?.id, null, { error: e.message })
     // ignore but continue clearing local state
   }
   try {

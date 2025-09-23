@@ -29,10 +29,6 @@
           <div class="user-role">{{ userRoleDisplay }}</div>
         </div>
       </div>
-      <button class="nav-item logout" type="button" @click="onSignOut">
-        <span class="nav-icon">🚪</span>
-        <span class="nav-label">Log out</span>
-      </button>
     </div>
   </aside>
 </template>
@@ -223,15 +219,6 @@ export default {
       router.push(route)
     }
 
-    async function onSignOut() {
-      try {
-        await store.logout()
-        router.push('/login')
-      } catch (error) {
-        console.error('Logout error:', error)
-      }
-    }
-
     onMounted(() => {
       loadUserProfile()
     })
@@ -242,7 +229,6 @@ export default {
       userInitials,
       userRoleDisplay,
       navigateTo,
-      onSignOut,
     }
   },
 }
@@ -319,15 +305,6 @@ export default {
 
 .nav-item.active {
   background: #3182ce;
-  color: white;
-}
-
-.nav-item.logout {
-  color: #fc8181;
-}
-
-.nav-item.logout:hover {
-  background: #742a2a;
   color: white;
 }
 
