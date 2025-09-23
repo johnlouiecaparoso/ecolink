@@ -15,6 +15,12 @@ const user = ref({ name: 'EcoLink User', email: 'user@ecolink.io' })
 const showBackButton = ref(false)
 const previousRoute = ref(null)
 
+// Mobile menu functionality
+const mobileMenuOpen = ref(false)
+
+// User profile dropdown functionality
+const userDropdownOpen = ref(false)
+
 // Overview metrics data (moved from HomeView)
 const overviewMetrics = ref([
   { id: 'mrr', title: 'Current MRR', value: '$12.4k' },
@@ -53,6 +59,7 @@ const navItems = computed(() => {
       { id: 'analytics', label: 'Analytics', route: '/analytics', icon: '📊' },
       { id: 'database', label: 'Database', route: '/database', icon: '🗄️' },
       { id: 'tables', label: 'Tables', route: '/tables', icon: '📋' },
+      { id: 'audit-logs', label: 'Audit Logs', route: '/audit-logs', icon: '📝' },
     )
   }
 
@@ -115,6 +122,18 @@ function goBack() {
   }
 }
 
+function toggleMobileMenu() {
+  mobileMenuOpen.value = !mobileMenuOpen.value
+}
+
+function toggleUserDropdown() {
+  userDropdownOpen.value = !userDropdownOpen.value
+}
+
+function closeUserDropdown() {
+  userDropdownOpen.value = false
+}
+
 async function onSignOut() {
   try {
     await store.logout()
@@ -124,15 +143,47 @@ async function onSignOut() {
   }
 }
 
+function navigateToProfile() {
+  navigateTo('/profile')
+  closeUserDropdown()
+}
+
+function navigateToWallet() {
+  navigateTo('/wallet')
+  closeUserDropdown()
+}
+
+function navigateToCertificates() {
+  navigateTo('/certificates')
+  closeUserDropdown()
+}
+
+function navigateToSettings() {
+  navigateTo('/settings')
+  closeUserDropdown()
+}
+
+function handleLogout() {
+  onSignOut()
+  closeUserDropdown()
+}
+
 onMounted(async () => {
   await loadUserProfile()
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.header-right')) {
+      closeUserDropdown()
+    }
+  })
 })
 </script>
 
 <template>
   <div class="home-layout">
     <!-- Left Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ open: mobileMenuOpen }">
       <div class="sidebar-brand">
         <div class="brand-logo">
           <div class="logo-circles">
@@ -158,11 +209,6 @@ onMounted(async () => {
       </nav>
 
       <div class="sidebar-spacer"></div>
-
-      <button class="nav-item logout" type="button" @click="onSignOut">
-        <span class="nav-icon">🚪</span>
-        <span class="nav-label">Log out</span>
-      </button>
     </aside>
 
     <!-- Main Content -->
@@ -170,6 +216,9 @@ onMounted(async () => {
       <!-- Top Header -->
       <header class="top-header">
         <div class="header-left">
+          <button class="mobile-menu-btn" @click="toggleMobileMenu">
+            <span class="menu-icon">☰</span>
+          </button>
           <button v-if="showBackButton" class="back-button" @click="goBack">
             <span class="back-icon">←</span>
             <span class="back-text">Back</span>
@@ -189,10 +238,56 @@ onMounted(async () => {
         </div>
 
         <div class="header-right">
-          <div class="user-menu">
+          <div
+            class="user-menu"
+            @click.stop="toggleUserDropdown"
+            :class="{ 'dropdown-active': userDropdownOpen }"
+          >
             <div class="user-avatar">{{ userInitials }}</div>
             <span class="user-name">{{ user.name }}</span>
-            <span class="dropdown-arrow">▼</span>
+            <span class="dropdown-arrow" :class="{ rotated: userDropdownOpen }">▼</span>
+          </div>
+
+          <!-- User Profile Dropdown -->
+          <div v-if="userDropdownOpen" class="user-dropdown" @click.stop>
+            <div class="dropdown-header">
+              <div class="dropdown-avatar">{{ userInitials }}</div>
+              <div class="dropdown-user-info">
+                <div class="dropdown-name">{{ user.name }}</div>
+                <div class="dropdown-email">{{ user.email }}</div>
+                <div class="dropdown-role">{{ store.role || 'User' }}</div>
+              </div>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <div class="dropdown-menu">
+              <button class="dropdown-item" @click="navigateToProfile">
+                <span class="dropdown-icon">👤</span>
+                <span class="dropdown-text">Profile Settings</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToWallet">
+                <span class="dropdown-icon">💰</span>
+                <span class="dropdown-text">Wallet</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToCertificates">
+                <span class="dropdown-icon">📜</span>
+                <span class="dropdown-text">Certificates</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToSettings">
+                <span class="dropdown-icon">⚙️</span>
+                <span class="dropdown-text">Settings</span>
+              </button>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <div class="dropdown-menu">
+              <button class="dropdown-item logout-item" @click="handleLogout">
+                <span class="dropdown-icon">🚪</span>
+                <span class="dropdown-text">Log out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -245,6 +340,9 @@ onMounted(async () => {
           </div>
         </section>
       </div>
+
+      <!-- Mobile Menu Overlay -->
+      <div v-if="mobileMenuOpen" class="mobile-overlay" @click="mobileMenuOpen = false"></div>
     </div>
   </div>
 </template>
@@ -430,15 +528,31 @@ onMounted(async () => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background: #f8fafc;
+  background: #0d1117;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #21262c;
+  color: #f0f6fc;
+}
+
+.header-right .user-menu:hover {
+  background: #21262c;
+  border-color: #2f81f7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(47, 129, 247, 0.2);
+}
+
+.header-right .user-menu.dropdown-active {
+  background: #1a1f24;
+  border-color: #2f81f7;
+  box-shadow: 0 4px 12px rgba(47, 129, 247, 0.3);
 }
 
 .user-avatar {
   width: 32px;
   height: 32px;
-  background: #10b981;
+  background: linear-gradient(135deg, #2f81f7, #10b981);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -446,17 +560,172 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 600;
   color: white;
+  box-shadow: 0 2px 8px rgba(47, 129, 247, 0.3);
 }
 
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: #f0f6fc;
 }
 
 .dropdown-arrow {
-  color: #64748b;
+  color: #8b949e;
   font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* User Dropdown */
+.header-right {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #0d1117;
+  border: 1px solid #21262c;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  min-width: 280px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #161b22;
+  border-bottom: 1px solid #21262c;
+}
+
+.dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #2f81f7, #10b981);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 2px 8px rgba(47, 129, 247, 0.3);
+}
+
+.dropdown-user-info {
+  flex: 1;
+}
+
+.dropdown-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 2px;
+}
+
+.dropdown-email {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 2px;
+}
+
+.dropdown-role {
+  font-size: 12px;
+  color: #2f81f7;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #21262c;
+  margin: 0;
+}
+
+.dropdown-menu {
+  padding: 8px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #f0f6fc;
+  font-size: 14px;
+  text-align: left;
+  position: relative;
+}
+
+.dropdown-item:not(:active):hover,
+.dropdown-item:focus {
+  background-color: #21262c;
+  color: #f0f6fc;
+}
+
+.dropdown-item:focus,
+.dropdown-item:active {
+  background-color: #1a1f24;
+  outline: none;
+}
+
+.dropdown-item::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 3px;
+  height: 80%;
+  background-color: #2f81f7;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dropdown-item:focus::before,
+.dropdown-item:active::before {
+  opacity: 1;
+}
+
+.dropdown-item.logout-item {
+  color: #f85149;
+}
+
+.dropdown-item.logout-item:hover {
+  background-color: #2d1b1b;
+}
+
+.dropdown-item.logout-item::before {
+  background-color: #f85149;
+}
+
+.dropdown-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-item:hover .dropdown-icon {
+  transform: scale(1.1);
+}
+
+.dropdown-text {
+  font-weight: 500;
 }
 
 /* Dashboard Content */
@@ -464,6 +733,33 @@ onMounted(async () => {
   padding: 32px;
   flex: 1;
   overflow-y: auto;
+}
+
+/* Mobile Menu Button */
+.mobile-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-right: 12px;
+  color: #64748b;
+}
+
+.mobile-menu-btn:hover {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #10b981;
+}
+
+.menu-icon {
+  font-size: 18px;
+  font-weight: bold;
 }
 
 /* Back Button */
@@ -591,6 +887,24 @@ onMounted(async () => {
   text-align: center;
 }
 
+/* Mobile Overlay */
+.mobile-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-overlay {
+    display: block;
+  }
+}
+
 /* Modal Styles */
 .modal-overlay {
   position: fixed;
@@ -613,12 +927,45 @@ onMounted(async () => {
   overflow-y: auto;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
+/* Responsive Design */
+@media (max-width: 1024px) {
   .home-layout {
     grid-template-columns: 1fr;
   }
 
+  .mobile-menu-btn {
+    display: flex;
+  }
+
+  .sidebar {
+    position: fixed;
+    left: -240px;
+    top: 0;
+    height: 100vh;
+    z-index: 1000;
+    transition: left 0.3s ease;
+  }
+
+  .sidebar.open {
+    left: 0;
+  }
+
+  .main-content {
+    width: 100%;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (max-width: 768px) {
   .sidebar {
     display: none;
   }
@@ -636,6 +983,97 @@ onMounted(async () => {
 
   .header-center {
     margin: 0;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .metric-card {
+    padding: 16px;
+  }
+
+  .metric-value {
+    font-size: 24px;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .action-btn {
+    padding: 16px;
+  }
+
+  .action-icon {
+    font-size: 24px;
+  }
+
+  .action-text {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-content {
+    padding: 12px;
+  }
+
+  .top-header {
+    padding: 12px;
+  }
+
+  .page-title {
+    font-size: 24px;
+  }
+
+  .section-title {
+    font-size: 20px;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .back-button {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  /* Mobile User Dropdown */
+  .user-dropdown {
+    min-width: 260px;
+    right: -10px;
+  }
+
+  .dropdown-header {
+    padding: 12px;
+  }
+
+  .dropdown-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  .dropdown-name {
+    font-size: 14px;
+  }
+
+  .dropdown-email {
+    font-size: 12px;
+  }
+
+  .dropdown-item {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .dropdown-icon {
+    font-size: 14px;
+    width: 18px;
   }
 }
 </style>

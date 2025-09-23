@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
+import { getProfile } from '@/services/profileService'
 
 const router = useRouter()
 const store = useUserStore()
@@ -64,18 +65,91 @@ const supportTickets = ref([
 const selectedFilter = ref('All')
 const timeRange = ref('This year')
 
+// User profile dropdown functionality
+const userDropdownOpen = ref(false)
+
+// User initials for avatar
+const userInitials = computed(() => {
+  if (user.value.name) {
+    return user.value.name
+      .split(' ')
+      .map((name) => name[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
+  return 'U'
+})
+
 function navigateTo(route) {
   router.push(route)
 }
 
-async function onSignOut() {
-  await store.logout().catch(() => {})
-  store.session = null
-  router.push('/login')
+function toggleUserDropdown() {
+  userDropdownOpen.value = !userDropdownOpen.value
 }
 
-onMounted(() => {
-  // Initialize any data if needed
+function closeUserDropdown() {
+  userDropdownOpen.value = false
+}
+
+async function onSignOut() {
+  try {
+    await store.logout()
+    router.push('/login')
+  } catch (error) {
+    console.error('Logout error:', error)
+  }
+}
+
+function navigateToProfile() {
+  navigateTo('/profile')
+  closeUserDropdown()
+}
+
+function navigateToWallet() {
+  navigateTo('/wallet')
+  closeUserDropdown()
+}
+
+function navigateToCertificates() {
+  navigateTo('/certificates')
+  closeUserDropdown()
+}
+
+function navigateToSettings() {
+  navigateTo('/settings')
+  closeUserDropdown()
+}
+
+function handleLogout() {
+  onSignOut()
+  closeUserDropdown()
+}
+
+async function loadUserProfile() {
+  if (!store.session?.user?.id) return
+
+  try {
+    const profile = await getProfile(store.session.user.id)
+    if (profile) {
+      user.value.name = profile.full_name || 'EcoLink User'
+      user.value.email = store.session.user.email || 'user@ecolink.io'
+    }
+  } catch (error) {
+    console.error('Error loading profile:', error)
+  }
+}
+
+onMounted(async () => {
+  await loadUserProfile()
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (event) => {
+    if (!event.target.closest('.header-right')) {
+      closeUserDropdown()
+    }
+  })
 })
 </script>
 
@@ -107,11 +181,6 @@ onMounted(() => {
       </nav>
 
       <div class="sidebar-spacer"></div>
-
-      <button class="nav-item logout" type="button" @click="onSignOut">
-        <span class="nav-icon">🚪</span>
-        <span class="nav-label">Log out</span>
-      </button>
     </aside>
 
     <!-- Main Content -->
@@ -134,10 +203,56 @@ onMounted(() => {
         </div>
 
         <div class="header-right">
-          <div class="user-menu">
-            <div class="user-avatar">👤</div>
+          <div
+            class="user-menu"
+            @click.stop="toggleUserDropdown"
+            :class="{ 'dropdown-active': userDropdownOpen }"
+          >
+            <div class="user-avatar">{{ userInitials }}</div>
             <span class="user-name">{{ user.name }}</span>
-            <span class="dropdown-arrow">▼</span>
+            <span class="dropdown-arrow" :class="{ rotated: userDropdownOpen }">▼</span>
+          </div>
+
+          <!-- User Profile Dropdown -->
+          <div v-if="userDropdownOpen" class="user-dropdown" @click.stop>
+            <div class="dropdown-header">
+              <div class="dropdown-avatar">{{ userInitials }}</div>
+              <div class="dropdown-user-info">
+                <div class="dropdown-name">{{ user.name }}</div>
+                <div class="dropdown-email">{{ user.email }}</div>
+                <div class="dropdown-role">{{ store.role || 'User' }}</div>
+              </div>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <div class="dropdown-menu">
+              <button class="dropdown-item" @click="navigateToProfile">
+                <span class="dropdown-icon">👤</span>
+                <span class="dropdown-text">Profile Settings</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToWallet">
+                <span class="dropdown-icon">💰</span>
+                <span class="dropdown-text">Wallet</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToCertificates">
+                <span class="dropdown-icon">📜</span>
+                <span class="dropdown-text">Certificates</span>
+              </button>
+              <button class="dropdown-item" @click="navigateToSettings">
+                <span class="dropdown-icon">⚙️</span>
+                <span class="dropdown-text">Settings</span>
+              </button>
+            </div>
+
+            <div class="dropdown-divider"></div>
+
+            <div class="dropdown-menu">
+              <button class="dropdown-item logout-item" @click="handleLogout">
+                <span class="dropdown-icon">🚪</span>
+                <span class="dropdown-text">Log out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -391,11 +506,6 @@ onMounted(() => {
   background: rgba(255, 255, 255, 0.1);
 }
 
-.nav-item.logout {
-  margin-top: auto;
-  margin-bottom: 0;
-}
-
 .nav-icon {
   font-size: 16px;
   width: 20px;
@@ -471,31 +581,204 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background: #f8fafc;
+  background: #0d1117;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid #21262c;
+  color: #f0f6fc;
+}
+
+.header-right .user-menu:hover {
+  background: #21262c;
+  border-color: #2f81f7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(47, 129, 247, 0.2);
+}
+
+.header-right .user-menu.dropdown-active {
+  background: #1a1f24;
+  border-color: #2f81f7;
+  box-shadow: 0 4px 12px rgba(47, 129, 247, 0.3);
 }
 
 .user-avatar {
   width: 32px;
   height: 32px;
-  background: #10b981;
+  background: linear-gradient(135deg, #2f81f7, #10b981);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 2px 8px rgba(47, 129, 247, 0.3);
 }
 
 .user-name {
   font-size: 14px;
   font-weight: 500;
-  color: #1e293b;
+  color: #f0f6fc;
 }
 
 .dropdown-arrow {
-  color: #64748b;
+  color: #8b949e;
   font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-arrow.rotated {
+  transform: rotate(180deg);
+}
+
+/* User Dropdown */
+.header-right {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 8px;
+  background: #0d1117;
+  border: 1px solid #21262c;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+  min-width: 280px;
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: #161b22;
+  border-bottom: 1px solid #21262c;
+}
+
+.dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #2f81f7, #10b981);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: white;
+  box-shadow: 0 2px 8px rgba(47, 129, 247, 0.3);
+}
+
+.dropdown-user-info {
+  flex: 1;
+}
+
+.dropdown-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f0f6fc;
+  margin-bottom: 2px;
+}
+
+.dropdown-email {
+  font-size: 13px;
+  color: #8b949e;
+  margin-bottom: 2px;
+}
+
+.dropdown-role {
+  font-size: 12px;
+  color: #2f81f7;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #21262c;
+  margin: 0;
+}
+
+.dropdown-menu {
+  padding: 8px 0;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #f0f6fc;
+  font-size: 14px;
+  text-align: left;
+  position: relative;
+}
+
+.dropdown-item:not(:active):hover,
+.dropdown-item:focus {
+  background-color: #21262c;
+  color: #f0f6fc;
+}
+
+.dropdown-item:focus,
+.dropdown-item:active {
+  background-color: #1a1f24;
+  outline: none;
+}
+
+.dropdown-item::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 0;
+  width: 3px;
+  height: 80%;
+  background-color: #2f81f7;
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dropdown-item:focus::before,
+.dropdown-item:active::before {
+  opacity: 1;
+}
+
+.dropdown-item.logout-item {
+  color: #f85149;
+}
+
+.dropdown-item.logout-item:hover {
+  background-color: #2d1b1b;
+}
+
+.dropdown-item.logout-item::before {
+  background-color: #f85149;
+}
+
+.dropdown-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+  transition: transform 0.2s ease;
+}
+
+.dropdown-item:hover .dropdown-icon {
+  transform: scale(1.1);
+}
+
+.dropdown-text {
+  font-weight: 500;
 }
 
 /* Metrics Section */

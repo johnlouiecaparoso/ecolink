@@ -21,6 +21,8 @@ const VerifierView = () => import('@/views/VerifierView.vue')
 const AnalyticsView = () => import('@/views/AnalyticsView.vue')
 const DatabaseManagementView = () => import('@/views/DatabaseManagementView.vue')
 const TableManagementView = () => import('@/views/TableManagementView.vue')
+const AuditLogsView = () => import('@/views/AuditLogsView.vue')
+const ProfileView = () => import('@/views/ProfileView.vue')
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -48,6 +50,18 @@ const router = createRouter({
       name: 'certificates',
       component: () => import('@/views/CertificatesView.vue'),
       meta: { requiresAuth: true, roles: [ROLES.GENERAL_USER] },
+    },
+    {
+      path: '/profile',
+      name: 'profile',
+      component: ProfileView,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: ProfileView, // Using ProfileView for now, can create separate SettingsView later
+      meta: { requiresAuth: true },
     },
 
     // Project Developer routes
@@ -113,6 +127,12 @@ const router = createRouter({
       path: '/tables',
       name: 'tables',
       component: TableManagementView,
+      meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
+    },
+    {
+      path: '/audit-logs',
+      name: 'audit-logs',
+      component: AuditLogsView,
       meta: { requiresAuth: true, roles: [ROLES.ADMIN] },
     },
 
