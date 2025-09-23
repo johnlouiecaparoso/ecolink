@@ -1,7 +1,7 @@
 // EcoLink Service Worker
-const CACHE_NAME = 'ecolink-v1.0.1'
-const STATIC_CACHE = 'ecolink-static-v1.0.1'
-const DYNAMIC_CACHE = 'ecolink-dynamic-v1.0.1'
+const CACHE_NAME = 'ecolink-v1.0.2'
+const STATIC_CACHE = 'ecolink-static-v1.0.2'
+const DYNAMIC_CACHE = 'ecolink-dynamic-v1.0.2'
 
 // Files to cache for offline use
 const STATIC_FILES = [

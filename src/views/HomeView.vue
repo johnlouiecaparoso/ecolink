@@ -17,13 +17,20 @@ const metrics = ref([
   { id: 'churn', title: 'Churn Rate', value: '2%' },
 ])
 
-// Navigation items
+// Search functionality
+const searchQuery = ref('')
+const searchResults = ref([])
+const isSearching = ref(false)
+
+// Navigation items - Enhanced for dashboard focus
 const navItems = [
   { id: 'dashboard', label: 'Dashboard', route: '/dashboard', icon: '📊' },
+  { id: 'wallet', label: 'Wallet', route: '/wallet', icon: '💰' },
   { id: 'transactions', label: 'Transactions', route: '/marketplace', icon: '🔄' },
-  { id: 'customers', label: 'Customers', route: '/users', icon: '👥' },
-  { id: 'reports', label: 'Reports', route: '/analytics', icon: '📈' },
-  { id: 'developer', label: 'Developer', route: '/verifier', icon: '🐛' },
+  { id: 'projects', label: 'Projects', route: '/projects', icon: '🌱' },
+  { id: 'marketplace', label: 'Marketplace', route: '/marketplace', icon: '🏪' },
+  { id: 'sales', label: 'Sales', route: '/sales', icon: '📈' },
+  { id: 'analytics', label: 'Analytics', route: '/analytics', icon: '📊' },
 ]
 
 // Chart data
@@ -83,6 +90,55 @@ const userInitials = computed(() => {
 
 function navigateTo(route) {
   router.push(route)
+}
+
+// Search functionality
+async function performSearch() {
+  if (!searchQuery.value.trim()) {
+    searchResults.value = []
+    return
+  }
+
+  isSearching.value = true
+  try {
+    // Simulate search - replace with actual search API call
+    await new Promise((resolve) => setTimeout(resolve, 500))
+
+    // Mock search results
+    searchResults.value = [
+      {
+        type: 'project',
+        title: 'Solar Farm Project',
+        description: 'Renewable energy project in California',
+        route: '/projects',
+      },
+      {
+        type: 'transaction',
+        title: 'Carbon Credit Purchase',
+        description: 'Transaction #12345 - 100 credits',
+        route: '/wallet',
+      },
+      { type: 'user', title: 'John Smith', description: 'Project Developer', route: '/users' },
+    ].filter(
+      (item) =>
+        item.title.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        item.description.toLowerCase().includes(searchQuery.value.toLowerCase()),
+    )
+  } catch (error) {
+    console.error('Search error:', error)
+  } finally {
+    isSearching.value = false
+  }
+}
+
+function clearSearch() {
+  searchQuery.value = ''
+  searchResults.value = []
+}
+
+function selectSearchResult(result) {
+  navigateTo(result.route)
+  clearSearch()
 }
 
 function toggleUserDropdown() {
@@ -192,13 +248,40 @@ onMounted(async () => {
         </div>
 
         <div class="header-center">
-          <div class="search-box">
-            <span class="search-icon">🔍</span>
-            <input
-              type="text"
-              placeholder="Search transactions, customers, subscriptions"
-              class="search-input"
-            />
+          <div class="search-container">
+            <div class="search-box">
+              <span class="search-icon">🔍</span>
+              <input
+                v-model="searchQuery"
+                @input="performSearch"
+                @keyup.enter="performSearch"
+                type="text"
+                placeholder="Search projects, transactions, users, activities..."
+                class="search-input"
+              />
+              <button v-if="searchQuery" @click="clearSearch" class="clear-search-btn">×</button>
+              <div v-if="isSearching" class="search-loading">⏳</div>
+            </div>
+
+            <!-- Search Results Dropdown -->
+            <div v-if="searchResults.length > 0" class="search-results">
+              <div
+                v-for="result in searchResults"
+                :key="result.title"
+                class="search-result-item"
+                @click="selectSearchResult(result)"
+              >
+                <div class="result-icon">
+                  {{
+                    result.type === 'project' ? '🌱' : result.type === 'transaction' ? '💰' : '👤'
+                  }}
+                </div>
+                <div class="result-content">
+                  <div class="result-title">{{ result.title }}</div>
+                  <div class="result-description">{{ result.description }}</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -421,30 +504,47 @@ onMounted(async () => {
 <style scoped>
 .home-layout {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 280px 1fr;
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--background);
 }
 
 /* Sidebar Styles */
 .sidebar {
-  background: #10b981;
+  background: var(--eco-gradient);
   color: white;
   display: flex;
   flex-direction: column;
-  padding: 20px 16px;
+  padding: 1.5rem 1rem;
+  box-shadow: var(--shadow-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="sidebar-grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.05"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.05"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.05"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.05"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.05"/></pattern></defs><rect width="100" height="100" fill="url(%23sidebar-grain)"/></svg>');
+  opacity: 0.3;
+  pointer-events: none;
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 8px 24px 8px;
+  gap: 0.75rem;
+  padding: 0.5rem 0.5rem 2rem 0.5rem;
+  position: relative;
+  z-index: 1;
 }
 
 .brand-logo {
-  width: 32px;
-  height: 32px;
+  width: 2.5rem;
+  height: 2.5rem;
   position: relative;
 }
 
@@ -457,71 +557,112 @@ onMounted(async () => {
 .circle {
   position: absolute;
   border-radius: 50%;
-  background: white;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--shadow-sm);
 }
 
 .circle-1 {
-  width: 20px;
-  height: 20px;
-  top: 2px;
-  left: 2px;
+  width: 1.25rem;
+  height: 1.25rem;
+  top: 0.125rem;
+  left: 0.125rem;
   opacity: 0.9;
 }
 
 .circle-2 {
-  width: 16px;
-  height: 16px;
-  top: 8px;
-  left: 8px;
+  width: 1rem;
+  height: 1rem;
+  top: 0.5rem;
+  left: 0.5rem;
   opacity: 0.7;
 }
 
 .brand-text {
-  font-size: 18px;
+  font-size: var(--font-size-xl);
   font-weight: 700;
   color: white;
+  letter-spacing: -0.025em;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
   border: none;
   background: transparent;
-  color: white;
+  color: rgba(255, 255, 255, 0.8);
   text-align: left;
   cursor: pointer;
-  border-radius: 8px;
-  transition: background-color 0.2s;
+  border-radius: var(--radius);
+  transition: all var(--transition-fast);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
 }
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transform: translateX(2px);
+}
+
+.nav-item:hover::before {
+  opacity: 1;
+}
+
+.nav-item.active {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-item.active::before {
+  opacity: 1;
 }
 
 .nav-icon {
-  font-size: 16px;
-  width: 20px;
+  font-size: 1rem;
+  width: 1.25rem;
   text-align: center;
+  position: relative;
+  z-index: 1;
 }
 
 .nav-label {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
+  position: relative;
+  z-index: 1;
 }
 
 /* Main Content */
 .main-content {
   display: flex;
   flex-direction: column;
-  background: #f8fafc;
+  background: var(--background);
+  min-height: 100vh;
 }
 
 /* Header */
@@ -529,22 +670,28 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 32px;
-  background: white;
-  border-bottom: 1px solid #e2e8f0;
+  padding: 1.5rem 2rem;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(10px);
 }
 
 .header-left .page-title {
-  font-size: 28px;
+  font-size: var(--font-size-3xl);
   font-weight: 700;
-  color: #1e293b;
+  color: var(--foreground);
   margin: 0;
+  letter-spacing: -0.025em;
 }
 
 .header-center {
   flex: 1;
-  max-width: 500px;
-  margin: 0 32px;
+  max-width: 32rem;
+  margin: 0 2rem;
 }
 
 .search-box {
@@ -554,26 +701,137 @@ onMounted(async () => {
 
 .search-icon {
   position: absolute;
-  left: 16px;
+  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  color: #64748b;
-  font-size: 16px;
+  color: var(--ecolink-gray-400);
+  font-size: 1rem;
+  z-index: 1;
 }
 
 .search-input {
   width: 100%;
-  padding: 12px 16px 12px 48px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  font-size: 14px;
-  background: #f8fafc;
+  padding: 0.875rem 1rem 0.875rem 3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--font-size-sm);
+  background: var(--input-background);
+  color: var(--foreground);
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-sm);
 }
 
 .search-input:focus {
   outline: none;
-  border-color: #10b981;
+  border-color: var(--primary);
+  background: var(--background);
+  box-shadow:
+    0 0 0 3px rgba(6, 158, 45, 0.1),
+    var(--shadow-md);
+}
+
+.search-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* Enhanced Search Styles */
+.search-container {
+  position: relative;
+  width: 100%;
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.clear-search-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+.search-loading {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Search Results Dropdown */
+.search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
   background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: #f9fafb;
+}
+
+.result-icon {
+  font-size: 20px;
+  margin-right: 12px;
+  width: 24px;
+  text-align: center;
+}
+
+.result-content {
+  flex: 1;
+}
+
+.result-title {
+  font-weight: 600;
+  color: #111827;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.result-description {
+  color: #6b7280;
+  font-size: 12px;
 }
 
 .header-right .user-menu {
@@ -785,28 +1043,60 @@ onMounted(async () => {
 .metrics-section {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  padding: 32px;
+  gap: 1.5rem;
+  padding: 2rem;
 }
 
 .metric-card {
-  background: #10b981;
+  background: var(--primary);
   color: white;
-  padding: 24px;
-  border-radius: 12px;
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
   text-align: center;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--primary);
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.metric-card:hover::before {
+  opacity: 1;
 }
 
 .metric-title {
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   opacity: 0.9;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
+  position: relative;
+  z-index: 1;
+  letter-spacing: 0.025em;
 }
 
 .metric-value {
-  font-size: 24px;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
+  position: relative;
+  z-index: 1;
+  letter-spacing: -0.025em;
 }
 
 /* Dashboard Grid */
@@ -814,15 +1104,22 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: 2fr 1fr;
   grid-template-rows: auto auto;
-  gap: 24px;
-  padding: 0 32px 32px 32px;
+  gap: 1.5rem;
+  padding: 0 2rem 2rem 2rem;
 }
 
 .dashboard-card {
-  background: white;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  transition: all var(--transition-fast);
+}
+
+.dashboard-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .dashboard-card.large {
@@ -837,14 +1134,15 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .card-title {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-weight: 600;
-  color: #1e293b;
+  color: var(--foreground);
   margin: 0;
+  letter-spacing: -0.025em;
 }
 
 .card-controls {

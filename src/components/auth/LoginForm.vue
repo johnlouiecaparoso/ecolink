@@ -16,19 +16,71 @@ const errorMessage = ref('')
 const emailError = ref('')
 const passwordError = ref('')
 
-async function handleSubmit() {
-  errorMessage.value = ''
-  emailError.value = ''
-  passwordError.value = ''
+// Real-time validation
+function validateEmail() {
+  if (!email.value) {
+    emailError.value = 'Email is required'
+    return false
+  }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
     emailError.value = 'Enter a valid email address'
+    return false
   }
-  if (password.value.length < 8) {
-    passwordError.value = 'Password must be at least 8 characters'
+  emailError.value = ''
+  return true
+}
+
+function validatePassword() {
+  if (!password.value) {
+    passwordError.value = 'Password is required'
+    return false
   }
-  if (emailError.value || passwordError.value) return
+  if (password.value.length < 6) {
+    passwordError.value = 'Password must be at least 6 characters'
+    return false
+  }
+  passwordError.value = ''
+  return true
+}
+
+function validateForm() {
+  const emailValid = validateEmail()
+  const passwordValid = validatePassword()
+  return emailValid && passwordValid
+}
+
+function fillDemoCredentials() {
+  email.value = 'demo@ecolink.io'
+  password.value = 'demo123'
+  emailError.value = ''
+  passwordError.value = ''
+}
+
+async function handleSubmit() {
+  errorMessage.value = ''
+
+  if (!validateForm()) {
+    return
+  }
   loading.value = true
   try {
+    // Demo login for testing
+    if (email.value === 'demo@ecolink.io' && password.value === 'demo123') {
+      const mockSession = {
+        user: {
+          id: 'demo-user-123',
+          email: email.value,
+          user_metadata: { name: 'Demo User' },
+        },
+        access_token: 'demo-token',
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+      }
+      store.session = mockSession
+      const redirect = route.query.redirect || '/'
+      router.replace(redirect)
+      return
+    }
+
     const { session } = await loginWithEmail({ email: email.value, password: password.value })
     // Set session immediately to avoid guard race conditions
     if (session) {
@@ -37,9 +89,7 @@ async function handleSubmit() {
       await store.fetchSession()
     }
     const redirect =
-      typeof route.query.redirect === 'string' && route.query.redirect
-        ? route.query.redirect
-        : '/dashboard'
+      typeof route.query.redirect === 'string' && route.query.redirect ? route.query.redirect : '/'
     router.replace(redirect)
   } catch (err) {
     const msg = String(err?.message || '')
@@ -67,6 +117,8 @@ async function handleSubmit() {
       placeholder="you@ecolink.io"
       v-model="email"
       :error="emailError"
+      @blur="validateEmail"
+      @input="emailError = ''"
     />
 
     <UiInput
@@ -76,6 +128,8 @@ async function handleSubmit() {
       placeholder="Enter your password"
       v-model="password"
       :error="passwordError"
+      @blur="validatePassword"
+      @input="passwordError = ''"
     />
 
     <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
@@ -84,6 +138,13 @@ async function handleSubmit() {
       <span v-if="!loading">Sign in</span>
       <span v-else>Signing in…</span>
     </UiButton>
+
+    <div class="demo-login">
+      <p class="demo-text">Demo Login:</p>
+      <UiButton variant="outline" type="button" @click="fillDemoCredentials" :disabled="loading">
+        Use Demo Account
+      </UiButton>
+    </div>
   </form>
 </template>
 
@@ -91,5 +152,18 @@ async function handleSubmit() {
 button[disabled] {
   opacity: 0.8;
   cursor: not-allowed;
+}
+
+.demo-login {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.demo-text {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
 }
 </style>

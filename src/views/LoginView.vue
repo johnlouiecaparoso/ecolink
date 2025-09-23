@@ -30,18 +30,7 @@ const showRegisteredBanner = computed(() => route.query.registered === '1')
           <p class="panel-desc">Sign in to access your EcoLink dashboard.</p>
         </div>
         <div class="panel-body">
-          <div
-            v-if="showRegisteredBanner"
-            style="
-              margin-bottom: 12px;
-              padding: 12px;
-              border: 1px solid var(--ecolink-border);
-              border-radius: 10px;
-              background: #f0fff4;
-              color: var(--ecolink-primary-700);
-              font-weight: 600;
-            "
-          >
+          <div v-if="showRegisteredBanner" class="success-banner">
             Registration successful. Please log in.
           </div>
           <LoginForm />
@@ -57,4 +46,15 @@ const showRegisteredBanner = computed(() => route.query.registered === '1')
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.success-banner {
+  margin-bottom: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--primary-light);
+  color: var(--primary-color);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+</style>

@@ -1,0 +1,849 @@
+<template>
+  <div class="homepage">
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="container">
+        <div class="hero-content">
+          <h1 class="hero-title">Trade Carbon Credits with Confidence</h1>
+          <p class="hero-description">
+            Connect with verified carbon projects worldwide. Make a real impact on climate change
+            through transparent, high-quality carbon credits.
+          </p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-container">
+          <div class="search-bar">
+            <div class="search-input-wrapper">
+              <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                ></path>
+              </svg>
+              <input
+                placeholder="Search for a project"
+                v-model="searchQuery"
+                class="search-input"
+                @keypress="handleSearch"
+              />
+            </div>
+            <button @click="handleSearch" class="search-button">Search</button>
+          </div>
+        </div>
+
+        <!-- Auth Actions (only show when not logged in) -->
+        <div v-if="!store.isAuthenticated" class="auth-actions">
+          <button @click="$router.push('/login')" class="auth-button primary">Sign In</button>
+          <button @click="$router.push('/register')" class="auth-button secondary">Sign Up</button>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+          <div v-for="(stat, index) in stats" :key="index" class="stat-card">
+            <div class="stat-icon">{{ stat.icon }}</div>
+            <div class="stat-value">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Projects -->
+    <section class="featured-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">Featured Projects</h2>
+          <p class="section-description">
+            Discover high-impact carbon projects from around the world
+          </p>
+        </div>
+
+        <!-- Featured Project Carousel -->
+        <div class="featured-carousel">
+          <div class="featured-card">
+            <div class="featured-image">
+              <div class="featured-content">
+                <h3 class="featured-title">
+                  {{ featuredProjects[currentFeatured].name }}
+                </h3>
+                <p class="featured-location">{{ featuredProjects[currentFeatured].location }}</p>
+              </div>
+            </div>
+            <div class="featured-details">
+              <p class="featured-description">
+                {{ featuredProjects[currentFeatured].description }}
+              </p>
+              <div class="featured-footer">
+                <span class="featured-price">${{ featuredProjects[currentFeatured].price }}</span>
+                <button class="featured-button">Learn More</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Carousel Indicators -->
+          <div class="carousel-indicators">
+            <button
+              v-for="(_, index) in featuredProjects"
+              :key="index"
+              @click="currentFeatured = index"
+              :class="['indicator', { active: index === currentFeatured }]"
+            />
+          </div>
+        </div>
+
+        <div class="section-footer">
+          <button @click="$router.push('/marketplace')" class="explore-button">
+            Explore More Projects
+            <svg class="button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              ></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="how-it-works-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">How EcoLink Works</h2>
+          <p class="section-description">Simple steps to make a positive climate impact</p>
+        </div>
+
+        <div class="steps-grid">
+          <div v-for="(step, index) in steps" :key="index" class="step-card">
+            <div class="step-icon" :style="{ backgroundColor: step.color }">
+              <span class="step-number">{{ index + 1 }}</span>
+            </div>
+            <h3 class="step-title">{{ step.title }}</h3>
+            <p class="step-description">{{ step.description }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+      <div class="container">
+        <h2 class="cta-title">Ready to Make an Impact?</h2>
+        <p class="cta-description">
+          Join thousands of businesses and individuals taking climate action through verified carbon
+          credits.
+        </p>
+        <div class="cta-buttons">
+          <!-- Show auth buttons when not logged in -->
+          <template v-if="!store.isAuthenticated">
+            <button @click="$router.push('/login')" class="cta-button primary">Get Started</button>
+            <button @click="$router.push('/register')" class="cta-button secondary">
+              Create Account
+            </button>
+          </template>
+
+          <!-- Show social media icons when logged in -->
+          <template v-else>
+            <div class="social-links">
+              <h3 class="social-title">Follow Us</h3>
+              <div class="social-icons">
+                <a
+                  href="https://facebook.com/ecolink"
+                  target="_blank"
+                  class="social-icon facebook"
+                  aria-label="Facebook"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://twitter.com/ecolink"
+                  target="_blank"
+                  class="social-icon twitter"
+                  aria-label="Twitter"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://linkedin.com/company/ecolink"
+                  target="_blank"
+                  class="social-icon linkedin"
+                  aria-label="LinkedIn"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://instagram.com/ecolink"
+                  target="_blank"
+                  class="social-icon instagram"
+                  aria-label="Instagram"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path
+                      d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"
+                    />
+                  </svg>
+                </a>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+  </div>
+</template>
+
+<script>
+import { useUserStore } from '@/store/userStore'
+
+export default {
+  name: 'HomepageView',
+  setup() {
+    const store = useUserStore()
+    return { store }
+  },
+  data() {
+    return {
+      searchQuery: '',
+      currentFeatured: 0,
+      stats: [
+        { label: 'Carbon Credits Retired', value: '2.3M', icon: '🌱' },
+        { label: 'Active Projects', value: '150+', icon: '🎯' },
+        { label: 'Countries', value: '45', icon: '🌍' },
+        { label: 'CO2 Reduced', value: '5.2M tonnes', icon: '📈' },
+      ],
+      featuredProjects: [
+        {
+          id: 1,
+          name: 'Amazon Rainforest Protection',
+          location: 'Brazil',
+          description:
+            'Protecting 10,000 hectares of pristine Amazon rainforest from deforestation.',
+          price: 25,
+        },
+        {
+          id: 2,
+          name: 'Solar Farm Development',
+          location: 'India',
+          description: 'Building a 50MW solar farm to replace coal-fired power generation.',
+          price: 18,
+        },
+        {
+          id: 3,
+          name: 'Mangrove Restoration',
+          location: 'Indonesia',
+          description: 'Restoring coastal mangroves to sequester carbon and protect communities.',
+          price: 32,
+        },
+      ],
+      steps: [
+        {
+          title: 'Browse Projects',
+          description:
+            'Explore verified carbon projects across forestry, renewable energy, and blue carbon initiatives.',
+          color: '#069e2d',
+        },
+        {
+          title: 'Purchase Credits',
+          description:
+            'Buy carbon credits from projects that align with your values and sustainability goals.',
+          color: '#058e3f',
+        },
+        {
+          title: 'Retire & Impact',
+          description:
+            'Retire your credits to offset emissions and receive verified certificates of your climate action.',
+          color: '#04773b',
+        },
+      ],
+    }
+  },
+  methods: {
+    handleSearch() {
+      if (this.searchQuery.trim()) {
+        this.$router.push(`/marketplace?search=${encodeURIComponent(this.searchQuery)}`)
+      }
+    },
+  },
+}
+</script>
+
+<style scoped>
+.homepage {
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+/* Hero Section */
+.hero-section {
+  position: relative;
+  padding: 5rem 0;
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-primary) 50%, #f0f8f0 100%);
+}
+
+.hero-content {
+  max-width: 48rem;
+  margin: 0 auto 2rem auto;
+  text-align: center;
+}
+
+.hero-title {
+  font-size: var(--font-size-4xl);
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1.1;
+}
+
+.hero-description {
+  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+  margin-bottom: 2rem;
+  line-height: 1.6;
+}
+
+/* Search Bar */
+.search-container {
+  max-width: 32rem;
+  margin: 0 auto 3rem auto;
+}
+
+.search-bar {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 50px;
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+}
+
+.search-input-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+.search-input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 3rem;
+  border: none;
+  outline: none;
+  font-size: var(--font-size-base);
+  background: transparent;
+}
+
+.search-button {
+  padding: 0.75rem 2rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 50px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.search-button:hover {
+  background: var(--primary-hover);
+}
+
+/* Auth Actions */
+.auth-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.auth-button {
+  padding: 0.75rem 2rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  min-width: 8rem;
+}
+
+.auth-button.primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.auth-button.primary:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.auth-button.secondary {
+  background: transparent;
+  color: var(--primary-color);
+  border: 2px solid var(--primary-color);
+}
+
+.auth-button.secondary:hover {
+  background: var(--primary-color);
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.stat-card {
+  text-align: center;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.stat-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--primary-color);
+  margin: 0 auto 0.5rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+
+.stat-value {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-color);
+  margin-bottom: 0.25rem;
+}
+
+.stat-label {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* Featured Section */
+.featured-section {
+  padding: 4rem 0;
+}
+
+.section-header {
+  text-align: center;
+  margin-bottom: 3rem;
+}
+
+.section-title {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.section-description {
+  font-size: var(--font-size-lg);
+  color: var(--text-muted);
+}
+
+.featured-carousel {
+  max-width: 28rem;
+  margin: 0 auto 2rem auto;
+}
+
+.featured-card {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.featured-image {
+  height: 12rem;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.featured-content {
+  text-align: center;
+  color: white;
+}
+
+.featured-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.featured-location {
+  font-size: var(--font-size-sm);
+  opacity: 0.9;
+}
+
+.featured-details {
+  padding: 1.5rem;
+}
+
+.featured-description {
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+.featured-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.featured-price {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.featured-button {
+  padding: 0.5rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.featured-button:hover {
+  background: var(--primary-hover);
+}
+
+.carousel-indicators {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+  gap: 0.5rem;
+}
+
+.indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition);
+  background: #d1d5db;
+}
+
+.indicator.active {
+  background: var(--primary-color);
+}
+
+.section-footer {
+  text-align: center;
+}
+
+.explore-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border: 1px solid var(--primary-color);
+  background: transparent;
+  color: var(--primary-color);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.explore-button:hover {
+  background: var(--primary-color);
+  color: white;
+}
+
+.button-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+/* How It Works Section */
+.how-it-works-section {
+  padding: 4rem 0;
+  background: var(--bg-secondary);
+}
+
+.steps-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.step-card {
+  text-align: center;
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.step-icon {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem auto;
+}
+
+.step-number {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: white;
+}
+
+.step-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  color: var(--text-primary);
+}
+
+.step-description {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* CTA Section */
+.cta-section {
+  padding: 4rem 0;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  color: white;
+  text-align: center;
+}
+
+.cta-title {
+  font-size: var(--font-size-3xl);
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.cta-description {
+  font-size: var(--font-size-lg);
+  margin-bottom: 2rem;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+
+.cta-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.cta-button {
+  padding: 0.75rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  border: none;
+  min-width: 12rem;
+}
+
+.cta-button.primary {
+  background: white;
+  color: var(--primary-color);
+}
+
+.cta-button.primary:hover {
+  background: #f3f4f6;
+}
+
+.cta-button.secondary {
+  background: transparent;
+  color: white;
+  border: 1px solid white;
+}
+
+.cta-button.secondary:hover {
+  background: white;
+  color: var(--primary-color);
+}
+
+/* Social Media Icons */
+.social-links {
+  text-align: center;
+}
+
+.social-title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: white;
+  margin-bottom: 1.5rem;
+}
+
+.social-icons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.social-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  text-decoration: none;
+  transition: var(--transition);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.social-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.social-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.social-icon.facebook:hover {
+  background: #1877f2;
+}
+
+.social-icon.twitter:hover {
+  background: #1da1f2;
+}
+
+.social-icon.linkedin:hover {
+  background: #0077b5;
+}
+
+.social-icon.instagram:hover {
+  background: linear-gradient(
+    45deg,
+    #f09433 0%,
+    #e6683c 25%,
+    #dc2743 50%,
+    #cc2366 75%,
+    #bc1888 100%
+  );
+}
+
+/* Responsive Design */
+@media (min-width: 768px) {
+  .hero-title {
+    font-size: var(--font-size-6xl);
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .cta-buttons {
+    flex-direction: row;
+  }
+
+  .social-icons {
+    gap: 1.5rem;
+  }
+
+  .social-icon {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .social-icon svg {
+    width: 1.75rem;
+    height: 1.75rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 3rem 0;
+  }
+
+  .hero-title {
+    font-size: var(--font-size-3xl);
+  }
+
+  .auth-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .auth-button {
+    width: 100%;
+    max-width: 16rem;
+  }
+
+  .steps-grid {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  .featured-section,
+  .how-it-works-section,
+  .cta-section {
+    padding: 3rem 0;
+  }
+}
+</style>

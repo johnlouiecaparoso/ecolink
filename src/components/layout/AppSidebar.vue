@@ -238,7 +238,7 @@ export default {
 .app-sidebar {
   width: 280px;
   height: 100vh;
-  background: #1a202c;
+  background: var(--eco-gradient);
   color: white;
   display: flex;
   flex-direction: column;
@@ -246,6 +246,8 @@ export default {
   left: 0;
   top: 0;
   z-index: 1000;
+  box-shadow: var(--shadow-lg);
+  border-right: 1px solid var(--eco-tertiary);
 }
 
 .sidebar-brand {
@@ -259,13 +261,16 @@ export default {
 .brand-badge {
   width: 2.5rem;
   height: 2.5rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--shadow-sm);
 }
 
 .brand-text {
@@ -286,26 +291,51 @@ export default {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1.25rem;
+  padding: 0.875rem 1.25rem;
   background: none;
   border: none;
-  color: #a0aec0;
+  color: rgba(255, 255, 255, 0.8);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all var(--transition-fast);
   text-align: left;
   width: 100%;
   font-size: 0.875rem;
   font-weight: 500;
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
 }
 
 .nav-item:hover {
-  background: #2d3748;
+  background: rgba(255, 255, 255, 0.1);
   color: white;
+  transform: translateX(2px);
+}
+
+.nav-item:hover::before {
+  opacity: 1;
 }
 
 .nav-item.active {
-  background: #3182ce;
+  background: rgba(255, 255, 255, 0.15);
   color: white;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-item.active::before {
+  opacity: 1;
 }
 
 .nav-icon {

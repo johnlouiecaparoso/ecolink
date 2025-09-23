@@ -7,17 +7,29 @@ const props = defineProps({
   error: { type: String, default: '' },
   id: { type: String, default: '' },
 })
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'input', 'blur'])
 
 function onInput(e) {
   emit('update:modelValue', e.target.value)
+  emit('input', e)
+}
+
+function onBlur(e) {
+  emit('blur', e)
 }
 </script>
 
 <template>
   <div class="ui-input">
     <label v-if="label" :for="id">{{ label }}</label>
-    <input :id="id" :type="type" :placeholder="placeholder" :value="modelValue" @input="onInput" />
+    <input
+      :id="id"
+      :type="type"
+      :placeholder="placeholder"
+      :value="modelValue"
+      @input="onInput"
+      @blur="onBlur"
+    />
     <small v-if="error" class="error">{{ error }}</small>
   </div>
 </template>
@@ -33,18 +45,18 @@ function onInput(e) {
 }
 .ui-input input {
   width: 100%;
-  padding: 14px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--ecolink-border);
-  background: #fff;
+  padding: 0.875rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
   outline: none;
-  transition:
-    box-shadow 160ms ease,
-    border-color 160ms ease;
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  transition: var(--transition);
 }
 .ui-input input:focus {
-  border-color: var(--ecolink-primary-500);
-  box-shadow: 0 0 0 4px rgba(6, 158, 45, 0.12);
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(6, 158, 45, 0.1);
 }
 .error {
   color: #b00020;
