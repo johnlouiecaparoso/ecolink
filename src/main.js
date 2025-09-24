@@ -39,8 +39,7 @@ async function initializeAuth() {
 // Initialize auth before mounting the app
 initializeAuth()
 
-// Register Service Worker for PWA - TEMPORARILY DISABLED FOR DEBUGGING
-/*
+// Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker
@@ -64,17 +63,6 @@ if ('serviceWorker' in navigator) {
       .catch((error) => {
         console.log('Service Worker registration failed:', error)
       })
-  })
-}
-*/
-
-// Clear any existing service workers
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    registrations.forEach((registration) => {
-      console.log('Unregistering service worker:', registration.scope)
-      registration.unregister()
-    })
   })
 }
 

@@ -8,10 +8,32 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
       <div class="hero-card">
         <div class="brand">
           <div class="brand-badge">
-            <span class="brand-initials">EC</span>
+            <!-- New EcoLink Logo for Auth Pages -->
+            <div class="auth-logo">
+              <div class="auth-logo-cloud">
+                <div class="auth-logo-buildings">
+                  <div class="auth-building auth-building-left">
+                    <div class="auth-window"></div>
+                    <div class="auth-window"></div>
+                    <div class="auth-window"></div>
+                  </div>
+                  <div class="auth-building auth-building-right">
+                    <div class="auth-window"></div>
+                    <div class="auth-window"></div>
+                  </div>
+                </div>
+                <div class="auth-logo-leaf"></div>
+              </div>
+              <div class="auth-sparkles">
+                <div class="auth-sparkle auth-sparkle-1"></div>
+                <div class="auth-sparkle auth-sparkle-2"></div>
+                <div class="auth-sparkle auth-sparkle-3"></div>
+                <div class="auth-sparkle auth-sparkle-4"></div>
+              </div>
+            </div>
           </div>
           <div>
-            <h1 class="brand-title">EcoLink</h1>
+            <h1 class="brand-title">ECOLINK</h1>
             <p class="brand-subtitle">Join the network accelerating climate-positive projects.</p>
           </div>
         </div>
