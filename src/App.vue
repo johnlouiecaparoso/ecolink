@@ -153,6 +153,143 @@ body {
   box-shadow: var(--shadow-lg);
 }
 
+/* Auth Logo Styles */
+.auth-logo {
+  position: relative;
+  width: 2rem;
+  height: 1.5rem;
+}
+
+.auth-logo-cloud {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(144, 238, 144, 0.8) 0%, rgba(34, 139, 34, 0.8) 100%);
+  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-logo-buildings {
+  position: absolute;
+  bottom: 0.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: flex-end;
+  gap: 0.1rem;
+}
+
+.auth-building {
+  background: rgba(0, 100, 0, 0.8);
+  border-radius: 0.08rem 0.08rem 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.08rem 0.04rem 0.04rem 0.04rem;
+  gap: 0.04rem;
+}
+
+.auth-building-left {
+  width: 0.3rem;
+  height: 0.6rem;
+}
+
+.auth-building-right {
+  width: 0.25rem;
+  height: 0.45rem;
+}
+
+.auth-window {
+  width: 0.06rem;
+  height: 0.06rem;
+  background: rgba(144, 238, 144, 0.8);
+  border-radius: 0.015rem;
+}
+
+.auth-logo-leaf {
+  position: absolute;
+  bottom: -0.08rem;
+  left: 0.08rem;
+  width: 0.25rem;
+  height: 0.3rem;
+  background: linear-gradient(45deg, rgba(144, 238, 144, 0.8) 0%, rgba(34, 139, 34, 0.8) 100%);
+  border-radius: 0 100% 0 100%;
+  transform: rotate(-45deg);
+}
+
+.auth-logo-leaf::before {
+  content: '';
+  position: absolute;
+  top: 0.2rem;
+  left: 0.08rem;
+  width: 0.04rem;
+  height: 0.12rem;
+  background: rgba(34, 139, 34, 0.8);
+  border-radius: 0.02rem;
+}
+
+.auth-sparkles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.auth-sparkle {
+  position: absolute;
+  background: rgba(144, 238, 144, 0.6);
+  border-radius: 50%;
+  animation: authSparkle 2s ease-in-out infinite;
+}
+
+.auth-sparkle-1 {
+  width: 0.06rem;
+  height: 0.06rem;
+  top: 0.15rem;
+  right: 0.25rem;
+  animation-delay: 0s;
+}
+
+.auth-sparkle-2 {
+  width: 0.05rem;
+  height: 0.05rem;
+  top: 0.3rem;
+  left: 0.15rem;
+  animation-delay: 0.5s;
+}
+
+.auth-sparkle-3 {
+  width: 0.04rem;
+  height: 0.04rem;
+  top: 0.08rem;
+  left: 0.3rem;
+  animation-delay: 1s;
+}
+
+.auth-sparkle-4 {
+  width: 0.05rem;
+  height: 0.05rem;
+  top: 0.35rem;
+  right: 0.08rem;
+  animation-delay: 1.5s;
+}
+
+@keyframes authSparkle {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
 .brand-initials {
   font-weight: 700;
   font-size: var(--font-size-lg);
