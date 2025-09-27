@@ -6,104 +6,264 @@
     </div>
 
     <div class="certificates-content">
-      <div class="certificates-grid">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading certificates...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error-state">
+        <div class="error-icon">⚠️</div>
+        <h3>Failed to Load Certificates</h3>
+        <p>{{ error }}</p>
+        <UiButton @click="loadCertificates">Retry</UiButton>
+      </div>
+
+      <!-- Certificates Grid -->
+      <div v-else-if="hasCertificates" class="certificates-grid">
         <div v-for="certificate in certificates" :key="certificate.id" class="certificate-card">
           <div class="certificate-header">
-            <h3 class="certificate-title">{{ certificate.title }}</h3>
+            <div class="certificate-type">
+              <span class="type-icon">{{ getCertificateTypeIcon(certificate.type) }}</span>
+              <span class="type-label">{{ getCertificateTypeLabel(certificate.type) }}</span>
+            </div>
             <span class="certificate-status" :class="certificate.status">
               {{ certificate.status }}
             </span>
           </div>
+
           <div class="certificate-body">
+            <h3 class="certificate-title">{{ certificate.title }}</h3>
             <p class="certificate-description">{{ certificate.description }}</p>
+
             <div class="certificate-meta">
-              <span class="certificate-date">Issued: {{ formatDate(certificate.issuedDate) }}</span>
-              <span class="certificate-credits">{{ certificate.credits }} Credits</span>
+              <div class="meta-item">
+                <span class="meta-label">Certificate #:</span>
+                <span class="meta-value">{{ certificate.certificate_number }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Issued:</span>
+                <span class="meta-value">{{ formatDate(certificate.verification_date) }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Credits:</span>
+                <span class="meta-value">{{ certificate.credits_issued }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">Standard:</span>
+                <span class="meta-value">{{ certificate.verification_standard }}</span>
+              </div>
             </div>
           </div>
+
           <div class="certificate-actions">
-            <button class="btn btn-primary" @click="downloadCertificate(certificate)">
-              Download PDF
-            </button>
-            <button class="btn btn-secondary" @click="viewCertificate(certificate)">
-              View Details
-            </button>
+            <UiButton variant="primary" @click="downloadCertificate(certificate)">
+              📄 Download PDF
+            </UiButton>
+            <UiButton variant="outline" @click="viewCertificate(certificate)">
+              👁️ View Details
+            </UiButton>
           </div>
         </div>
       </div>
 
-      <div v-if="certificates.length === 0" class="empty-state">
+      <!-- Empty State -->
+      <div v-else class="empty-state">
         <div class="empty-icon">📜</div>
         <h3>No Certificates Yet</h3>
         <p>
-          You don't have any certificates yet. Start by participating in environmental projects!
+          You don't have any certificates yet. Start by participating in environmental projects or
+          purchasing carbon credits!
         </p>
-        <button class="btn btn-primary" @click="goToProjects">Browse Projects</button>
+        <div class="empty-actions">
+          <UiButton variant="primary" @click="goToProjects">Browse Projects</UiButton>
+          <UiButton variant="outline" @click="router.push('/marketplace')"
+            >View Marketplace</UiButton
+          >
+        </div>
+      </div>
+    </div>
+
+    <!-- Certificate Details Modal -->
+    <div v-if="showCertificateModal" class="modal-overlay" @click="closeCertificateModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Certificate Details</h2>
+          <button class="modal-close" @click="closeCertificateModal">×</button>
+        </div>
+
+        <div v-if="selectedCertificate" class="modal-body">
+          <div class="certificate-details">
+            <div class="detail-section">
+              <h3>{{ selectedCertificate.title }}</h3>
+              <p class="certificate-type-detail">
+                <span class="type-icon">{{
+                  getCertificateTypeIcon(selectedCertificate.type)
+                }}</span>
+                {{ getCertificateTypeLabel(selectedCertificate.type) }}
+              </p>
+            </div>
+
+            <div class="detail-section">
+              <h4>Description</h4>
+              <p>{{ selectedCertificate.description }}</p>
+            </div>
+
+            <div class="detail-section">
+              <h4>Certificate Information</h4>
+              <div class="detail-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Certificate Number:</span>
+                  <span class="detail-value">{{ selectedCertificate.certificate_number }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Status:</span>
+                  <span class="detail-value status-badge" :class="selectedCertificate.status">
+                    {{ selectedCertificate.status }}
+                  </span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Credits Issued:</span>
+                  <span class="detail-value">{{ selectedCertificate.credits_issued }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Verification Standard:</span>
+                  <span class="detail-value">{{ selectedCertificate.verification_standard }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Issued To:</span>
+                  <span class="detail-value">{{ selectedCertificate.issued_to }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Issued Date:</span>
+                  <span class="detail-value">{{
+                    formatDate(selectedCertificate.verification_date)
+                  }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="selectedCertificate.metadata" class="detail-section">
+              <h4>Additional Information</h4>
+              <pre class="metadata-json">{{
+                JSON.stringify(selectedCertificate.metadata, null, 2)
+              }}</pre>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <UiButton variant="outline" @click="closeCertificateModal">Close</UiButton>
+          <UiButton variant="primary" @click="downloadCertificate(selectedCertificate)">
+            Download PDF
+          </UiButton>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
-<script>
-import { ref, onMounted } from 'vue'
+<script setup>
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
+import {
+  getUserCertificates,
+  generateCertificatePDF,
+  downloadCertificatePDF,
+} from '@/services/certificateService'
 import { formatDate } from '@/utils/formatDate'
+import UiButton from '@/components/ui/Button.vue'
 
-export default {
-  name: 'CertificatesView',
-  setup() {
-    const router = useRouter()
-    const certificates = ref([])
+const router = useRouter()
+const userStore = useUserStore()
 
-    // Mock data - replace with actual API call
-    const loadCertificates = () => {
-      certificates.value = [
-        {
-          id: 1,
-          title: 'Carbon Offset Certificate',
-          description: 'Certificate for reducing 100 tons of CO2 emissions',
-          status: 'active',
-          issuedDate: new Date('2024-01-15'),
-          credits: 100,
-        },
-        {
-          id: 2,
-          title: 'Renewable Energy Certificate',
-          description: 'Certificate for generating 50 MWh of renewable energy',
-          status: 'active',
-          issuedDate: new Date('2024-02-20'),
-          credits: 50,
-        },
-      ]
-    }
+// State
+const certificates = ref([])
+const loading = ref(true)
+const error = ref(null)
+const selectedCertificate = ref(null)
+const showCertificateModal = ref(false)
 
-    const downloadCertificate = (certificate) => {
-      console.log('Downloading certificate:', certificate.title)
-      // Implement download functionality
-    }
+// Computed properties
+const hasCertificates = computed(() => certificates.value.length > 0)
 
-    const viewCertificate = (certificate) => {
-      console.log('Viewing certificate:', certificate.title)
-      // Implement view functionality
-    }
-
-    const goToProjects = () => {
-      router.push('/marketplace')
-    }
-
-    onMounted(() => {
-      loadCertificates()
-    })
-
-    return {
-      certificates,
-      downloadCertificate,
-      viewCertificate,
-      goToProjects,
-      formatDate,
-    }
-  },
+const getCertificateTypeIcon = (type) => {
+  switch (type) {
+    case 'project_verification':
+      return '🌱'
+    case 'credit_purchase':
+      return '💰'
+    case 'credit_retirement':
+      return '♻️'
+    default:
+      return '📜'
+  }
 }
+
+const getCertificateTypeLabel = (type) => {
+  switch (type) {
+    case 'project_verification':
+      return 'Project Verification'
+    case 'credit_purchase':
+      return 'Credit Purchase'
+    case 'credit_retirement':
+      return 'Credit Retirement'
+    default:
+      return 'Certificate'
+  }
+}
+
+// Methods
+async function loadCertificates() {
+  try {
+    loading.value = true
+    error.value = null
+
+    const userCertificates = await getUserCertificates(userStore.user?.email)
+    certificates.value = userCertificates
+  } catch (err) {
+    console.error('Error loading certificates:', err)
+    error.value = err.message || 'Failed to load certificates'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function downloadCertificate(certificate) {
+  try {
+    const result = await generateCertificatePDF(certificate.id)
+
+    if (result.success) {
+      downloadCertificatePDF(certificate, result.pdfData)
+
+      // Show success message
+      alert('Certificate downloaded successfully!')
+    }
+  } catch (err) {
+    console.error('Error downloading certificate:', err)
+    alert('Failed to download certificate. Please try again.')
+  }
+}
+
+function viewCertificate(certificate) {
+  selectedCertificate.value = certificate
+  showCertificateModal.value = true
+}
+
+function closeCertificateModal() {
+  showCertificateModal.value = false
+  selectedCertificate.value = null
+}
+
+function goToProjects() {
+  router.push('/projects')
+}
+
+onMounted(() => {
+  loadCertificates()
+})
 </script>
 
 <style scoped>
@@ -120,32 +280,68 @@ export default {
 .page-title {
   font-size: 2rem;
   font-weight: 700;
-  color: #1a202c;
+  color: var(--ecolink-text);
   margin-bottom: 0.5rem;
 }
 
 .page-description {
-  color: #718096;
+  color: var(--ecolink-muted);
   font-size: 1.1rem;
 }
 
+/* Loading and Error States */
+.loading-state,
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--ecolink-border);
+  border-top: 3px solid var(--ecolink-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+/* Certificates Grid */
 .certificates-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
   gap: 1.5rem;
 }
 
 .certificate-card {
-  background: white;
-  border: 1px solid #e2e8f0;
+  background: var(--ecolink-surface);
+  border: 1px solid var(--ecolink-border);
   border-radius: 12px;
   padding: 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.2s;
 }
 
 .certificate-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
   transform: translateY(-2px);
 }
 
@@ -156,46 +352,85 @@ export default {
   margin-bottom: 1rem;
 }
 
-.certificate-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: #1a202c;
-  margin: 0;
+.certificate-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.type-icon {
+  font-size: 1.2rem;
+}
+
+.type-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--ecolink-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .certificate-status {
   padding: 0.25rem 0.75rem;
   border-radius: 20px;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   font-weight: 500;
   text-transform: uppercase;
 }
 
 .certificate-status.active {
-  background: #c6f6d5;
-  color: #22543d;
+  background: var(--ecolink-success-bg);
+  color: var(--ecolink-success);
 }
 
 .certificate-status.pending {
-  background: #fed7d7;
-  color: #742a2a;
+  background: var(--ecolink-warning-bg);
+  color: var(--ecolink-warning);
+}
+
+.certificate-status.revoked {
+  background: var(--ecolink-error-bg);
+  color: var(--ecolink-error);
 }
 
 .certificate-body {
   margin-bottom: 1.5rem;
 }
 
+.certificate-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ecolink-text);
+  margin: 0 0 0.75rem 0;
+}
+
 .certificate-description {
-  color: #4a5568;
+  color: var(--ecolink-muted);
   margin-bottom: 1rem;
   line-height: 1.5;
+  font-size: 0.9rem;
 }
 
 .certificate-meta {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.meta-item {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 0.875rem;
-  color: #718096;
+}
+
+.meta-label {
+  color: var(--ecolink-muted);
+  font-weight: 500;
+}
+
+.meta-value {
+  color: var(--ecolink-text);
+  font-weight: 600;
 }
 
 .certificate-actions {
@@ -203,38 +438,11 @@ export default {
   gap: 0.75rem;
 }
 
-.btn {
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-}
-
-.btn-primary {
-  background: #3182ce;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #2c5aa0;
-}
-
-.btn-secondary {
-  background: #e2e8f0;
-  color: #4a5568;
-}
-
-.btn-secondary:hover {
-  background: #cbd5e0;
-}
-
+/* Empty State */
 .empty-state {
   text-align: center;
   padding: 4rem 2rem;
-  color: #718096;
+  color: var(--ecolink-muted);
 }
 
 .empty-icon {
@@ -245,12 +453,192 @@ export default {
 .empty-state h3 {
   font-size: 1.5rem;
   font-weight: 600;
-  color: #4a5568;
+  color: var(--ecolink-text);
   margin-bottom: 0.5rem;
 }
 
 .empty-state p {
   margin-bottom: 2rem;
   font-size: 1.1rem;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-content {
+  background: var(--ecolink-surface);
+  border-radius: 12px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--ecolink-border);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--ecolink-text);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--ecolink-muted);
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+.modal-close:hover {
+  color: var(--ecolink-text);
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  border-top: 1px solid var(--ecolink-border);
+}
+
+/* Certificate Details */
+.certificate-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.detail-section h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ecolink-text);
+}
+
+.detail-section h4 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ecolink-text);
+}
+
+.certificate-type-detail {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--ecolink-primary);
+  font-weight: 500;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--ecolink-border);
+}
+
+.detail-item:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  color: var(--ecolink-muted);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.detail-value {
+  color: var(--ecolink-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.status-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.metadata-json {
+  background: var(--ecolink-bg);
+  border: 1px solid var(--ecolink-border);
+  border-radius: 6px;
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: var(--ecolink-text);
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .certificates-view {
+    padding: 1rem;
+  }
+
+  .certificates-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .certificate-actions {
+    flex-direction: column;
+  }
+
+  .modal-content {
+    margin: 1rem;
+    max-height: calc(100vh - 2rem);
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .empty-actions {
+    flex-direction: column;
+    align-items: center;
+  }
 }
 </style>

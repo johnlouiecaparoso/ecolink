@@ -1,8 +1,116 @@
 <script setup>
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import PageLayout from '@/components/layout/PageLayout.vue'
+import {
+  getPlatformOverview,
+  getProjectStats,
+  getCreditStats,
+  getUserStats,
+  getRevenueStats,
+  getTopProjects,
+  getRecentActivity
+} from '@/services/analyticsService'
 
 const router = useRouter()
+
+// State
+const loading = ref(true)
+const error = ref(null)
+const overview = ref({})
+const projectStats = ref({})
+const creditStats = ref({})
+const userStats = ref({})
+const revenueStats = ref({})
+const topProjects = ref([])
+const recentActivity = ref([])
+
+// Computed properties for display
+const formatCurrency = (amount, currency = 'PHP') => {
+  if (amount >= 1000000) {
+    return `${currency} ${(amount / 1000000).toFixed(1)}M`
+  } else if (amount >= 1000) {
+    return `${currency} ${(amount / 1000).toFixed(1)}K`
+  }
+  return `${currency} ${amount.toLocaleString()}`
+}
+
+const formatNumber = (num) => {
+  return num.toLocaleString()
+}
+
+const formatDate = (dateString) => {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  })
+}
+
+// Load analytics data
+async function loadAnalytics() {
+  try {
+    loading.value = true
+    error.value = null
+
+    const [
+      overviewData,
+      projectStatsData,
+      creditStatsData,
+      userStatsData,
+      revenueStatsData,
+      topProjectsData,
+      recentActivityData
+    ] = await Promise.all([
+      getPlatformOverview(),
+      getProjectStats(),
+      getCreditStats(),
+      getUserStats(),
+      getRevenueStats(),
+      getTopProjects(),
+      getRecentActivity()
+    ])
+
+    overview.value = overviewData
+    projectStats.value = projectStatsData
+    creditStats.value = creditStatsData
+    userStats.value = userStatsData
+    revenueStats.value = revenueStatsData
+    topProjects.value = topProjectsData
+    recentActivity.value = recentActivityData
+  } catch (err) {
+    console.error('Error loading analytics:', err)
+    error.value = err.message || 'Failed to load analytics data'
+  } finally {
+    loading.value = false
+  }
+}
+
+// Generate report
+async function generateReport() {
+  try {
+    // This would typically generate and download a PDF/Excel report
+    // For now, we'll just log the data
+    console.log('Generating report with data:', {
+      overview: overview.value,
+      projectStats: projectStats.value,
+      creditStats: creditStats.value,
+      userStats: userStats.value,
+      revenueStats: revenueStats.value,
+      topProjects: topProjects.value,
+      recentActivity: recentActivity.value
+    })
+
+    alert('Report generated successfully! Check the console for data.')
+  } catch (err) {
+    console.error('Error generating report:', err)
+    alert('Failed to generate report. Please try again.')
+  }
+}
+
+onMounted(() => {
+  loadAnalytics()
+})
 </script>
 
 <template>
@@ -18,35 +126,50 @@ const router = useRouter()
           <p class="page-subtitle">View insights and generate reports</p>
         </div>
         <div class="header-actions">
-          <button class="btn btn-primary">📊 Generate Report</button>
+          <button class="btn btn-primary" @click="generateReport" :disabled="loading">📊 Generate Report</button>
         </div>
       </div>
 
-      <div class="analytics-grid">
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner"></div>
+        <p>Loading analytics data...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="error-state">
+        <div class="error-icon">⚠️</div>
+        <h3>Failed to Load Analytics</h3>
+        <p>{{ error }}</p>
+        <button class="btn btn-primary" @click="loadAnalytics">Retry</button>
+      </div>
+
+      <!-- Analytics Content -->
+      <div v-else class="analytics-grid">
         <!-- Key Metrics -->
         <div class="metrics-cards">
           <div class="metric-card">
             <div class="metric-icon">🌱</div>
             <div class="metric-content">
               <h3>Active Projects</h3>
-              <p class="metric-number">47</p>
-              <span class="metric-change positive">+12%</span>
+              <p class="metric-number">{{ formatNumber(overview.activeProjects || 0) }}</p>
+              <span class="metric-change neutral">{{ formatNumber(overview.totalProjects || 0) }} total</span>
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-icon">💰</div>
             <div class="metric-content">
               <h3>Total Revenue</h3>
-              <p class="metric-number">₱2.4M</p>
-              <span class="metric-change positive">+8%</span>
+              <p class="metric-number">{{ formatCurrency(overview.totalRevenue || 0, overview.currency) }}</p>
+              <span class="metric-change neutral">{{ formatNumber(overview.totalTransactions || 0) }} transactions</span>
             </div>
           </div>
           <div class="metric-card">
             <div class="metric-icon">👥</div>
             <div class="metric-content">
-              <h3>Active Users</h3>
-              <p class="metric-number">1,156</p>
-              <span class="metric-change positive">+5%</span>
+              <h3>Total Users</h3>
+              <p class="metric-number">{{ formatNumber(overview.totalUsers || 0) }}</p>
+              <span class="metric-change neutral">{{ formatNumber(overview.totalCreditsSold || 0) }} credits sold</span>
             </div>
           </div>
           <div class="metric-card">
@@ -59,42 +182,116 @@ const router = useRouter()
           </div>
         </div>
 
-        <!-- Charts Section -->
-        <div class="charts-section">
-          <div class="chart-card">
-            <div class="chart-header">
-              <h3>Project Performance</h3>
-              <div class="chart-controls">
-                <select class="period-select">
-                  <option>Last 7 days</option>
-                  <option>Last 30 days</option>
-                  <option>Last 3 months</option>
-                </select>
-              </div>
+        <!-- Data Tables Section -->
+        <div class="data-section">
+          <div class="data-card">
+            <div class="card-header">
+              <h3>Project Statistics</h3>
             </div>
-            <div class="chart-content">
-              <div class="placeholder-chart">
-                <div class="chart-icon">📈</div>
-                <p>Chart visualization coming soon</p>
+            <div class="data-content">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">By Status:</span>
+                  <div class="stat-values">
+                    <span v-for="(count, status) in projectStats.byStatus" :key="status" class="stat-value">
+                      {{ status }}: {{ count }}
+                    </span>
+                  </div>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Monthly Growth:</span>
+                  <div class="stat-values">
+                    <span v-for="month in projectStats.byMonth.slice(-6)" :key="month.month" class="stat-value">
+                      {{ month.month }}: {{ month.count }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="chart-card">
-            <div class="chart-header">
-              <h3>Revenue Trends</h3>
-              <div class="chart-controls">
-                <select class="period-select">
-                  <option>Monthly</option>
-                  <option>Quarterly</option>
-                  <option>Yearly</option>
-                </select>
+          <div class="data-card">
+            <div class="card-header">
+              <h3>Credit Trading Statistics</h3>
+            </div>
+            <div class="data-content">
+              <div class="stats-grid">
+                <div class="stat-item">
+                  <span class="stat-label">Available Credits:</span>
+                  <span class="stat-value">{{ formatNumber(creditStats.totalCreditsAvailable || 0) }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Credits Sold:</span>
+                  <span class="stat-value">{{ formatNumber(creditStats.totalCreditsSold || 0) }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Average Price:</span>
+                  <span class="stat-value">{{ formatCurrency(creditStats.averagePrice || 0) }}</span>
+                </div>
+                <div class="stat-item">
+                  <span class="stat-label">Total Volume:</span>
+                  <span class="stat-value">{{ formatCurrency(creditStats.totalVolume || 0) }}</span>
+                </div>
               </div>
             </div>
-            <div class="chart-content">
-              <div class="placeholder-chart">
-                <div class="chart-icon">💹</div>
-                <p>Revenue chart coming soon</p>
+          </div>
+        </div>
+
+        <!-- Top Projects Section -->
+        <div class="top-projects-section">
+          <div class="data-card">
+            <div class="card-header">
+              <h3>Top Performing Projects</h3>
+            </div>
+            <div class="data-content">
+              <div v-if="topProjects.length === 0" class="empty-state">
+                <div class="empty-icon">📊</div>
+                <p>No projects with credit sales yet</p>
+              </div>
+              <div v-else class="projects-list">
+                <div v-for="project in topProjects.slice(0, 5)" :key="project.id" class="project-item">
+                  <div class="project-info">
+                    <h4>{{ project.title }}</h4>
+                    <p class="project-category">{{ project.category }}</p>
+                  </div>
+                  <div class="project-stats">
+                    <span class="credits-sold">{{ formatNumber(project.creditsSold) }} credits sold</span>
+                    <span class="revenue">{{ formatCurrency(project.revenue) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity Section -->
+        <div class="activity-section">
+          <div class="data-card">
+            <div class="card-header">
+              <h3>Recent Activity</h3>
+            </div>
+            <div class="data-content">
+              <div v-if="recentActivity.length === 0" class="empty-state">
+                <div class="empty-icon">📝</div>
+                <p>No recent activity</p>
+              </div>
+              <div v-else class="activity-list">
+                <div v-for="activity in recentActivity.slice(0, 10)" :key="activity.id" class="activity-item">
+                  <div class="activity-icon">
+                    <span v-if="activity.type === 'project'">🌱</span>
+                    <span v-else-if="activity.type === 'transaction'">💰</span>
+                    <span v-else">📝</span>
+                  </div>
+                  <div class="activity-content">
+                    <p class="activity-title">{{ activity.title }}</p>
+                    <p class="activity-meta">{{ formatDate(activity.timestamp) }}</p>
+                  </div>
+                  <div class="activity-status">
+                    <span :class="['status-badge', activity.status || 'neutral']">
+                      {{ activity.action || 'Activity' }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -453,4 +650,241 @@ const router = useRouter()
     gap: 1rem;
   }
 }
+
+/* Loading and Error States */
+.loading-state, .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--ecolink-border);
+  border-top: 3px solid var(--ecolink-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+/* Data Sections */
+.data-section, .top-projects-section, .activity-section {
+  margin-bottom: 32px;
+}
+
+.data-card {
+  background: var(--ecolink-surface);
+  border: 1px solid var(--ecolink-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--ecolink-border);
+  background: var(--ecolink-bg);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ecolink-text);
+}
+
+.data-content {
+  padding: 24px;
+}
+
+/* Stats Grid */
+.stats-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-label {
+  font-weight: 600;
+  color: var(--ecolink-text);
+  font-size: 14px;
+}
+
+.stat-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stat-value {
+  background: var(--ecolink-primary-50);
+  color: var(--ecolink-primary);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Projects List */
+.projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.project-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  background: var(--ecolink-bg);
+  border: 1px solid var(--ecolink-border);
+  border-radius: var(--radius);
+}
+
+.project-info h4 {
+  margin: 0 0 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ecolink-text);
+}
+
+.project-category {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ecolink-muted);
+}
+
+.project-stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.credits-sold {
+  font-size: 14px;
+  color: var(--ecolink-text);
+  font-weight: 500;
+}
+
+.revenue {
+  font-size: 14px;
+  color: var(--ecolink-primary);
+  font-weight: 600;
+}
+
+/* Activity List */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--ecolink-bg);
+  border: 1px solid var(--ecolink-border);
+  border-radius: var(--radius);
+}
+
+.activity-icon {
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ecolink-primary-50);
+  border-radius: var(--radius);
+}
+
+.activity-content {
+  flex: 1;
+}
+
+.activity-title {
+  margin: 0 0 4px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ecolink-text);
+}
+
+.activity-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ecolink-muted);
+}
+
+.status-badge {
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.status-badge.approved {
+  background: var(--ecolink-success-bg);
+  color: var(--ecolink-success);
+}
+
+.status-badge.submitted {
+  background: var(--ecolink-warning-bg);
+  color: var(--ecolink-warning);
+}
+
+.status-badge.purchase {
+  background: var(--ecolink-primary-50);
+  color: var(--ecolink-primary);
+}
+
+.status-badge.neutral {
+  background: var(--ecolink-muted-bg);
+  color: var(--ecolink-muted);
+}
+
+/* Empty States */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.empty-state p {
+  margin: 0;
+  color: var(--ecolink-muted);
+  font-size: 14px;
+}
 </style>
+

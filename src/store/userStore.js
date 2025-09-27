@@ -97,20 +97,74 @@ export const useUserStore = defineStore('user', {
     },
     clearLocalStorage() {
       try {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          Object.keys(window.localStorage).forEach((key) => {
-            if (key.startsWith('sb-') || key.includes('supabase')) {
-              window.localStorage.removeItem(key)
-            }
-          })
+        if (typeof window !== 'undefined') {
+          // Clear localStorage
+          if (window.localStorage) {
+            Object.keys(window.localStorage).forEach((key) => {
+              if (
+                key.startsWith('sb-') ||
+                key.includes('supabase') ||
+                key.includes('auth') ||
+                key.includes('user')
+              ) {
+                window.localStorage.removeItem(key)
+              }
+            })
+          }
+
+          // Clear sessionStorage
+          if (window.sessionStorage) {
+            Object.keys(window.sessionStorage).forEach((key) => {
+              if (
+                key.startsWith('sb-') ||
+                key.includes('supabase') ||
+                key.includes('auth') ||
+                key.includes('user')
+              ) {
+                window.sessionStorage.removeItem(key)
+              }
+            })
+          }
+
+          // Clear any cookies related to authentication
+          if (document.cookie) {
+            document.cookie.split(';').forEach((cookie) => {
+              const eqPos = cookie.indexOf('=')
+              const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim()
+              if (name.includes('supabase') || name.includes('auth') || name.includes('session')) {
+                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`
+                document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=${window.location.hostname}`
+              }
+            })
+          }
         }
       } catch (e) {
-        // Ignore localStorage errors
+        console.warn('Error clearing storage:', e)
+        // Ignore storage errors but continue
       }
     },
     async logout() {
-      await signOut()
-      this.clearUserData()
+      try {
+        // Sign out from Supabase
+        await signOut()
+
+        // Clear all user data
+        this.clearUserData()
+
+        // Force clear any remaining session data
+        this.clearLocalStorage()
+
+        // Reset to initial state
+        this.session = null
+        this.profile = null
+        this.role = ROLES.GENERAL_USER
+        this.permissions = []
+        this.loading = false
+      } catch (error) {
+        console.error('Error during logout:', error)
+        // Even if signOut fails, clear local data
+        this.clearUserData()
+      }
     },
   },
 })

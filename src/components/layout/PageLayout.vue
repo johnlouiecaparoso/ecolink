@@ -52,7 +52,6 @@ const userProfile = ref(null)
 
 const pageTitle = computed(() => {
   const titles = {
-    '/dashboard': 'Dashboard',
     '/projects': 'Projects',
     '/wallet': 'Wallet',
     '/marketplace': 'Marketplace',
@@ -105,7 +104,7 @@ async function loadUserProfile() {
 }
 
 function goHome() {
-  router.push('/dashboard')
+  router.push('/profile')
 }
 
 onMounted(() => {

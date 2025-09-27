@@ -96,39 +96,77 @@
             <!-- Results Header -->
             <div class="results-header">
               <div class="results-info">
-                <span class="results-count">Showing {{ filteredProjects.length }} projects</span>
+                <span class="results-count"
+                  >Showing {{ filteredListings.length }} credit listings</span
+                >
               </div>
               <div class="sort-dropdown">
                 <select v-model="sortBy" @change="applySorting" class="sort-select">
                   <option value="name">Sort by Name</option>
                   <option value="price-low">Price: Low to High</option>
                   <option value="price-high">Price: High to Low</option>
-                  <option value="tonnes">Tonnes Available</option>
+                  <option value="tonnes">Credits Available</option>
                   <option value="year">Year</option>
                 </select>
               </div>
             </div>
 
-            <!-- Projects Grid -->
-            <div class="projects-grid">
-              <div v-for="project in filteredProjects" :key="project.id" class="project-card">
+            <!-- Loading State -->
+            <div v-if="loading" class="loading-state">
+              <div class="loading-spinner"></div>
+              <p>Loading marketplace listings...</p>
+            </div>
+
+            <!-- Error State -->
+            <div v-else-if="error" class="error-state">
+              <div class="error-icon">⚠️</div>
+              <h3>Error Loading Marketplace</h3>
+              <p>{{ error }}</p>
+              <button @click="loadMarketplaceData" class="retry-button">Retry</button>
+            </div>
+
+            <!-- Empty State -->
+            <div v-else-if="filteredListings.length === 0" class="empty-state">
+              <div class="empty-icon">🌱</div>
+              <h3>No Credit Listings Found</h3>
+              <p v-if="listings.length === 0">
+                No carbon credits are currently available for purchase.
+              </p>
+              <p v-else>
+                No listings match your current filters. Try adjusting your search criteria.
+              </p>
+            </div>
+
+            <!-- Listings Grid -->
+            <div v-else class="projects-grid">
+              <div
+                v-for="listing in filteredListings"
+                :key="listing.listing_id"
+                class="project-card"
+              >
                 <div class="project-image">
-                  <img :src="project.image" :alt="project.title" />
+                  <img
+                    :src="`https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=250&fit=crop&${listing.listing_id}`"
+                    :alt="listing.project_title"
+                  />
                   <div
                     class="category-badge"
-                    :class="project.category.toLowerCase().replace(' ', '-')"
+                    :class="listing.category.toLowerCase().replace(' ', '-')"
                   >
-                    {{ project.category }}
+                    {{ listing.category }}
                   </div>
+                  <div class="vintage-badge">{{ listing.vintage_year }}</div>
                 </div>
 
                 <div class="project-content">
-                  <h3 class="project-title">{{ project.title }}</h3>
+                  <h3 class="project-title">{{ listing.project_title }}</h3>
                   <div class="project-price">
-                    <span class="price">${{ project.price }}</span>
-                    <span class="price-unit">per tonne</span>
+                    <span class="price">{{
+                      formatCurrency(listing.price_per_credit, listing.currency)
+                    }}</span>
+                    <span class="price-unit">per credit</span>
                   </div>
-                  <p class="project-description">{{ project.description }}</p>
+                  <p class="project-description">{{ listing.project_description }}</p>
 
                   <div class="project-details">
                     <div class="detail-item">
@@ -151,7 +189,7 @@
                           d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
                         ></path>
                       </svg>
-                      <span>{{ project.country }}</span>
+                      <span>{{ listing.location }}</span>
                     </div>
                     <div class="detail-item">
                       <svg
@@ -167,7 +205,7 @@
                           d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
                         ></path>
                       </svg>
-                      <span>{{ project.tonnes.toLocaleString() }} tonnes</span>
+                      <span>{{ formatNumber(listing.available_quantity) }} credits available</span>
                     </div>
                     <div class="detail-item">
                       <svg
@@ -180,27 +218,30 @@
                           stroke-linecap="round"
                           stroke-linejoin="round"
                           stroke-width="2"
-                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                         ></path>
                       </svg>
-                      <span>{{ project.year }}</span>
+                      <span>{{ listing.verification_standard }} Verified</span>
                     </div>
                   </div>
 
-                  <div class="project-metrics">
-                    <div
-                      v-for="(metric, index) in project.metrics"
-                      :key="index"
-                      class="metric-badge"
-                      :style="{ backgroundColor: metric.color }"
+                  <div class="seller-info">
+                    <span class="seller-label">Sold by:</span>
+                    <span class="seller-name">{{ listing.seller_name }}</span>
+                  </div>
+
+                  <div class="card-actions">
+                    <button class="learn-more-button" @click="viewProject(listing)">
+                      Learn More
+                    </button>
+                    <button
+                      class="purchase-button"
+                      @click="showPurchaseModalFor(listing)"
+                      :disabled="listing.available_quantity <= 0"
                     >
-                      {{ metric.value }}
-                    </div>
+                      {{ listing.available_quantity > 0 ? 'Purchase Credits' : 'Sold Out' }}
+                    </button>
                   </div>
-
-                  <button class="learn-more-button" @click="viewProject(project)">
-                    Learn More
-                  </button>
                 </div>
               </div>
             </div>
@@ -208,225 +249,384 @@
         </div>
       </div>
     </div>
+
+    <!-- Purchase Modal -->
+    <div v-if="showPurchaseModal" class="modal-overlay" @click="closePurchaseModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h2>Purchase Carbon Credits</h2>
+          <button class="close-btn" @click="closePurchaseModal">×</button>
+        </div>
+
+        <div v-if="selectedListing" class="modal-body">
+          <div class="purchase-project-info">
+            <h3>{{ selectedListing.project_title }}</h3>
+            <p class="project-location">{{ selectedListing.location }}</p>
+            <div class="price-info">
+              <span class="price-per-credit"
+                >{{
+                  formatCurrency(selectedListing.price_per_credit, selectedListing.currency)
+                }}
+                per credit</span
+              >
+            </div>
+          </div>
+
+          <div class="purchase-form">
+            <div class="form-group">
+              <label for="quantity">Quantity (Credits)</label>
+              <input
+                id="quantity"
+                v-model.number="purchaseQuantity"
+                type="number"
+                :min="1"
+                :max="selectedListing.available_quantity"
+                class="form-input"
+                required
+              />
+              <div class="input-help">
+                Maximum: {{ formatNumber(selectedListing.available_quantity) }} credits available
+              </div>
+            </div>
+
+            <div class="purchase-summary">
+              <div class="summary-row">
+                <span>Credits:</span>
+                <span>{{ purchaseQuantity }}</span>
+              </div>
+              <div class="summary-row">
+                <span>Price per credit:</span>
+                <span>{{
+                  formatCurrency(selectedListing.price_per_credit, selectedListing.currency)
+                }}</span>
+              </div>
+              <div class="summary-row subtotal">
+                <span>Subtotal:</span>
+                <span>{{
+                  formatCurrency(
+                    purchaseQuantity * selectedListing.price_per_credit,
+                    selectedListing.currency,
+                  )
+                }}</span>
+              </div>
+              <div class="summary-row">
+                <span>Platform fee (2.5%):</span>
+                <span>{{
+                  formatCurrency(
+                    purchaseQuantity * selectedListing.price_per_credit * 0.025,
+                    selectedListing.currency,
+                  )
+                }}</span>
+              </div>
+              <div class="summary-row total">
+                <span>Total:</span>
+                <span>{{
+                  formatCurrency(
+                    purchaseQuantity * selectedListing.price_per_credit * 1.025,
+                    selectedListing.currency,
+                  )
+                }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <UiButton variant="outline" @click="closePurchaseModal">Cancel</UiButton>
+          <UiButton
+            @click="handlePurchase"
+            :disabled="!purchaseQuantity || purchaseQuantity <= 0 || purchaseLoading"
+            :loading="purchaseLoading"
+          >
+            {{ purchaseLoading ? 'Processing...' : 'Purchase Credits' }}
+          </UiButton>
+        </div>
+      </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <PaymentModal
+      :is-open="showPaymentModal"
+      :payment-data="paymentData"
+      @close="closePaymentModal"
+      @success="handlePaymentSuccess"
+      @error="(error) => console.error('Payment error:', error)"
+    />
   </div>
 </template>
 
-<script>
-export default {
-  name: 'MarketplaceView',
-  data() {
-    return {
-      searchQuery: '',
-      selectedCategory: 'all',
-      selectedCountry: '',
-      priceRange: {
-        min: null,
-        max: null,
-      },
-      sortBy: 'name',
-      categories: [
-        { value: 'all', label: 'All' },
-        { value: 'forestry', label: 'Forestry' },
-        { value: 'renewable-energy', label: 'Renewable Energy' },
-        { value: 'blue-carbon', label: 'Blue Carbon' },
-        { value: 'energy-efficiency', label: 'Energy Efficiency' },
-      ],
-      countries: [
-        'Brazil',
-        'Paraguay',
-        'Kenya',
-        'India',
-        'Indonesia',
-        'Costa Rica',
-        'Peru',
-        'Colombia',
-      ],
-      projects: [
-        {
-          id: 1,
-          title: 'Amazon Rainforest Conservation',
-          category: 'Forestry',
-          country: 'Brazil',
-          price: 32,
-          tonnes: 8500,
-          year: '2022',
-          description:
-            'Protecting 10,000 hectares of pristine Amazon rainforest from deforestation through community-based conservation programs.',
-          image:
-            'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 13, color: '#10b981' },
-            { value: 15, color: '#ef4444' },
-            { value: 10, color: '#f59e0b' },
-            { value: 16, color: '#3b82f6' },
-          ],
-        },
-        {
-          id: 2,
-          title: 'Forestal Rio Aquidabán',
-          category: 'Forestry',
-          country: 'Paraguay',
-          price: 24,
-          tonnes: 15000,
-          year: '2023',
-          description:
-            'Sustainable forest management project in the Chaco region, promoting biodiversity and carbon sequestration.',
-          image:
-            'https://images.unsplash.com/photo-1448375240586-882707db888b?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 13, color: '#10b981' },
-            { value: 15, color: '#ef4444' },
-            { value: 8, color: '#f59e0b' },
-            { value: 1, color: '#3b82f6' },
-          ],
-        },
-        {
-          id: 3,
-          title: 'Geothermal Energy Kenya',
-          category: 'Renewable Energy',
-          country: 'Kenya',
-          price: 21,
-          tonnes: 16800,
-          year: '2024',
-          description:
-            'Clean geothermal energy project providing renewable electricity to rural communities in Kenya.',
-          image:
-            'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 7, color: '#10b981' },
-            { value: 13, color: '#ef4444' },
-            { value: 8, color: '#f59e0b' },
-            { value: 9, color: '#3b82f6' },
-          ],
-        },
-        {
-          id: 4,
-          title: 'Solar Farm Development',
-          category: 'Renewable Energy',
-          country: 'India',
-          price: 18,
-          tonnes: 12000,
-          year: '2023',
-          description:
-            'Large-scale solar farm replacing coal-fired power generation in rural India.',
-          image:
-            'https://images.unsplash.com/photo-1509391366360-2e959784a276?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 12, color: '#10b981' },
-            { value: 8, color: '#ef4444' },
-            { value: 14, color: '#f59e0b' },
-            { value: 11, color: '#3b82f6' },
-          ],
-        },
-        {
-          id: 5,
-          title: 'Mangrove Restoration',
-          category: 'Blue Carbon',
-          country: 'Indonesia',
-          price: 28,
-          tonnes: 9500,
-          year: '2022',
-          description:
-            'Coastal mangrove restoration project protecting communities from storms while sequestering carbon.',
-          image: 'https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 9, color: '#10b981' },
-            { value: 12, color: '#ef4444' },
-            { value: 6, color: '#f59e0b' },
-            { value: 13, color: '#3b82f6' },
-          ],
-        },
-        {
-          id: 6,
-          title: 'Energy Efficiency Program',
-          category: 'Energy Efficiency',
-          country: 'Costa Rica',
-          price: 15,
-          tonnes: 22000,
-          year: '2024',
-          description:
-            'Comprehensive energy efficiency program for residential and commercial buildings.',
-          image: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=250&fit=crop',
-          metrics: [
-            { value: 11, color: '#10b981' },
-            { value: 7, color: '#ef4444' },
-            { value: 9, color: '#f59e0b' },
-            { value: 8, color: '#3b82f6' },
-          ],
-        },
-      ],
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
+import {
+  getMarketplaceListings,
+  purchaseCredits,
+  getMarketplaceStats,
+} from '@/services/marketplaceService'
+import UiButton from '@/components/ui/Button.vue'
+import PaymentModal from '@/components/PaymentModal.vue'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+// State
+const listings = ref([])
+const loading = ref(false)
+const error = ref('')
+const marketplaceStats = ref({
+  totalListings: 0,
+  totalCreditsAvailable: 0,
+  totalMarketValue: 0,
+  recentTransactions: 0,
+})
+
+// Filters and search
+const searchQuery = ref('')
+const selectedCategory = ref('all')
+const selectedCountry = ref('')
+const priceRange = ref({
+  min: null,
+  max: null,
+})
+const sortBy = ref('name')
+
+// Purchase modal
+const showPurchaseModal = ref(false)
+const selectedListing = ref(null)
+const purchaseQuantity = ref(1)
+const purchaseLoading = ref(false)
+
+// Payment Modal State
+const showPaymentModal = ref(false)
+const paymentData = ref(null)
+
+// Options
+const categories = [
+  { value: 'all', label: 'All' },
+  { value: 'Forestry', label: 'Forestry' },
+  { value: 'Renewable Energy', label: 'Renewable Energy' },
+  { value: 'Blue Carbon', label: 'Blue Carbon' },
+  { value: 'Energy Efficiency', label: 'Energy Efficiency' },
+]
+
+const countries = [
+  'Brazil',
+  'Paraguay',
+  'Kenya',
+  'India',
+  'Indonesia',
+  'Costa Rica',
+  'Peru',
+  'Colombia',
+  'Philippines',
+  'Malaysia',
+  'Thailand',
+]
+
+// Computed properties
+const filteredListings = computed(() => {
+  let filtered = listings.value
+
+  // Search filter
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    filtered = filtered.filter(
+      (listing) =>
+        listing.project_title.toLowerCase().includes(query) ||
+        listing.project_description.toLowerCase().includes(query) ||
+        listing.location.toLowerCase().includes(query),
+    )
+  }
+
+  // Category filter
+  if (selectedCategory.value !== 'all') {
+    filtered = filtered.filter((listing) => listing.category === selectedCategory.value)
+  }
+
+  // Country filter
+  if (selectedCountry.value) {
+    filtered = filtered.filter((listing) =>
+      listing.location.toLowerCase().includes(selectedCountry.value.toLowerCase()),
+    )
+  }
+
+  // Price range filter
+  if (priceRange.value.min !== null && priceRange.value.min !== '') {
+    filtered = filtered.filter((listing) => listing.price_per_credit >= priceRange.value.min)
+  }
+  if (priceRange.value.max !== null && priceRange.value.max !== '') {
+    filtered = filtered.filter((listing) => listing.price_per_credit <= priceRange.value.max)
+  }
+
+  // Apply sorting
+  return applySorting(filtered)
+})
+
+// Methods
+async function loadMarketplaceData() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    const filters = {
+      category: selectedCategory.value !== 'all' ? selectedCategory.value : null,
+      country: selectedCountry.value,
+      minPrice: priceRange.value.min,
+      maxPrice: priceRange.value.max,
+      search: searchQuery.value,
     }
-  },
-  computed: {
-    filteredProjects() {
-      let filtered = this.projects
 
-      // Search filter
-      if (this.searchQuery) {
-        const query = this.searchQuery.toLowerCase()
-        filtered = filtered.filter(
-          (project) =>
-            project.title.toLowerCase().includes(query) ||
-            project.description.toLowerCase().includes(query) ||
-            project.country.toLowerCase().includes(query),
-        )
-      }
+    const [listingsData, statsData] = await Promise.all([
+      getMarketplaceListings(filters),
+      getMarketplaceStats(),
+    ])
 
-      // Category filter
-      if (this.selectedCategory !== 'all') {
-        filtered = filtered.filter(
-          (project) => project.category.toLowerCase().replace(' ', '-') === this.selectedCategory,
-        )
-      }
-
-      // Country filter
-      if (this.selectedCountry) {
-        filtered = filtered.filter((project) => project.country === this.selectedCountry)
-      }
-
-      // Price range filter
-      if (this.priceRange.min !== null && this.priceRange.min !== '') {
-        filtered = filtered.filter((project) => project.price >= this.priceRange.min)
-      }
-      if (this.priceRange.max !== null && this.priceRange.max !== '') {
-        filtered = filtered.filter((project) => project.price <= this.priceRange.max)
-      }
-
-      // Apply sorting
-      return this.applySorting(filtered)
-    },
-  },
-  methods: {
-    handleSearch() {
-      // Search is handled by computed property
-    },
-    applyFilters() {
-      // Filters are handled by computed property
-    },
-    applySorting(projects) {
-      const sorted = [...projects]
-
-      switch (this.sortBy) {
-        case 'name':
-          return sorted.sort((a, b) => a.title.localeCompare(b.title))
-        case 'price-low':
-          return sorted.sort((a, b) => a.price - b.price)
-        case 'price-high':
-          return sorted.sort((a, b) => b.price - a.price)
-        case 'tonnes':
-          return sorted.sort((a, b) => b.tonnes - a.tonnes)
-        case 'year':
-          return sorted.sort((a, b) => b.year - a.year)
-        default:
-          return sorted
-      }
-    },
-    viewProject(project) {
-      // Navigate to project detail page
-      this.$router.push(`/project/${project.id}`)
-    },
-  },
+    listings.value = listingsData
+    marketplaceStats.value = statsData
+  } catch (err) {
+    console.error('Error loading marketplace data:', err)
+    error.value = 'Failed to load marketplace data'
+  } finally {
+    loading.value = false
+  }
 }
+
+function handleSearch() {
+  loadMarketplaceData()
+}
+
+function applyFilters() {
+  loadMarketplaceData()
+}
+
+function applySorting(listings) {
+  const sorted = [...listings]
+
+  switch (sortBy.value) {
+    case 'name':
+      return sorted.sort((a, b) => a.project_title.localeCompare(b.project_title))
+    case 'price-low':
+      return sorted.sort((a, b) => a.price_per_credit - b.price_per_credit)
+    case 'price-high':
+      return sorted.sort((a, b) => b.price_per_credit - a.price_per_credit)
+    case 'tonnes':
+      return sorted.sort((a, b) => b.available_quantity - a.available_quantity)
+    case 'year':
+      return sorted.sort((a, b) => b.vintage_year - a.vintage_year)
+    default:
+      return sorted
+  }
+}
+
+function viewProject(listing) {
+  // Navigate to project detail page
+  router.push(`/project/${listing.project_id}`)
+}
+
+function showPurchaseModalFor(listing) {
+  if (!userStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+
+  selectedListing.value = listing
+  purchaseQuantity.value = Math.min(1, listing.available_quantity)
+  showPurchaseModal.value = true
+}
+
+function closePurchaseModal() {
+  showPurchaseModal.value = false
+  selectedListing.value = null
+  purchaseQuantity.value = 1
+}
+
+async function handlePurchase() {
+  if (!selectedListing.value || purchaseQuantity.value <= 0) return
+
+  purchaseLoading.value = true
+
+  try {
+    // Create payment data for the payment modal
+    paymentData.value = {
+      amount: selectedListing.value.price_per_credit * purchaseQuantity.value,
+      currency: 'PHP',
+      credits: purchaseQuantity.value,
+      transactionId: `tx_${Date.now()}`,
+      userId: userStore.user?.id,
+      description: `Purchase ${purchaseQuantity.value} carbon credits from ${selectedListing.value.project_title}`,
+    }
+
+    // Close purchase modal and open payment modal
+    closePurchaseModal()
+    showPaymentModal.value = true
+  } catch (err) {
+    console.error('Error preparing purchase:', err)
+    alert('Failed to prepare purchase: ' + err.message)
+  } finally {
+    purchaseLoading.value = false
+  }
+}
+
+// Payment modal handlers
+function handlePaymentSuccess(paymentResult) {
+  console.log('Payment successful:', paymentResult)
+
+  // Complete the credit purchase with payment data
+  completePurchaseWithPayment(paymentResult)
+}
+
+async function completePurchaseWithPayment(paymentResult) {
+  try {
+    const result = await purchaseCredits(selectedListing.value.listing_id, {
+      quantity: purchaseQuantity.value,
+      paymentData: {
+        provider: paymentResult.provider,
+        paymentMethod: paymentResult.paymentMethod,
+        paymentIntentId: paymentResult.paymentId,
+      },
+    })
+
+    if (result.requiresPayment) {
+      // Update payment record with successful payment
+      // This would typically be done by the payment provider webhook
+      console.log('Payment completed, transaction created:', result.transaction)
+    }
+
+    // Show success message
+    alert('Credits purchased successfully!')
+
+    // Reload marketplace data
+    await loadMarketplaceData()
+
+    // Close payment modal
+    closePaymentModal()
+  } catch (err) {
+    console.error('Error completing purchase:', err)
+    alert('Failed to complete purchase: ' + err.message)
+  }
+}
+
+function closePaymentModal() {
+  showPaymentModal.value = false
+  paymentData.value = null
+}
+
+function formatCurrency(amount, currency = 'USD') {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+  }).format(amount)
+}
+
+function formatNumber(number) {
+  return new Intl.NumberFormat('en-US').format(number)
+}
+
+// Lifecycle
+onMounted(() => {
+  loadMarketplaceData()
+})
 </script>
 
 <style scoped>
@@ -784,6 +984,294 @@ export default {
 
 .learn-more-button:hover {
   background: var(--primary-hover);
+}
+
+/* Purchase Button */
+.purchase-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  margin-top: 0.5rem;
+}
+
+.purchase-button:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.purchase-button:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Card Actions */
+.card-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Seller Info */
+.seller-info {
+  margin-bottom: 1rem;
+  padding: 0.75rem;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+}
+
+.seller-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.seller-name {
+  color: var(--text-primary);
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+/* Vintage Badge */
+.vintage-badge {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 2px solid var(--border-color);
+  border-top: 2px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+/* Error State */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.retry-button {
+  padding: 0.5rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-body {
+  padding: 1.5rem;
+}
+
+.purchase-project-info {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.purchase-project-info h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.project-location {
+  margin: 0 0 0.75rem 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.price-per-credit {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--font-size-base);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(6, 158, 45, 0.1);
+}
+
+.input-help {
+  margin-top: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.purchase-summary {
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+  font-size: var(--font-size-sm);
+}
+
+.summary-row.subtotal {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  font-weight: 500;
+}
+
+.summary-row.total {
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.modal-actions .btn {
+  flex: 1;
+}
+
+/* Animations */
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Responsive Design */

@@ -9,27 +9,12 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
         <div class="brand">
           <div class="brand-badge">
             <!-- New EcoLink Logo for Auth Pages -->
-            <div class="auth-logo">
-              <div class="auth-logo-cloud">
-                <div class="auth-logo-buildings">
-                  <div class="auth-building auth-building-left">
-                    <div class="auth-window"></div>
-                    <div class="auth-window"></div>
-                    <div class="auth-window"></div>
-                  </div>
-                  <div class="auth-building auth-building-right">
-                    <div class="auth-window"></div>
-                    <div class="auth-window"></div>
-                  </div>
-                </div>
-                <div class="auth-logo-leaf"></div>
-              </div>
-              <div class="auth-sparkles">
-                <div class="auth-sparkle auth-sparkle-1"></div>
-                <div class="auth-sparkle auth-sparkle-2"></div>
-                <div class="auth-sparkle auth-sparkle-3"></div>
-                <div class="auth-sparkle auth-sparkle-4"></div>
-              </div>
+            <div class="auth-logo-container">
+              <img
+                src="/src/assets/images/ecolink-logo.png"
+                alt="EcoLink Logo"
+                class="auth-logo-image"
+              />
             </div>
           </div>
           <div>
@@ -60,4 +45,32 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+/* New Logo Styling */
+.auth-logo-container {
+  width: 4rem;
+  height: 4rem;
+  border-radius: 50%;
+  border: 3px solid #10b981;
+  padding: 0.3rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+  transition: all 0.3s ease;
+  margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.auth-logo-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 35px rgba(16, 185, 129, 0.4);
+}
+
+.auth-logo-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+}
+</style>

@@ -4,32 +4,9 @@
       <!-- Logo -->
       <router-link to="/" class="logo">
         <div class="logo-container">
-          <!-- New EcoLink Logo -->
-          <div class="logo-graphic">
-            <!-- Cloud shape with buildings and leaf -->
-            <div class="logo-cloud">
-              <div class="logo-buildings">
-                <div class="building building-left">
-                  <div class="window"></div>
-                  <div class="window"></div>
-                  <div class="window"></div>
-                </div>
-                <div class="building building-right">
-                  <div class="window"></div>
-                  <div class="window"></div>
-                </div>
-              </div>
-              <div class="logo-leaf"></div>
-            </div>
-            <!-- Sparkle effects -->
-            <div class="sparkles">
-              <div class="sparkle sparkle-1"></div>
-              <div class="sparkle sparkle-2"></div>
-              <div class="sparkle sparkle-3"></div>
-              <div class="sparkle sparkle-4"></div>
-            </div>
+          <div class="logo-image-container">
+            <img src="/src/assets/images/ecolink-logo.png" alt="EcoLink Logo" class="logo-image" />
           </div>
-          <span class="logo-name">ECOLINK</span>
         </div>
       </router-link>
 
@@ -59,15 +36,35 @@
           <input placeholder="Search projects..." v-model="searchQuery" class="search-input" />
         </div>
         <button class="demo-button">Book a Demo</button>
-        <div class="user-avatar">
-          <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-            ></path>
-          </svg>
+        <div v-if="userStore.isAuthenticated" class="user-menu">
+          <div class="user-info">
+            <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
+            <span class="user-role">{{ getRoleDisplayName(userStore.role) }}</span>
+          </div>
+          <div class="user-avatar" @click="showUserMenu = !showUserMenu">
+            <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              ></path>
+            </svg>
+          </div>
+          <!-- User Dropdown Menu -->
+          <div v-if="showUserMenu" class="user-dropdown">
+            <router-link to="/profile" class="dropdown-item" @click="showUserMenu = false">
+              Profile Settings
+            </router-link>
+            <router-link to="/wallet" class="dropdown-item" @click="showUserMenu = false">
+              Wallet
+            </router-link>
+            <button @click="handleLogout" class="dropdown-item logout">Logout</button>
+          </div>
+        </div>
+        <div v-else class="auth-buttons">
+          <router-link to="/login" class="auth-link">Login</router-link>
+          <router-link to="/register" class="auth-link primary">Sign Up</router-link>
         </div>
       </div>
 
@@ -132,27 +129,99 @@
   </header>
 </template>
 
-<script>
-export default {
-  name: 'Header',
-  data() {
-    return {
-      searchQuery: '',
-      mobileMenuOpen: false,
-      navItems: [
-        { path: '/', label: 'Home' },
-        { path: '/marketplace', label: 'Marketplace' },
-        { path: '/retire', label: 'Retire' },
-        { path: '/wallet', label: 'Wallet' },
-        { path: '/profile', label: 'Profile' },
-      ],
-    }
-  },
-  computed: {
-    isActive() {
-      return (path) => this.$route.path === path
+<script setup>
+import { computed, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useUserStore } from '@/store/userStore'
+import { ROLES, getRoleDisplayName } from '@/constants/roles'
+
+const route = useRoute()
+const router = useRouter()
+const userStore = useUserStore()
+
+const searchQuery = ref('')
+const mobileMenuOpen = ref(false)
+const showUserMenu = ref(false)
+
+// Role-based navigation items
+const navItems = computed(() => {
+  const baseItems = [
+    { path: '/', label: 'Home', public: true },
+    { path: '/marketplace', label: 'Marketplace', public: true },
+    { path: '/retire', label: 'Retire', public: true },
+  ]
+
+  const authenticatedItems = [
+    { path: '/projects', label: 'Projects', roles: [ROLES.PROJECT_DEVELOPER, ROLES.ADMIN] },
+    { path: '/verifier', label: 'Verifier', roles: [ROLES.VERIFIER, ROLES.ADMIN] },
+    {
+      path: '/buy-credits',
+      label: 'Buy Credits',
+      roles: [ROLES.BUYER_INVESTOR, ROLES.GENERAL_USER, ROLES.ADMIN],
     },
-  },
+    { path: '/sales', label: 'Sales', roles: [ROLES.PROJECT_DEVELOPER, ROLES.ADMIN] },
+    { path: '/certificates', label: 'Certificates', roles: ['all'] },
+    { path: '/receipts', label: 'Receipts', roles: ['all'] },
+    { path: '/admin', label: 'Admin', roles: [ROLES.ADMIN] },
+    { path: '/analytics', label: 'Analytics', roles: [ROLES.ADMIN] },
+    { path: '/users', label: 'Users', roles: [ROLES.ADMIN] },
+  ]
+
+  // Filter items based on user authentication and role
+  let items = [...baseItems]
+
+  if (userStore.isAuthenticated) {
+    const userRole = userStore.role
+    const filteredAuthItems = authenticatedItems.filter((item) => {
+      if (item.roles.includes('all')) return true
+      return item.roles.includes(userRole)
+    })
+    items = [...items, ...filteredAuthItems]
+  }
+
+  return items
+})
+
+function isActive(path) {
+  return route.path === path
+}
+
+async function handleLogout() {
+  try {
+    // Close the dropdown menu
+    showUserMenu = false
+
+    // Perform logout
+    await userStore.logout()
+
+    // Clear any remaining session data
+    if (typeof window !== 'undefined') {
+      // Clear all localStorage items related to authentication
+      Object.keys(window.localStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+          window.localStorage.removeItem(key)
+        }
+      })
+
+      // Clear sessionStorage as well
+      Object.keys(window.sessionStorage).forEach((key) => {
+        if (key.startsWith('sb-') || key.includes('supabase') || key.includes('auth')) {
+          window.sessionStorage.removeItem(key)
+        }
+      })
+    }
+
+    // Redirect to login page
+    await router.push('/login')
+
+    // Force a page reload to ensure all session data is cleared
+    window.location.reload()
+  } catch (error) {
+    console.error('Error during logout:', error)
+    // Even if there's an error, redirect to login
+    await router.push('/login')
+    window.location.reload()
+  }
 }
 </script>
 
@@ -188,26 +257,39 @@ export default {
 
 .logo-container {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
 }
 
-.logo-graphic {
+.logo-image-container {
   position: relative;
-  width: 2.5rem;
-  height: 1.8rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid #10b981;
+  padding: 0.2rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.2);
+  transition: all 0.3s ease;
 }
 
-.logo-cloud {
-  position: relative;
+.logo-image-container:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+}
+
+.logo-image {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #90ee90 0%, #228b22 100%);
-  border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
+  border-radius: 50%;
+}
+
+.logo-name {
+  font-weight: 800;
+  font-size: 1.25rem;
+  color: #10b981;
+  letter-spacing: 0.05em;
+  text-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
 }
 
 .logo-buildings {
@@ -329,17 +411,6 @@ export default {
   }
 }
 
-.logo-name {
-  font-weight: 800;
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  letter-spacing: 0.05em;
-  background: linear-gradient(90deg, #90ee90 0%, #228b22 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-
 /* Desktop Navigation */
 .desktop-nav {
   display: none;
@@ -423,6 +494,32 @@ export default {
   color: var(--text-primary);
 }
 
+.user-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.user-name {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.user-role {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
 .user-avatar {
   width: 2rem;
   height: 2rem;
@@ -432,12 +529,94 @@ export default {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  transition: var(--transition);
+}
+
+.user-avatar:hover {
+  background: var(--bg-accent);
 }
 
 .avatar-icon {
   width: 1rem;
   height: 1rem;
   color: var(--text-muted);
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  min-width: 12rem;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: var(--transition);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.dropdown-item:hover {
+  background: var(--bg-secondary);
+  color: var(--primary-color);
+}
+
+.dropdown-item.logout {
+  color: var(--text-muted);
+}
+
+.dropdown-item.logout:hover {
+  color: #dc2626;
+  background: #fef2f2;
+}
+
+.auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.auth-link {
+  padding: 0.5rem 0.75rem;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  text-decoration: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.auth-link:hover {
+  background: var(--bg-accent);
+}
+
+.auth-link.primary {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+.auth-link.primary:hover {
+  background: var(--primary-hover);
 }
 
 /* Mobile Menu Button */

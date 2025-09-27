@@ -361,10 +361,11 @@ onMounted(() => {
 }
 
 .form {
-  background: var(--ecolink-surface);
+  background: white;
   border: 1px solid var(--ecolink-border);
   border-radius: var(--radius);
   padding: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .form-group {
@@ -384,7 +385,7 @@ onMounted(() => {
   padding: 12px 16px;
   border: 1px solid var(--ecolink-border);
   border-radius: var(--radius);
-  background: var(--ecolink-bg);
+  background: white;
   color: var(--ecolink-text);
   font-size: 16px;
   transition: border-color 0.2s;
@@ -405,7 +406,7 @@ onMounted(() => {
   padding: 12px 16px;
   border: 1px solid var(--ecolink-border);
   border-radius: var(--radius);
-  background: var(--ecolink-bg);
+  background: white;
   color: var(--ecolink-text);
   font-size: 16px;
   font-family: inherit;

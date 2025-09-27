@@ -11,7 +11,16 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:all": "npm run test:run && npm run test:e2e",
+    "lighthouse": "lighthouse http://localhost:5173 --output html --output-path ./lighthouse-report.html",
+    "lighthouse:ci": "lhci autorun"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -28,6 +37,16 @@
     "globals": "^16.3.0",
     "prettier": "3.6.2",
     "vite": "^7.0.6",
-    "vite-plugin-vue-devtools": "^8.0.0"
+    "vite-plugin-vue-devtools": "^8.0.0",
+    "@playwright/test": "^1.40.0",
+    "@vitest/ui": "^1.0.0",
+    "@vitest/coverage-v8": "^1.0.0",
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0",
+    "@vue/test-utils": "^2.4.0",
+    "happy-dom": "^15.10.2",
+    "msw": "^2.0.0",
+    "lighthouse": "^12.8.2",
+    "@lhci/cli": "^0.12.0"
   }
 }

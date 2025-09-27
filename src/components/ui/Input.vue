@@ -48,7 +48,7 @@ function onBlur(e) {
   padding: 0.875rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-color);
-  background: var(--bg-primary);
+  background: white;
   outline: none;
   font-size: var(--font-size-base);
   color: var(--text-primary);
