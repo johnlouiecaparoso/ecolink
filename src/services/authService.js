@@ -1,5 +1,6 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { logUserAction, logSystemEvent } from '@/services/auditService'
+import { sendWelcomeEmail } from '@/services/emailService'
 
 export async function loginWithEmail({ email, password }) {
   const supabase = getSupabase()
@@ -69,6 +70,15 @@ async function createUserProfile(userId, profileData) {
 
   if (error) {
     console.error('Profile creation error:', error)
+  } else {
+    // Send welcome email to new user
+    try {
+      await sendWelcomeEmail(userId)
+      console.log('Welcome email sent to new user')
+    } catch (emailError) {
+      console.error('Error sending welcome email:', emailError)
+      // Don't fail the registration if email sending fails
+    }
   }
 }
 

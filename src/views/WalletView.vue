@@ -113,7 +113,7 @@ onMounted(() => {
 <template>
   <div class="wallet-page">
     <header class="wallet-header">
-      <button class="btn btn-ghost" @click="router.push('/dashboard')">← Back to Dashboard</button>
+      <button class="btn btn-ghost" @click="router.push('/profile')">← Back to Profile</button>
       <h1 class="wallet-title">Wallet & Finance</h1>
       <p class="wallet-subtitle">Manage your EcoLink wallet and transactions</p>
     </header>

@@ -1,4 +1,5 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { notifyProjectSubmitted } from '@/services/emailService'
 
 export class ProjectService {
   constructor() {
@@ -51,6 +52,15 @@ export class ProjectService {
 
       if (error) {
         throw new Error(error.message || 'Failed to create project')
+      }
+
+      // Send project submission notification email
+      try {
+        await notifyProjectSubmitted(data.id, data.user_id)
+        console.log('Project submission notification sent')
+      } catch (emailError) {
+        console.error('Error sending project submission notification:', emailError)
+        // Don't fail the entire operation if email sending fails
       }
 
       return data
