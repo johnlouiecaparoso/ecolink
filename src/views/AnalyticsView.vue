@@ -184,10 +184,6 @@ const categoryChartOptions = ref({
   </div>
 </template>
 
-<script setup>
-// Analytics view component
-</script>
-
 <style scoped>
 .analytics-view {
   padding: 2rem 0;

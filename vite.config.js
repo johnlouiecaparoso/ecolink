@@ -1,21 +1,18 @@
 import { fileURLToPath, URL } from 'node:url'
-
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
-// import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    vue(),
-    // vueDevTools(), // Temporarily disabled to debug component resolution issues
-  ],
+  plugins: [vue()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   server: {
+    port: 5173,
+    host: true,
     hmr: {
       port: 24678,
       clientPort: 24678,
@@ -25,16 +22,12 @@ export default defineConfig({
     },
   },
   build: {
-    // Performance optimizations
     target: 'esnext',
-    minify: 'esbuild', // Use esbuild instead of terser
+    minify: 'esbuild',
     rollupOptions: {
       output: {
-        // Manual chunking for better caching
         manualChunks: {
-          // Vendor chunks
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          // Feature chunks
           auth: [
             './src/views/LoginView.vue',
             './src/views/RegisterView.vue',
@@ -59,7 +52,6 @@ export default defineConfig({
             './src/utils/analytics.js',
           ],
         },
-        // Optimize asset file names for better caching
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.')
           const ext = info[info.length - 1]
@@ -78,16 +70,14 @@ export default defineConfig({
         entryFileNames: 'js/[name]-[hash].js',
       },
     },
-    // Enable source maps for production debugging
     sourcemap: false,
-    // Optimize chunk size
     chunkSizeWarningLimit: 1000,
   },
-  // Optimize dependencies
   optimizeDeps: {
     include: ['vue', 'vue-router', 'pinia'],
-    exclude: [
-      // Exclude heavy dependencies that should be loaded on demand
-    ],
+  },
+  define: {
+    __VUE_OPTIONS_API__: true,
+    __VUE_PROD_DEVTOOLS__: false,
   },
 })
