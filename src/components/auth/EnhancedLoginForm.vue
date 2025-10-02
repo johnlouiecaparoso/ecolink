@@ -383,14 +383,43 @@ async function handleSubmit() {
 }
 
 /* Responsive Design */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .enhanced-form {
     gap: 1.25rem;
   }
 
   .form-input {
+    padding: 0.875rem 1rem;
+    font-size: 1rem; /* Keep 16px to prevent zoom on iOS */
+    border-radius: 8px;
+  }
+
+  .submit-button {
+    padding: 1rem 1.25rem;
+    font-size: 1rem;
+    border-radius: 8px;
+    min-height: 48px; /* Better touch target */
+  }
+
+  .password-toggle {
+    width: 2rem;
+    height: 2rem;
+    right: 0.5rem;
+  }
+
+  .form-label {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .enhanced-form {
+    gap: 1rem;
+  }
+
+  .form-input {
     padding: 0.75rem 1rem;
-    font-size: 0.875rem;
+    font-size: 16px; /* Prevent zoom on iOS */
   }
 
   .submit-button {

@@ -1,5 +1,6 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { USE_DATABASE } from '@/config/database'
+import { createGCashPayment, createMayaPayment, checkPaymentStatus } from './paymentGatewayService'
 
 export async function getWalletBalance(userId = null) {
   // Skip database calls if disabled
@@ -223,12 +224,34 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
       throw new Error('Wallet account not found')
     }
 
-    // Create pending transaction
+    // Create payment intent with the payment gateway
+    let paymentIntent
+    const paymentData = {
+      amount: amount,
+      currency: 'PHP',
+      description: `EcoLink Wallet Top-up`,
+      metadata: {
+        userId: userId,
+        walletAccountId: walletAccount.id,
+      },
+    }
+
+    if (paymentMethod === 'gcash') {
+      paymentIntent = await createGCashPayment(paymentData)
+    } else if (paymentMethod === 'maya') {
+      paymentIntent = await createMayaPayment(paymentData)
+    } else {
+      throw new Error('Unsupported payment method')
+    }
+
+    // Create pending transaction with payment intent ID
     console.log('Creating top-up transaction:', {
       account_id: walletAccount.id,
       amount,
       paymentMethod,
+      paymentIntentId: paymentIntent.id,
     })
+
     const transaction = await createTransaction({
       account_id: walletAccount.id,
       amount: amount,
@@ -236,23 +259,18 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
       status: 'pending',
       payment_method: paymentMethod,
       description: `Top-up via ${paymentMethod.toUpperCase()}`,
-      reference_id: generateReferenceId(),
+      reference_id: paymentIntent.id,
     })
+
     console.log('Transaction created:', transaction)
 
-    // In a real implementation, this would call the payment gateway API
-    // For now, we'll simulate a successful payment after 2 seconds
-    setTimeout(async () => {
-      try {
-        await updateWalletBalance(userId, amount, 'topup')
-        await updateTransactionStatus(transaction.id, 'completed')
-      } catch (error) {
-        console.error('Payment processing error:', error)
-        await updateTransactionStatus(transaction.id, 'failed')
-      }
-    }, 2000)
-
-    return transaction
+    // Return transaction with payment details
+    return {
+      ...transaction,
+      paymentIntent: paymentIntent,
+      paymentUrl: paymentIntent.paymentUrl,
+      qrCode: paymentIntent.qrCode,
+    }
   } catch (error) {
     throw new Error(error.message || 'Failed to initiate top-up')
   }
@@ -345,4 +363,78 @@ async function updateTransactionStatus(transactionId, status) {
 
 function generateReferenceId() {
   return 'TXN_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+}
+
+/**
+ * Check and complete payment if successful
+ */
+export async function checkAndCompletePayment(transactionId) {
+  const supabase = getSupabase()
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  try {
+    // Get transaction details
+    const { data: transaction, error: transactionError } = await supabase
+      .from('wallet_transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .single()
+
+    if (transactionError || !transaction) {
+      throw new Error('Transaction not found')
+    }
+
+    if (transaction.status !== 'pending') {
+      return transaction // Already processed
+    }
+
+    // Check payment status with gateway
+    const paymentStatus = await checkPaymentStatus(transaction.reference_id)
+
+    if (paymentStatus.status === 'completed') {
+      // Get wallet account
+      const { data: walletAccount, error: walletError } = await supabase
+        .from('wallet_accounts')
+        .select('user_id')
+        .eq('id', transaction.account_id)
+        .single()
+
+      if (walletError || !walletAccount) {
+        throw new Error('Wallet account not found')
+      }
+
+      // Update wallet balance
+      await updateWalletBalance(walletAccount.user_id, transaction.amount, 'topup')
+
+      // Update transaction status
+      await updateTransactionStatus(transaction.id, 'completed')
+
+      console.log('✅ Payment completed successfully:', transaction.id)
+
+      return {
+        ...transaction,
+        status: 'completed',
+        completedAt: paymentStatus.completedAt,
+        transactionId: paymentStatus.transactionId,
+      }
+    } else if (paymentStatus.status === 'failed') {
+      // Update transaction as failed
+      await updateTransactionStatus(transaction.id, 'failed')
+
+      return {
+        ...transaction,
+        status: 'failed',
+        failedAt: paymentStatus.failedAt,
+        errorMessage: paymentStatus.errorMessage,
+      }
+    }
+
+    // Still pending
+    return transaction
+  } catch (error) {
+    console.error('Error checking payment:', error)
+    throw new Error(error.message || 'Failed to check payment status')
+  }
 }

@@ -485,8 +485,20 @@ onMounted(() => {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .wallet-header {
+    padding: 16px;
+  }
+
+  .wallet-title {
+    font-size: 24px;
+  }
+
   .wallet-content {
     padding: 20px 16px;
+  }
+
+  .balance-card {
+    padding: 24px 20px;
   }
 
   .balance-amount {
@@ -495,6 +507,13 @@ onMounted(() => {
 
   .balance-actions {
     flex-direction: column;
+    gap: 8px;
+  }
+
+  .balance-actions .btn {
+    width: 100%;
+    padding: 12px;
+    font-size: 16px;
   }
 
   .section-header {
@@ -504,14 +523,55 @@ onMounted(() => {
   }
 
   .transaction-item {
-    flex-direction: column;
-    align-items: flex-start;
+    padding: 12px;
     gap: 12px;
   }
 
   .transaction-meta {
     flex-wrap: wrap;
     gap: 8px;
+    font-size: 11px;
+  }
+
+  .modal-overlay {
+    padding: 16px;
+  }
+
+  .modal-content {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .wallet-header {
+    padding: 12px;
+  }
+
+  .wallet-title {
+    font-size: 20px;
+  }
+
+  .wallet-content {
+    padding: 16px 12px;
+  }
+
+  .balance-card {
+    padding: 20px 16px;
+  }
+
+  .balance-amount {
+    font-size: 28px;
+  }
+
+  .transaction-item {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .transaction-amount {
+    align-self: flex-end;
+    font-size: 18px;
   }
 }
 </style>
