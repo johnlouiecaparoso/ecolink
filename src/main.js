@@ -14,7 +14,7 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Mount the app - Cache buster: 2024-10-02-FINAL
+// Mount the app - Cache buster: 2024-10-02-V2-INTERFACE-UPDATE
 app.mount('#app')
 
 // Initialize analytics

@@ -152,55 +152,99 @@
                   <div class="settings-section">
                     <h3 class="section-title">Personal Information</h3>
                     <div class="form-grid">
-                      <div class="form-group">
-                        <label class="form-label">Full Name</label>
-                        <input
-                          v-model="editForm.fullName"
-                          type="text"
-                          class="form-input"
-                          :disabled="!isEditing"
-                        />
+                      <!-- Loading State -->
+                      <div v-if="loading" class="loading-state">
+                        <div class="loading-spinner"></div>
+                        <p>Loading profile...</p>
                       </div>
-                      <div class="form-group">
-                        <label class="form-label">Email Address</label>
-                        <input
-                          v-model="editForm.email"
-                          type="email"
-                          class="form-input"
-                          :disabled="!isEditing"
-                        />
+
+                      <!-- Error Messages -->
+                      <div v-if="errors.general" class="error-message">
+                        {{ errors.general }}
                       </div>
-                      <div class="form-group">
-                        <label class="form-label">Company</label>
-                        <input
-                          v-model="editForm.company"
-                          type="text"
-                          class="form-input"
-                          :disabled="!isEditing"
-                        />
+
+                      <!-- Success Message -->
+                      <div v-if="successMessage" class="success-message">
+                        {{ successMessage }}
                       </div>
-                      <div class="form-group">
-                        <label class="form-label">Location</label>
-                        <input
-                          v-model="editForm.location"
-                          type="text"
-                          class="form-input"
-                          :disabled="!isEditing"
-                        />
-                      </div>
-                      <div class="form-group full-width">
-                        <label class="form-label">Bio</label>
-                        <textarea
-                          v-model="editForm.bio"
-                          class="form-textarea"
-                          :disabled="!isEditing"
-                          rows="3"
-                        ></textarea>
-                      </div>
+
+                      <!-- Form Fields -->
+                      <template v-if="!loading">
+                        <div class="form-group">
+                          <label class="form-label">Full Name *</label>
+                          <input
+                            v-model="editForm.full_name"
+                            type="text"
+                            class="form-input"
+                            :class="{ error: errors.full_name }"
+                            :disabled="!isEditing"
+                            placeholder="Enter your full name"
+                          />
+                          <span v-if="errors.full_name" class="field-error">{{
+                            errors.full_name
+                          }}</span>
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Email Address</label>
+                          <input
+                            v-model="editForm.email"
+                            type="email"
+                            class="form-input"
+                            :class="{ error: errors.email }"
+                            :disabled="!isEditing"
+                            placeholder="Enter your email"
+                          />
+                          <span v-if="errors.email" class="field-error">{{ errors.email }}</span>
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Company</label>
+                          <input
+                            v-model="editForm.company"
+                            type="text"
+                            class="form-input"
+                            :disabled="!isEditing"
+                            placeholder="Enter your company"
+                          />
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Location</label>
+                          <input
+                            v-model="editForm.location"
+                            type="text"
+                            class="form-input"
+                            :disabled="!isEditing"
+                            placeholder="Enter your location"
+                          />
+                        </div>
+                        <div class="form-group full-width">
+                          <label class="form-label">Bio</label>
+                          <textarea
+                            v-model="editForm.bio"
+                            class="form-textarea"
+                            :class="{ error: errors.bio }"
+                            :disabled="!isEditing"
+                            rows="3"
+                            placeholder="Tell us about yourself..."
+                            maxlength="500"
+                          ></textarea>
+                          <span v-if="errors.bio" class="field-error">{{ errors.bio }}</span>
+                          <span v-if="editForm.bio" class="char-count">
+                            {{ editForm.bio.length }}/500 characters
+                          </span>
+                        </div>
+                      </template>
                     </div>
-                    <button v-if="isEditing" class="save-button" @click="saveChanges">
-                      Save Changes
-                    </button>
+
+                    <!-- Action Buttons -->
+                    <div v-if="isEditing && !loading" class="form-actions">
+                      <button class="save-button" @click="saveChanges" :disabled="saving">
+                        <span v-if="saving">Saving...</span>
+                        <span v-else>Save Changes</span>
+                      </button>
+                      <button class="cancel-button" @click="cancelEdit" :disabled="saving">
+                        Cancel
+                      </button>
+                    </div>
                   </div>
 
                   <!-- Account Status -->
@@ -289,31 +333,47 @@
 </template>
 
 <script>
+import { useUserStore } from '@/store/userStore'
+import {
+  getProfile,
+  updateProfile,
+  getUserInitials,
+  validateProfileData,
+} from '@/services/profileService'
+
 export default {
   name: 'ProfileView',
+  setup() {
+    const store = useUserStore()
+    return { store }
+  },
   data() {
     return {
       activeTab: 'account',
       isEditing: false,
+      loading: false,
+      saving: false,
+      errors: {},
+      successMessage: '',
       settingsTabs: [
         { id: 'account', label: 'Account' },
         { id: 'notifications', label: 'Notifications' },
         { id: 'security', label: 'Security' },
       ],
       userProfile: {
-        initials: 'JD',
-        fullName: 'John Doe',
-        email: 'john.doe@example.com',
-        company: 'Green Solutions Inc.',
-        location: 'San Francisco, CA',
-        bio: 'Sustainability enthusiast committed to carbon neutrality',
+        initials: 'U',
+        fullName: '',
+        email: '',
+        company: '',
+        location: '',
+        bio: '',
       },
       editForm: {
-        fullName: 'John Doe',
-        email: 'john.doe@example.com',
-        company: 'Green Solutions Inc.',
-        location: 'San Francisco, CA',
-        bio: 'Sustainability enthusiast committed to carbon neutrality',
+        full_name: '',
+        email: '',
+        company: '',
+        location: '',
+        bio: '',
       },
       carbonImpact: {
         tonnesRetired: 1250,
@@ -365,27 +425,141 @@ export default {
       },
     }
   },
+  async mounted() {
+    await this.loadProfile()
+  },
   methods: {
+    async loadProfile() {
+      if (!this.store.isAuthenticated) {
+        this.$router.push('/login')
+        return
+      }
+
+      this.loading = true
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          throw new Error('User ID not found')
+        }
+
+        const profile = await getProfile(userId)
+
+        // Update user profile display
+        this.userProfile = {
+          initials: getUserInitials(profile.full_name),
+          fullName: profile.full_name || '',
+          email: profile.email || '',
+          company: profile.company || '',
+          location: profile.location || '',
+          bio: profile.bio || '',
+        }
+
+        // Update edit form
+        this.editForm = {
+          full_name: profile.full_name || '',
+          email: profile.email || '',
+          company: profile.company || '',
+          location: profile.location || '',
+          bio: profile.bio || '',
+        }
+
+        console.log('Profile loaded successfully:', profile)
+      } catch (error) {
+        console.error('Error loading profile:', error)
+        this.errors.general = 'Failed to load profile. Please try again.'
+      } finally {
+        this.loading = false
+      }
+    },
+
     editProfile() {
       this.isEditing = true
+      this.errors = {}
+      this.successMessage = ''
+
       // Copy current values to edit form
-      this.editForm = { ...this.userProfile }
+      this.editForm = {
+        full_name: this.userProfile.fullName,
+        email: this.userProfile.email,
+        company: this.userProfile.company,
+        location: this.userProfile.location,
+        bio: this.userProfile.bio,
+      }
     },
-    saveChanges() {
-      // Update user profile with edited values
-      this.userProfile = { ...this.editForm }
-      this.isEditing = false
 
-      // Show success message
-      alert('Profile updated successfully!')
+    async saveChanges() {
+      if (!this.store.isAuthenticated) {
+        this.$router.push('/login')
+        return
+      }
 
-      // In a real app, you would make an API call here
-      console.log('Saving profile:', this.userProfile)
+      // Validate form data
+      const validation = validateProfileData(this.editForm)
+      if (!validation.isValid) {
+        this.errors = validation.errors
+        return
+      }
+
+      this.saving = true
+      this.errors = {}
+
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          throw new Error('User ID not found')
+        }
+
+        // Update profile in database
+        const updatedProfile = await updateProfile(userId, this.editForm)
+
+        // Update local state
+        this.userProfile = {
+          initials: getUserInitials(updatedProfile.full_name),
+          fullName: updatedProfile.full_name || '',
+          email: updatedProfile.email || '',
+          company: updatedProfile.company || '',
+          location: updatedProfile.location || '',
+          bio: updatedProfile.bio || '',
+        }
+
+        // Update store profile
+        this.store.profile = updatedProfile
+
+        this.isEditing = false
+        this.successMessage = 'Profile updated successfully!'
+
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          this.successMessage = ''
+        }, 3000)
+
+        console.log('Profile saved successfully:', updatedProfile)
+      } catch (error) {
+        console.error('Error saving profile:', error)
+        this.errors.general = error.message || 'Failed to save profile. Please try again.'
+      } finally {
+        this.saving = false
+      }
     },
+
     cancelEdit() {
       this.isEditing = false
+      this.errors = {}
+      this.successMessage = ''
+
       // Reset edit form to current values
-      this.editForm = { ...this.userProfile }
+      this.editForm = {
+        full_name: this.userProfile.fullName,
+        email: this.userProfile.email,
+        company: this.userProfile.company,
+        location: this.userProfile.location,
+        bio: this.userProfile.bio,
+      }
+    },
+
+    clearMessages() {
+      this.errors = {}
+      this.successMessage = ''
     },
   },
 }
@@ -817,6 +991,115 @@ export default {
 
 .save-button:hover {
   background: var(--primary-hover);
+}
+
+.save-button:disabled {
+  background: var(--bg-muted);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Form Actions */
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.cancel-button {
+  padding: 0.75rem 1.5rem;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.cancel-button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.cancel-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Loading State */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--bg-secondary);
+  border-top: 3px solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Messages */
+.error-message {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  color: #dc2626;
+  font-size: var(--font-size-sm);
+  margin-bottom: 1rem;
+}
+
+.success-message {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-md);
+  color: #16a34a;
+  font-size: var(--font-size-sm);
+  margin-bottom: 1rem;
+}
+
+/* Field Errors */
+.form-input.error,
+.form-textarea.error {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.field-error {
+  display: block;
+  color: #dc2626;
+  font-size: var(--font-size-xs);
+  margin-top: 0.25rem;
+}
+
+.char-count {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  margin-top: 0.25rem;
+  text-align: right;
 }
 
 /* Status List */
