@@ -56,6 +56,11 @@ const router = createRouter({
       component: () => import('@/views/MarketplaceViewEnhanced.vue'),
     },
     { path: '/retire', name: 'retire', component: () => import('@/views/RetireView.vue') },
+    {
+      path: '/mobile-test',
+      name: 'mobile-test',
+      component: () => import('@/views/MobileTestView.vue'),
+    },
 
     // Authenticated User Routes
     {

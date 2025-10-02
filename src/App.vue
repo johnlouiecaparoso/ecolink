@@ -174,6 +174,11 @@ onMounted(async () => {
 
   /* Transitions */
   --transition: all 0.15s ease-in-out;
+
+  /* Mobile breakpoints */
+  --mobile-sm: 480px;
+  --mobile-md: 768px;
+  --tablet: 1024px;
 }
 
 html,
@@ -200,6 +205,14 @@ body {
   background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-primary) 50%, #f0f8f0 100%);
 }
 
+/* Mobile auth layout */
+@media (max-width: 768px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+}
+
 .auth-hero {
   display: flex;
   align-items: center;
@@ -216,6 +229,14 @@ body {
   overflow: hidden;
 }
 
+/* Mobile auth hero */
+@media (max-width: 768px) {
+  .auth-hero {
+    padding: var(--spacing-lg);
+    min-height: 200px;
+  }
+}
+
 .auth-hero::before {
   content: '';
   position: absolute;
@@ -230,7 +251,106 @@ body {
 .hero-card {
   max-width: 32rem;
   position: relative;
-  z-index: 1;
+}
+
+/* Mobile hero card */
+@media (max-width: 768px) {
+  .hero-card {
+    max-width: 100%;
+    text-align: center;
+  }
+}
+
+/* Auth panel mobile styles */
+@media (max-width: 768px) {
+  .auth-panel {
+    padding: var(--spacing-md);
+  }
+
+  .panel-card {
+    padding: var(--spacing-lg);
+    margin: 0;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .panel-header {
+    text-align: center;
+    margin-bottom: var(--spacing-lg);
+  }
+
+  .panel-title {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--spacing-sm);
+  }
+
+  .panel-desc {
+    font-size: var(--font-size-base);
+  }
+}
+
+/* Global mobile utility classes */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 var(--spacing-md);
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 0 var(--spacing-sm);
+  }
+}
+
+/* Mobile-first responsive text */
+.text-responsive {
+  font-size: clamp(0.875rem, 2.5vw, 1.125rem);
+}
+
+.title-responsive {
+  font-size: clamp(1.5rem, 5vw, 2.5rem);
+}
+
+/* Touch-friendly buttons */
+.btn-touch {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0.75rem 1rem;
+}
+
+@media (max-width: 768px) {
+  .btn-touch {
+    min-height: 48px;
+    padding: 0.875rem 1.25rem;
+  }
+}
+
+/* Hide on mobile */
+.hide-mobile {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+
+/* Show only on mobile */
+.show-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .show-mobile {
+    display: block;
+  }
 }
 
 .brand {

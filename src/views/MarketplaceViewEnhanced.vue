@@ -846,27 +846,54 @@ onMounted(() => {
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .marketplace-header {
+    padding: 2rem 0;
+  }
+
   .page-title {
     font-size: 2rem;
+  }
+
+  .page-description {
+    font-size: 1rem;
+    margin: 0 0 1.5rem 0;
+  }
+
+  .advanced-search-toggle {
+    padding: 0.625rem 1.25rem;
+    font-size: 0.875rem;
+  }
+
+  .marketplace-content {
+    padding: 1rem 0;
   }
 
   .results-header {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
   }
 
   .view-controls {
     justify-content: center;
   }
 
+  .view-toggle {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
   .projects-grid {
     grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
   .project-list-item {
     flex-direction: column;
     gap: 1rem;
+    padding: 1rem;
   }
 
   .project-image {
@@ -876,6 +903,56 @@ onMounted(() => {
 
   .project-pricing {
     text-align: left;
+  }
+
+  .project-meta {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  /* Purchase modal mobile */
+  .purchase-modal-content {
+    padding: 0.5rem;
+  }
+
+  .project-details {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .purchase-actions {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .purchase-actions .ui-btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .marketplace-header {
+    padding: 1.5rem 0;
+  }
+
+  .page-title {
+    font-size: 1.75rem;
+  }
+
+  .container {
+    padding: 0 1rem;
+  }
+
+  .projects-grid {
+    gap: 0.75rem;
+  }
+
+  .project-list-item {
+    padding: 0.75rem;
+  }
+
+  .form-input {
+    font-size: 16px; /* Prevent zoom on iOS */
   }
 }
 </style>
