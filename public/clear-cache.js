@@ -1,29 +1,17 @@
-// Cache clearing script for EcoLink
-// This script helps clear browser cache and service worker cache
-
-console.log('EcoLink Cache Clear Script')
-
-// Clear browser cache
+// Clear browser cache script
 if ('caches' in window) {
-  caches.keys().then((cacheNames) => {
-    cacheNames.forEach((cacheName) => {
-      console.log('Deleting cache:', cacheName)
-      caches.delete(cacheName)
-    })
+  caches.keys().then(function (names) {
+    for (let name of names) {
+      caches.delete(name)
+    }
   })
 }
 
-// Clear service worker cache
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    registrations.forEach((registration) => {
-      console.log('Unregistering service worker:', registration.scope)
-      registration.unregister()
-    })
-  })
+// Clear localStorage and sessionStorage
+if (typeof Storage !== 'undefined') {
+  localStorage.clear()
+  sessionStorage.clear()
 }
 
 // Force reload
-setTimeout(() => {
-  window.location.reload(true)
-}, 1000)
+window.location.reload(true)

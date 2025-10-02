@@ -1,42 +1,44 @@
-// EcoLink Service Worker
-const CACHE_NAME = 'ecolink-v1.1.0'
-const STATIC_CACHE = 'ecolink-static-v1.1.0'
-const DYNAMIC_CACHE = 'ecolink-dynamic-v1.1.0'
+/**
+ * Service Worker for caching and offline support
+ */
 
-// Files to cache for offline use
-const STATIC_FILES = [
+const CACHE_NAME = 'ecolink-v1'
+const STATIC_CACHE = 'ecolink-static-v1'
+const DYNAMIC_CACHE = 'ecolink-dynamic-v1'
+
+// Assets to cache immediately
+const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/favicon.ico',
   '/manifest.json',
-  // Add your main CSS and JS files here
-  '/dist/index.css',
-  '/dist/index.js',
+  // Add critical CSS and JS files here
 ]
 
-// Install event - cache static files
+// API endpoints to cache
+const API_CACHE_PATTERNS = [/\/api\/marketplace/, /\/api\/analytics/, /\/api\/user/]
+
+// Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('Service Worker: Installing...')
+  console.log('Service Worker installing...')
+
   event.waitUntil(
     caches
       .open(STATIC_CACHE)
       .then((cache) => {
-        console.log('Service Worker: Caching static files')
-        return cache.addAll(STATIC_FILES)
+        console.log('Caching static assets')
+        return cache.addAll(STATIC_ASSETS)
       })
       .then(() => {
-        console.log('Service Worker: Installation complete')
+        console.log('Static assets cached')
         return self.skipWaiting()
-      })
-      .catch((error) => {
-        console.error('Service Worker: Installation failed', error)
       }),
   )
 })
 
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('Service Worker: Activating...')
+  console.log('Service Worker activating...')
+
   event.waitUntil(
     caches
       .keys()
@@ -44,14 +46,14 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             if (cacheName !== STATIC_CACHE && cacheName !== DYNAMIC_CACHE) {
-              console.log('Service Worker: Deleting old cache', cacheName)
+              console.log('Deleting old cache:', cacheName)
               return caches.delete(cacheName)
             }
           }),
         )
       })
       .then(() => {
-        console.log('Service Worker: Activation complete')
+        console.log('Service Worker activated')
         return self.clients.claim()
       }),
   )
@@ -67,77 +69,192 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip Supabase API calls (let them go to network)
-  if (url.hostname.includes('supabase.co')) {
+  // Skip chrome-extension and other non-http requests
+  if (!url.protocol.startsWith('http')) {
     return
   }
 
-  // Skip external resources
-  if (url.origin !== location.origin) {
-    return
-  }
-
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      // Return cached version if available
-      if (cachedResponse) {
-        console.log('Service Worker: Serving from cache', request.url)
-        return cachedResponse
-      }
-
-      // Otherwise fetch from network
-      return fetch(request)
-        .then((response) => {
-          // Don't cache if not a valid response
-          if (!response || response.status !== 200 || response.type !== 'basic') {
-            return response
-          }
-
-          // Clone the response
-          const responseToCache = response.clone()
-
-          // Cache dynamic content
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseToCache)
-          })
-
-          console.log('Service Worker: Caching new content', request.url)
-          return response
-        })
-        .catch((error) => {
-          console.error('Service Worker: Fetch failed', error)
-
-          // Return offline page for navigation requests
-          if (request.destination === 'document') {
-            return caches.match('/index.html')
-          }
-
-          throw error
-        })
-    }),
-  )
+  event.respondWith(handleRequest(request))
 })
+
+async function handleRequest(request) {
+  const url = new URL(request.url)
+
+  // Handle static assets
+  if (isStaticAsset(url)) {
+    return handleStaticAsset(request)
+  }
+
+  // Handle API requests
+  if (isApiRequest(url)) {
+    return handleApiRequest(request)
+  }
+
+  // Handle images
+  if (isImageRequest(url)) {
+    return handleImageRequest(request)
+  }
+
+  // Default: try cache first, then network
+  return tryCacheFirst(request)
+}
+
+function isStaticAsset(url) {
+  return (
+    url.pathname === '/' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('.css') ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.json')
+  )
+}
+
+function isApiRequest(url) {
+  return (
+    url.pathname.startsWith('/api/') ||
+    API_CACHE_PATTERNS.some((pattern) => pattern.test(url.pathname))
+  )
+}
+
+function isImageRequest(url) {
+  return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(url.pathname)
+}
+
+async function handleStaticAsset(request) {
+  try {
+    // Try cache first
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    // Fetch from network
+    const networkResponse = await fetch(request)
+
+    // Cache the response
+    const cache = await caches.open(STATIC_CACHE)
+    cache.put(request, networkResponse.clone())
+
+    return networkResponse
+  } catch (error) {
+    console.error('Error handling static asset:', error)
+    return new Response('Offline - Static asset not available', { status: 503 })
+  }
+}
+
+async function handleApiRequest(request) {
+  try {
+    // Try cache first for GET requests
+    if (request.method === 'GET') {
+      const cachedResponse = await caches.match(request)
+      if (cachedResponse) {
+        // Check if cache is still fresh (less than 5 minutes old)
+        const cacheTime = cachedResponse.headers.get('sw-cache-time')
+        if (cacheTime && Date.now() - parseInt(cacheTime) < 5 * 60 * 1000) {
+          return cachedResponse
+        }
+      }
+    }
+
+    // Fetch from network
+    const networkResponse = await fetch(request)
+
+    // Cache successful GET responses
+    if (request.method === 'GET' && networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE)
+      const responseToCache = networkResponse.clone()
+      responseToCache.headers.set('sw-cache-time', Date.now().toString())
+      cache.put(request, responseToCache)
+    }
+
+    return networkResponse
+  } catch (error) {
+    console.error('Error handling API request:', error)
+
+    // Return cached response if available
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    return new Response('Offline - API not available', { status: 503 })
+  }
+}
+
+async function handleImageRequest(request) {
+  try {
+    // Try cache first
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    // Fetch from network
+    const networkResponse = await fetch(request)
+
+    // Cache successful responses
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE)
+      cache.put(request, networkResponse.clone())
+    }
+
+    return networkResponse
+  } catch (error) {
+    console.error('Error handling image request:', error)
+    return new Response('Offline - Image not available', { status: 503 })
+  }
+}
+
+async function tryCacheFirst(request) {
+  try {
+    // Try cache first
+    const cachedResponse = await caches.match(request)
+    if (cachedResponse) {
+      return cachedResponse
+    }
+
+    // Fetch from network
+    const networkResponse = await fetch(request)
+
+    // Cache successful responses
+    if (networkResponse.ok) {
+      const cache = await caches.open(DYNAMIC_CACHE)
+      cache.put(request, networkResponse.clone())
+    }
+
+    return networkResponse
+  } catch (error) {
+    console.error('Error in tryCacheFirst:', error)
+    return new Response('Offline - Resource not available', { status: 503 })
+  }
+}
 
 // Background sync for offline actions
 self.addEventListener('sync', (event) => {
-  console.log('Service Worker: Background sync', event.tag)
+  console.log('Background sync triggered:', event.tag)
 
   if (event.tag === 'background-sync') {
-    event.waitUntil(
-      // Handle offline actions here
-      handleBackgroundSync(),
-    )
+    event.waitUntil(doBackgroundSync())
   }
 })
 
+async function doBackgroundSync() {
+  // Sync offline actions when connection is restored
+  console.log('Performing background sync...')
+
+  // This would sync any offline actions like form submissions
+  // For now, just log that sync occurred
+  return Promise.resolve()
+}
+
 // Push notifications
 self.addEventListener('push', (event) => {
-  console.log('Service Worker: Push received', event)
+  console.log('Push notification received:', event)
 
   const options = {
     body: event.data ? event.data.text() : 'New notification from EcoLink',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/icon-192x192.png',
+    badge: '/icon-72x72.png',
     vibrate: [100, 50, 100],
     data: {
       dateOfArrival: Date.now(),
@@ -146,13 +263,13 @@ self.addEventListener('push', (event) => {
     actions: [
       {
         action: 'explore',
-        title: 'View',
-        icon: '/favicon.ico',
+        title: 'View Details',
+        icon: '/icon-72x72.png',
       },
       {
         action: 'close',
         title: 'Close',
-        icon: '/favicon.ico',
+        icon: '/icon-72x72.png',
       },
     ],
   }
@@ -160,38 +277,13 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification('EcoLink', options))
 })
 
-// Notification click handler
+// Notification click
 self.addEventListener('notificationclick', (event) => {
-  console.log('Service Worker: Notification clicked', event)
+  console.log('Notification clicked:', event)
 
   event.notification.close()
 
   if (event.action === 'explore') {
     event.waitUntil(clients.openWindow('/'))
-  }
-})
-
-// Helper function for background sync
-async function handleBackgroundSync() {
-  try {
-    // Get pending offline actions from IndexedDB
-    // Process them when back online
-    console.log('Service Worker: Processing offline actions')
-
-    // This would typically involve:
-    // 1. Reading pending actions from IndexedDB
-    // 2. Sending them to the server
-    // 3. Updating local state
-  } catch (error) {
-    console.error('Service Worker: Background sync failed', error)
-  }
-}
-
-// Message handler for communication with main thread
-self.addEventListener('message', (event) => {
-  console.log('Service Worker: Message received', event.data)
-
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting()
   }
 })

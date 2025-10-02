@@ -1,7 +1,12 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
+import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import { usePreferencesStore } from '@/store/preferencesStore'
+import { useUserStore } from '@/store/userStore'
+import { useErrorStore } from '@/store/errorStore'
+import { getSupabase } from '@/services/supabaseClient'
 
 const route = useRoute()
 
@@ -9,37 +14,86 @@ const showHeader = computed(() => {
   // Don't show header on auth pages
   return !['login', 'register'].includes(route.name)
 })
+
+// Initialize stores and auth inside onMounted to avoid Pinia issues
+onMounted(async () => {
+  try {
+    // Initialize stores after component is mounted
+    const preferencesStore = usePreferencesStore()
+    const userStore = useUserStore()
+    const errorStore = useErrorStore()
+
+    // Apply initial theme
+    preferencesStore.applyTheme()
+    preferencesStore.applyAccessibilitySettings()
+
+    // Initialize auth after stores are ready
+    const supabase = getSupabase()
+    if (supabase) {
+      // Keep session in sync with auth state changes (email confirm, sign in/out in other tabs)
+      supabase.auth.onAuthStateChange(async (event, session) => {
+        try {
+          console.log('Auth state change:', event, session ? 'has session' : 'no session')
+          await userStore.fetchSession()
+        } catch (error) {
+          console.error('Error in auth state change:', error)
+          // Clear the session on error
+          userStore.session = null
+        }
+      })
+    }
+  } catch (error) {
+    console.error('Failed to initialize app:', error)
+  }
+})
 </script>
 
 <template>
-  <div>
-    <Header v-if="showHeader" />
-    <router-view />
-  </div>
+  <ErrorBoundary>
+    <div>
+      <Header v-if="showHeader" />
+      <router-view />
+      <!-- Global Toast Notifications -->
+      <div id="toast-container" class="toast-container"></div>
+
+      <!-- Global Error Notifications -->
+      <!-- Error notifications temporarily disabled during Pinia fix -->
+    </div>
+  </ErrorBoundary>
 </template>
 
 <style>
 :root {
-  /* Core Colors */
+  /* Core Green Colors */
   --primary-color: #069e2d;
   --primary-hover: #058e3f;
   --primary-dark: #04773b;
   --primary-light: #e8f5e8;
+  --primary-lighter: #f0f9f0;
+  --primary-lightest: #f8fdf8;
 
   /* Text Colors */
-  --text-primary: #111827;
-  --text-secondary: #6b7280;
-  --text-muted: #717182;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --text-light: #ffffff;
+  --text-green: #04773b;
 
-  /* Background Colors */
+  /* Background Colors - White & Green Theme */
   --bg-primary: #ffffff;
   --bg-secondary: #f8fdf8;
-  --bg-muted: #ececf0;
-  --bg-accent: #e9ebef;
+  --bg-tertiary: #f0f9f0;
+  --bg-muted: #e8f5e8;
+  --bg-accent: #d4edda;
+  --bg-green: #069e2d;
+  --bg-green-light: #e8f5e8;
+  --bg-green-dark: #04773b;
 
   /* Border Colors */
-  --border-color: #e5e7eb;
-  --border-light: #f3f4f6;
+  --border-color: #d1e7dd;
+  --border-light: #e8f5e8;
+  --border-green: #069e2d;
+  --border-green-light: #d4edda;
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -55,11 +109,23 @@ const showHeader = computed(() => {
   --radius-lg: 0.625rem;
   --radius-xl: 0.75rem;
 
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
-  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1);
+  /* Shadows with Green Tints */
+  --shadow-sm: 0 1px 2px rgba(6, 158, 45, 0.1);
+  --shadow-md: 0 4px 6px rgba(6, 158, 45, 0.15);
+  --shadow-lg: 0 10px 15px rgba(6, 158, 45, 0.2);
+  --shadow-xl: 0 20px 25px rgba(6, 158, 45, 0.25);
+  --shadow-green: 0 4px 12px rgba(6, 158, 45, 0.3);
+  --shadow-green-lg: 0 8px 24px rgba(6, 158, 45, 0.4);
+
+  /* Status Colors */
+  --success-color: #069e2d;
+  --success-light: #d4edda;
+  --warning-color: #ffc107;
+  --warning-light: #fff3cd;
+  --error-color: #dc3545;
+  --error-light: #f8d7da;
+  --info-color: #17a2b8;
+  --info-light: #d1ecf1;
 
   /* Typography */
   --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -88,7 +154,7 @@ body {
   font-size: var(--font-size-base);
   line-height: 1.5;
   color: var(--text-primary);
-  background: var(--bg-primary);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -526,5 +592,17 @@ body {
   .panel-title {
     font-size: var(--font-size-2xl);
   }
+}
+
+/* Toast Container */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 350px;
 }
 </style>

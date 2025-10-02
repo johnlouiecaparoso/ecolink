@@ -405,31 +405,45 @@ export default {
 
 /* Page Header */
 .page-header {
-  padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color);
+  padding: 3rem 0;
+  border-bottom: 2px solid var(--border-green-light);
+  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  margin-bottom: 2rem;
 }
 
 .page-title {
-  font-size: var(--font-size-4xl);
-  font-weight: 700;
+  font-size: var(--font-size-6xl);
+  font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .page-description {
-  font-size: var(--font-size-lg);
-  color: var(--text-muted);
+  font-size: var(--font-size-xl);
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 600px;
+  margin: 0 auto;
+  line-height: 1.6;
 }
 
 /* Main Content */
 .profile-content {
-  padding: 2rem 0;
+  padding: 3rem 0;
+  min-height: 80vh;
 }
 
 .content-layout {
   display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 2rem;
+  grid-template-columns: 1fr 2.5fr;
+  gap: 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
 }
 
 /* Profile Sidebar */
@@ -442,10 +456,16 @@ export default {
 /* Profile Card */
 .profile-card {
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 2rem;
-  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-green-light);
+  border-radius: var(--radius-xl);
+  padding: 3rem;
+  box-shadow: var(--shadow-green);
+  transition: all 0.3s ease;
+}
+
+.profile-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-green-lg);
 }
 
 .profile-avatar {
@@ -454,28 +474,41 @@ export default {
 }
 
 .avatar-circle {
-  width: 5rem;
-  height: 5rem;
+  width: 7rem;
+  height: 7rem;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   margin: 0 auto;
+  box-shadow: var(--shadow-green);
+  border: 4px solid var(--bg-primary);
+  transition: all 0.3s ease;
+}
+
+.avatar-circle:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-green-lg);
 }
 
 .avatar-initials {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
+  font-size: var(--font-size-4xl);
+  font-weight: 800;
   color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .profile-name {
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
+  font-size: var(--font-size-4xl);
+  font-weight: 800;
   color: var(--text-primary);
-  margin-bottom: 0.5rem;
+  margin-bottom: 1rem;
   text-align: center;
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .profile-email {
@@ -529,10 +562,16 @@ export default {
 /* Carbon Impact Card */
 .carbon-impact-card {
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-green-light);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-green);
+  transition: all 0.3s ease;
+}
+
+.carbon-impact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-green-lg);
 }
 
 .card-header {
@@ -603,10 +642,16 @@ export default {
 /* Achievements Card */
 .achievements-card {
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  padding: 1.5rem;
-  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-green-light);
+  border-radius: var(--radius-xl);
+  padding: 2.5rem;
+  box-shadow: var(--shadow-green);
+  transition: all 0.3s ease;
+}
+
+.achievements-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-green-lg);
 }
 
 .achievements-list {
@@ -654,10 +699,16 @@ export default {
 
 .settings-card {
   background: var(--bg-primary);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 2px solid var(--border-green-light);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-green);
   overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.settings-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-green-lg);
 }
 
 .settings-tabs {
