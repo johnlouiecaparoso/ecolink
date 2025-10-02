@@ -2,9 +2,9 @@
  * Service Worker for caching and offline support
  */
 
-const CACHE_NAME = 'ecolink-v1'
-const STATIC_CACHE = 'ecolink-static-v1'
-const DYNAMIC_CACHE = 'ecolink-dynamic-v1'
+const CACHE_NAME = 'ecolink-v2-2024-10-02'
+const STATIC_CACHE = 'ecolink-static-v2-2024-10-02'
+const DYNAMIC_CACHE = 'ecolink-dynamic-v2-2024-10-02'
 
 // Assets to cache immediately
 const STATIC_ASSETS = [

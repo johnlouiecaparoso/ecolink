@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { getSession, signOut } from '@/services/authService'
-import { getProfile } from '@/services/profileService'
+import { getProfile, updateProfile } from '@/services/profileService'
 import { roleService } from '@/services/roleService'
 import { ROLES } from '@/constants/roles'
 
@@ -59,14 +59,45 @@ export const useUserStore = defineStore('user', {
       if (!this.session?.user?.id) return
 
       try {
-        const profile = await getProfile(this.session.user.id)
+        console.log('Fetching profile for user:', this.session.user.id)
+
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Profile fetch timeout')), 10000),
+        )
+
+        const profile = await Promise.race([getProfile(this.session.user.id), timeoutPromise])
+
         this.profile = profile
         this.role = profile.role || ROLES.GENERAL_USER
         this.updatePermissions()
+        console.log('User profile loaded successfully:', profile)
       } catch (error) {
         console.error('Error fetching user profile:', error)
+        console.log('Continuing without profile - user can still use the app')
+
+        // Set default values and continue
+        this.profile = null
         this.role = ROLES.GENERAL_USER
         this.updatePermissions()
+
+        // Don't throw error - let the app continue to work
+      }
+    },
+
+    async updateUserProfile(profileData) {
+      if (!this.session?.user?.id) {
+        throw new Error('User not authenticated')
+      }
+
+      try {
+        const updatedProfile = await updateProfile(this.session.user.id, profileData)
+        this.profile = updatedProfile
+        console.log('Profile updated in store:', updatedProfile)
+        return updatedProfile
+      } catch (error) {
+        console.error('Failed to update profile in store:', error)
+        throw error
       }
     },
     updatePermissions() {

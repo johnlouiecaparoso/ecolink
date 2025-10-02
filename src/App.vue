@@ -18,6 +18,8 @@ const showHeader = computed(() => {
 // Initialize stores and auth inside onMounted to avoid Pinia issues
 onMounted(async () => {
   try {
+    console.log('🚀 Initializing EcoLink app...')
+
     // Initialize stores after component is mounted
     const preferencesStore = usePreferencesStore()
     const userStore = useUserStore()
@@ -27,23 +29,55 @@ onMounted(async () => {
     preferencesStore.applyTheme()
     preferencesStore.applyAccessibilitySettings()
 
-    // Initialize auth after stores are ready
+    // Initialize auth after stores are ready with timeout
     const supabase = getSupabase()
     if (supabase) {
+      console.log('🔐 Setting up auth state listener...')
+
       // Keep session in sync with auth state changes (email confirm, sign in/out in other tabs)
       supabase.auth.onAuthStateChange(async (event, session) => {
         try {
           console.log('Auth state change:', event, session ? 'has session' : 'no session')
-          await userStore.fetchSession()
+
+          // Add timeout to prevent hanging
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Auth state change timeout')), 8000),
+          )
+
+          await Promise.race([userStore.fetchSession(), timeoutPromise])
         } catch (error) {
           console.error('Error in auth state change:', error)
-          // Clear the session on error
+          // Clear the session on error and continue
           userStore.session = null
+          userStore.loading = false
         }
       })
+
+      // Initial session fetch with timeout
+      try {
+        console.log('📡 Fetching initial session...')
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Initial session fetch timeout')), 5000),
+        )
+
+        await Promise.race([userStore.fetchSession(), timeoutPromise])
+        console.log('✅ Initial session fetch completed')
+      } catch (error) {
+        console.error('Initial session fetch failed:', error)
+        // Continue without session - app should still work
+        userStore.loading = false
+      }
+    } else {
+      console.warn('⚠️ Supabase client not available')
+      userStore.loading = false
     }
+
+    console.log('✅ App initialization completed')
   } catch (error) {
-    console.error('Failed to initialize app:', error)
+    console.error('❌ Failed to initialize app:', error)
+    // Ensure loading state is cleared even on error
+    const userStore = useUserStore()
+    userStore.loading = false
   }
 })
 </script>

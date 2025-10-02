@@ -17,20 +17,34 @@ const showWithdraw = ref(false)
 const error = ref('')
 
 async function loadWalletData() {
-  if (!store.session?.user?.id) return
+  if (!store.session?.user?.id) {
+    console.log('No user session, skipping wallet data load')
+    return
+  }
 
   loading.value = true
   try {
-    const [balance, transactionHistory] = await Promise.all([
-      getWalletBalance(store.session.user.id),
-      getTransactions(store.session.user.id),
+    console.log('Loading wallet data for user:', store.session.user.id)
+
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Wallet data load timeout')), 10000),
+    )
+
+    const [balance, transactionHistory] = await Promise.race([
+      Promise.all([
+        getWalletBalance(store.session.user.id),
+        getTransactions(store.session.user.id),
+      ]),
+      timeoutPromise,
     ])
 
     walletBalance.value = balance
     transactions.value = transactionHistory
+    console.log('Wallet data loaded successfully')
   } catch (err) {
     console.error('Error loading wallet data:', err)
-    error.value = 'Failed to load wallet data'
+    error.value = 'Failed to load wallet data. Please try refreshing the page.'
   } finally {
     loading.value = false
   }
