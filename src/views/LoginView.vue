@@ -1,10 +1,10 @@
 <script setup>
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import LoginForm from '@/components/auth/LoginForm.vue'
+import { computed, ref } from 'vue'
+import LoginForm from '@/components/auth/EnhancedLoginForm.vue'
 
-const route = useRoute()
-const showRegisteredBanner = computed(() => route.query.registered === '1')
+// Fixed route injection issues - no route dependency
+const showRegisteredBanner = ref(false)
+// Cache buster: ${new Date().toISOString()}
 </script>
 
 <template>

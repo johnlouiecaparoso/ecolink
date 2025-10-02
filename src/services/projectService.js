@@ -202,15 +202,7 @@ export class ProjectService {
     try {
       let query = this.supabase
         .from('projects')
-        .select(
-          `
-          *,
-          profiles!projects_user_id_fkey (
-            full_name,
-            role
-          )
-        `,
-        )
+        .select('*')
         .order('created_at', { ascending: false })
 
       // Apply filters

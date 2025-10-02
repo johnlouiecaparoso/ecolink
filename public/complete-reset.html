@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Complete Cache Reset</title>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 50px;
+      }
+      .status {
+        font-size: 18px;
+        margin: 20px 0;
+      }
+      .progress {
+        width: 300px;
+        height: 20px;
+        border: 1px solid #ccc;
+        margin: 20px auto;
+      }
+      .progress-bar {
+        height: 100%;
+        background: #4caf50;
+        width: 0%;
+        transition: width 0.3s;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🔄 Complete Cache Reset</h1>
+    <div class="status" id="status">Starting cache reset...</div>
+    <div class="progress">
+      <div class="progress-bar" id="progress"></div>
+    </div>
+
+    <script>
+      const status = document.getElementById('status')
+      const progress = document.getElementById('progress')
+
+      let step = 0
+      const totalSteps = 6
+
+      function updateProgress(message) {
+        step++
+        status.textContent = message
+        progress.style.width = (step / totalSteps) * 100 + '%'
+      }
+
+      async function completeReset() {
+        try {
+          updateProgress('🧹 Clearing all caches...')
+
+          // Clear all caches
+          if ('caches' in window) {
+            const cacheNames = await caches.keys()
+            await Promise.all(cacheNames.map((name) => caches.delete(name)))
+          }
+
+          updateProgress('🔧 Unregistering service workers...')
+
+          // Unregister all service workers
+          if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations()
+            await Promise.all(registrations.map((reg) => reg.unregister()))
+          }
+
+          updateProgress('🗑️ Clearing storage...')
+
+          // Clear all storage
+          localStorage.clear()
+          sessionStorage.clear()
+
+          updateProgress('💾 Clearing IndexedDB...')
+
+          // Clear IndexedDB
+          if ('indexedDB' in window) {
+            try {
+              const databases = await indexedDB.databases()
+              await Promise.all(
+                databases.map((db) => {
+                  return new Promise((resolve) => {
+                    const deleteReq = indexedDB.deleteDatabase(db.name)
+                    deleteReq.onsuccess = () => resolve()
+                    deleteReq.onerror = () => resolve()
+                  })
+                }),
+              )
+            } catch (e) {
+              console.log('IndexedDB clear failed:', e)
+            }
+          }
+
+          updateProgress('🌐 Preparing fresh session...')
+
+          // Add multiple cache busting parameters
+          const timestamp = Date.now()
+          const random = Math.random().toString(36).substring(2)
+          const version = 'v' + timestamp
+
+          updateProgress('✅ Redirecting to fresh app...')
+
+          // Wait a moment then redirect
+          setTimeout(() => {
+            window.location.href = `/?${version}&r=${random}&nocache=1&fresh=true`
+          }, 1000)
+        } catch (error) {
+          status.textContent = '❌ Error during reset: ' + error.message
+          setTimeout(() => {
+            window.location.href = '/'
+          }, 2000)
+        }
+      }
+
+      // Start the reset process
+      completeReset()
+    </script>
+  </body>
+</html>

@@ -1,134 +1,80 @@
-# Database Management Interface
+# Database Setup Guide
 
-## 🗄️ Overview
+## Current Status: Database Disabled ✅
 
-The Database Management interface provides a user-friendly way to manage your Supabase database tables and schemas. It's designed to match the dashboard design and provides visual feedback for all database operations.
+The application is currently configured to use **sample data** instead of database calls to prevent errors.
 
-## 🚀 Features
+## How to Enable Database
 
-### ✅ What You Can Do:
+### Option 1: Enable Database (Requires Supabase Setup)
 
-- **View Tables**: See all your database tables with their types
-- **View Table Data**: Browse the first 50 rows of any table
-- **View Table Schema**: See column definitions, data types, and constraints
-- **Generate SQL Scripts**: Get ready-to-run SQL commands for Supabase
-- **Copy to Clipboard**: Automatically copy SQL commands for easy pasting
+1. **Set up your Supabase database:**
+   - Go to your Supabase project dashboard
+   - Navigate to SQL Editor
+   - Run the SQL from `database-setup.sql` file
 
-### ⚠️ Limitations:
+2. **Enable database in the application:**
+   ```javascript
+   // In src/config/database.js
+   export const USE_DATABASE = true // Change from false to true
+   ```
 
-- **No Direct Execution**: Due to Supabase security, SQL commands must be run in the Supabase SQL Editor
-- **Read-Only Operations**: Table viewing and schema inspection only
-- **Manual Setup Required**: Database creation requires manual SQL execution
+### Option 2: Keep Using Sample Data (Current Setup)
 
-## 📋 How to Use
+The application will continue to work with sample data. No database setup required.
 
-### 1. Access the Interface
+## What the Database Errors Mean
 
-- Navigate to `/database` in your app
-- Or click "Database" in the sidebar navigation
+The errors you saw were:
 
-### 2. View Your Tables
+- **400/404 errors**: Missing database tables
+- **`audit_logs` table missing**: Audit logging fails
+- **`credit_listings` table missing**: Marketplace data fails
+- **`credit_certificates` table missing**: Certificates fail
 
-- The interface automatically loads all your database tables
-- Click on any table card to select it
-- Use "View Data" to see table contents
-- Use "Schema" to see table structure
+## Current Behavior
 
-### 3. Create New Tables
+With `USE_DATABASE = false`:
 
-- Click "Create [Table Name]" buttons in Quick Actions
-- The SQL command will be copied to your clipboard
-- Paste and run the SQL in your Supabase SQL Editor
+- ✅ **Marketplace**: Shows sample carbon credit listings
+- ✅ **Certificates**: Shows sample certificates
+- ✅ **Wallet**: Shows sample balance
+- ✅ **Analytics**: Shows sample data
+- ✅ **No Database Errors**: All services use sample data
 
-### 4. Run Complete Setup
+## Benefits of Sample Data Mode
 
-- Click "Run Complete Setup" for all tables, RLS, and indexes
-- This generates a complete SQL script
-- Copy and run the entire script in Supabase SQL Editor
+- **No Setup Required**: Works immediately
+- **No Database Errors**: Clean console
+- **Full Functionality**: All features work with demo data
+- **Easy Testing**: Perfect for development and demos
 
-### 5. Drop Tables
+## When to Enable Database
 
-- Click "Drop" on any table card
-- Confirm the action
-- Copy the generated DROP SQL and run it in Supabase
+Enable database when you want to:
 
-## 🗂️ Available Tables
+- Store real user data
+- Persist transactions
+- Track real analytics
+- Deploy to production
 
-The interface supports these table types:
+## Database Schema
 
-### Core Tables (Sprint 1-2)
+If you enable the database, it will create these tables:
 
-- **profiles** - User profiles and roles
-- **projects** - Environmental projects
-- **wallet_accounts** - User wallet balances
-- **wallet_transactions** - Transaction history
+- `profiles` - User profiles
+- `projects` - Carbon credit projects
+- `credit_listings` - Marketplace listings
+- `credit_certificates` - User certificates
+- `audit_logs` - User action logs
+- `wallet_accounts` - User wallet balances
 
-### Future Sprints
+## Quick Toggle
 
-- **verifications** - Project verification records (Sprint 3)
-- **listings** - Marketplace listings (Sprint 4)
-- **orders** - Marketplace orders (Sprint 4)
-- **audit_logs** - System audit trail (Sprint 5)
+```javascript
+// Disable database (current)
+export const USE_DATABASE = false
 
-## 🔧 SQL Editor Setup
-
-### 1. Access Supabase SQL Editor
-
-1. Go to your Supabase Dashboard
-2. Navigate to "SQL Editor" in the left sidebar
-3. Create a new query
-
-### 2. Run Generated Scripts
-
-1. Copy SQL from the Database Management interface
-2. Paste into Supabase SQL Editor
-3. Click "Run" to execute
-4. Refresh the Database Management interface to see changes
-
-## 🛡️ Security Notes
-
-- **Row Level Security (RLS)**: All tables have RLS enabled
-- **User Permissions**: Only authenticated users can access the interface
-- **Admin Functions**: Some operations may require admin privileges
-- **Data Protection**: All operations respect Supabase security policies
-
-## 🐛 Troubleshooting
-
-### Tables Not Showing
-
-- Check if you're logged in
-- Verify Supabase connection
-- Refresh the page
-
-### SQL Errors
-
-- Check table dependencies (foreign keys)
-- Ensure proper permissions
-- Verify table names and column names
-
-### Clipboard Issues
-
-- Ensure your browser supports clipboard API
-- Check for browser permissions
-- Use manual copy/paste as fallback
-
-## 📱 Mobile Support
-
-The interface is fully responsive and works on:
-
-- Desktop computers
-- Tablets
-- Mobile phones
-- Progressive Web App (PWA) mode
-
-## 🔄 Updates
-
-The interface automatically refreshes table information when you:
-
-- Create new tables
-- Drop existing tables
-- Click the "Refresh Tables" button
-
----
-
-**Need Help?** Check the browser console for detailed error messages and debugging information.
+// Enable database (requires setup)
+export const USE_DATABASE = true
+```

@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Force Clear All Cache</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+  </head>
+  <body>
+    <h1>Clearing All Caches...</h1>
+    <p>This will clear everything and force a complete reload.</p>
+    <div id="status">Starting...</div>
+
+    <script>
+      const status = document.getElementById('status')
+
+      async function clearEverything() {
+        status.textContent = 'Clearing service workers...'
+
+        // Unregister all service workers
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations()
+          for (let registration of registrations) {
+            await registration.unregister()
+            console.log('Unregistered service worker')
+          }
+        }
+
+        status.textContent = 'Clearing all caches...'
+
+        // Clear all caches
+        if ('caches' in window) {
+          const cacheNames = await caches.keys()
+          for (let cacheName of cacheNames) {
+            await caches.delete(cacheName)
+            console.log('Deleted cache:', cacheName)
+          }
+        }
+
+        status.textContent = 'Clearing storage...'
+
+        // Clear all storage
+        if (typeof Storage !== 'undefined') {
+          localStorage.clear()
+          sessionStorage.clear()
+        }
+
+        // Clear IndexedDB
+        if ('indexedDB' in window) {
+          try {
+            const databases = await indexedDB.databases()
+            for (let db of databases) {
+              indexedDB.deleteDatabase(db.name)
+            }
+          } catch (e) {
+            console.log('Could not clear IndexedDB:', e)
+          }
+        }
+
+        status.textContent = 'Redirecting with cache busting...'
+
+        // Force redirect with multiple cache busting parameters
+        const timestamp = new Date().getTime()
+        const random = Math.random().toString(36).substring(7)
+        setTimeout(() => {
+          window.location.href = `/?v=${timestamp}&r=${random}&nocache=1`
+        }, 1000)
+      }
+
+      clearEverything().catch(console.error)
+    </script>
+  </body>
+</html>

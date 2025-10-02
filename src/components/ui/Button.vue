@@ -2,23 +2,59 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  variant: { type: String, default: 'primary' }, // primary | outline | ghost
-  size: { type: String, default: 'md' }, // sm | md | lg
+  variant: { type: String, default: 'primary' }, // primary | outline | ghost | success | warning | error
+  size: { type: String, default: 'md' }, // sm | md | lg | xl
   block: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
   type: { type: String, default: 'button' },
+  icon: { type: String, default: '' },
+  iconPosition: { type: String, default: 'left' }, // left | right
+  // Accessibility props
+  ariaLabel: { type: String, default: '' },
+  ariaDescribedby: { type: String, default: '' },
+  ariaPressed: { type: [Boolean, String], default: undefined },
+  ariaExpanded: { type: [Boolean, String], default: undefined },
+  ariaControls: { type: String, default: '' },
 })
+
+const emit = defineEmits(['click'])
+
+function handleClick(event) {
+  if (!props.disabled && !props.loading) {
+    emit('click', event)
+  }
+}
 
 const classes = computed(() => [
   'ui-btn',
   `ui-btn--${props.variant}`,
   `ui-btn--${props.size}`,
   props.block && 'ui-btn--block',
+  props.loading && 'ui-btn--loading',
 ])
 </script>
 
 <template>
-  <button :type="type" :disabled="disabled" :class="classes">
+  <button
+    :type="type"
+    :disabled="disabled || loading"
+    :class="classes"
+    :aria-label="ariaLabel"
+    :aria-describedby="ariaDescribedby"
+    :aria-pressed="ariaPressed"
+    :aria-expanded="ariaExpanded"
+    :aria-controls="ariaControls"
+    @click="handleClick"
+  >
+    <div v-if="loading" class="loading-spinner" aria-hidden="true"></div>
+    <span
+      v-if="icon"
+      class="button-icon"
+      :class="{ 'icon-left': iconPosition === 'left', 'icon-right': iconPosition === 'right' }"
+    >
+      {{ icon }}
+    </span>
     <slot />
   </button>
 </template>
@@ -91,5 +127,29 @@ button[disabled] {
   opacity: 0.75;
   cursor: not-allowed;
   filter: grayscale(20%);
+}
+
+/* Loading State */
+.ui-btn--loading {
+  position: relative;
+}
+
+.loading-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid transparent;
+  border-top: 2px solid currentColor;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 0.5rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
 }
 </style>

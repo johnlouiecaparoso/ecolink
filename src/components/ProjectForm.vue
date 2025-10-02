@@ -337,35 +337,46 @@ onMounted(() => {
 
 <style scoped>
 .project-form {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary, #ffffff);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
 }
 
 .form-header {
-  margin-bottom: 32px;
+  padding: 32px 32px 0 32px;
+  margin-bottom: 0;
   text-align: center;
+  background: var(--bg-primary, #ffffff);
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+  flex-shrink: 0;
 }
 
 .form-header h2 {
   margin: 0 0 8px 0;
   font-size: 28px;
   font-weight: 700;
-  color: var(--ecolink-text);
+  color: var(--text-primary, #1a202c);
 }
 
 .form-header p {
-  margin: 0;
-  color: var(--ecolink-muted);
+  margin: 0 0 24px 0;
+  color: var(--text-secondary, #4a5568);
   font-size: 16px;
 }
 
 .form {
-  background: white;
-  border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
+  background: var(--bg-primary, #ffffff);
+  border: none;
+  border-radius: 0;
   padding: 32px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: none;
+  flex: 1;
+  overflow-y: auto;
+  max-height: calc(90vh - 120px);
 }
 
 .form-group {
@@ -376,25 +387,25 @@ onMounted(() => {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
-  color: var(--ecolink-text);
-  font-size: 14px;
+  color: var(--text-primary, #1a202c);
+  font-size: 16px;
 }
 
 .form-select {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
-  background: white;
-  color: var(--ecolink-text);
+  border: 2px solid var(--border-color, #d1e7dd);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1a202c);
   font-size: 16px;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .form-select:focus {
   outline: none;
-  border-color: var(--ecolink-primary);
-  box-shadow: 0 0 0 3px var(--ecolink-primary-50);
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 0 0 3px var(--primary-light, rgba(6, 158, 45, 0.1));
 }
 
 .form-select.error {
@@ -404,21 +415,21 @@ onMounted(() => {
 .form-textarea {
   width: 100%;
   padding: 12px 16px;
-  border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
-  background: white;
-  color: var(--ecolink-text);
+  border: 2px solid var(--border-color, #d1e7dd);
+  border-radius: var(--radius-md, 0.5rem);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1a202c);
   font-size: 16px;
   font-family: inherit;
   resize: vertical;
   min-height: 120px;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
 }
 
 .form-textarea:focus {
   outline: none;
-  border-color: var(--ecolink-primary);
-  box-shadow: 0 0 0 3px var(--ecolink-primary-50);
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 0 0 3px var(--primary-light, rgba(6, 158, 45, 0.1));
 }
 
 .form-textarea.error {
@@ -434,8 +445,9 @@ onMounted(() => {
 
 .field-help {
   margin-top: 4px;
-  color: var(--ecolink-muted);
+  color: var(--text-muted, #718096);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .error-message {
@@ -461,14 +473,35 @@ onMounted(() => {
   gap: 16px;
   justify-content: flex-end;
   margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--ecolink-border);
+  padding: 24px 32px 32px 32px;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  background: var(--bg-primary, #ffffff);
+  flex-shrink: 0;
+}
+
+/* Custom Scrollbar */
+.form::-webkit-scrollbar {
+  width: 8px;
+}
+
+.form::-webkit-scrollbar-track {
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: 4px;
+}
+
+.form::-webkit-scrollbar-thumb {
+  background: var(--primary-color, #069e2d);
+  border-radius: 4px;
+}
+
+.form::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-hover, #058e3f);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .project-form {
-    padding: 16px;
+  .form-header {
+    padding: 24px 24px 0 24px;
   }
 
   .form {
@@ -477,6 +510,7 @@ onMounted(() => {
 
   .form-actions {
     flex-direction: column;
+    padding: 24px;
   }
 
   .form-actions button {

@@ -220,7 +220,11 @@ onMounted(() => {
     <!-- Filters -->
     <div class="filters-section">
       <div class="filters">
-        <UiInput v-model="searchTerm" placeholder="Search projects..." class="search-input" />
+        <UiInput
+          v-model="searchTerm"
+          placeholder="Search by title, description, or location..."
+          class="search-input"
+        />
         <select v-model="statusFilter" class="filter-select">
           <option v-for="option in statusOptions" :key="option.value" :value="option.value">
             {{ option.label }}
@@ -233,6 +237,15 @@ onMounted(() => {
         </select>
         <UiButton variant="outline" @click="clearFilters" size="small"> Clear Filters </UiButton>
       </div>
+    </div>
+
+    <!-- Search Results Info -->
+    <div v-if="searchTerm || statusFilter || categoryFilter" class="search-results-info">
+      <p class="results-text">
+        <span class="results-count">{{ filteredProjects.length }}</span>
+        {{ filteredProjects.length === 1 ? 'project' : 'projects' }} found
+        <span v-if="searchTerm" class="search-term">for "{{ searchTerm }}"</span>
+      </p>
     </div>
 
     <!-- Projects List -->
@@ -446,32 +459,95 @@ onMounted(() => {
 }
 
 .filters-section {
-  background: var(--ecolink-surface);
-  border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
-  padding: 20px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
   margin-bottom: 32px;
+  box-shadow: none;
 }
 
 .filters {
   display: flex;
-  gap: 16px;
+  gap: 20px;
   align-items: center;
   flex-wrap: wrap;
 }
 
 .search-input {
   flex: 1;
-  min-width: 200px;
+  min-width: 250px;
+  position: relative;
+}
+
+.search-input input {
+  padding-left: 48px !important;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23069e2d'%3e%3cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'/%3e%3c/svg%3e");
+  background-position: left 16px center;
+  background-repeat: no-repeat;
+  background-size: 20px;
 }
 
 .filter-select {
-  padding: 8px 12px;
-  border: 1px solid var(--ecolink-border);
-  border-radius: var(--radius);
-  background: var(--ecolink-bg);
-  color: var(--ecolink-text);
+  padding: 16px 24px;
+  border: 2px solid var(--primary-color, #069e2d);
+  border-radius: var(--radius-xl, 1rem);
+  background: var(--bg-primary, #ffffff);
+  color: var(--text-primary, #1a202c);
+  font-size: 16px;
+  font-weight: 500;
+  min-width: 200px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-green, 0 4px 12px rgba(6, 158, 45, 0.15));
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23069e2d' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 16px;
+  padding-right: 48px;
+}
+
+.filter-select:hover {
+  border-color: var(--primary-hover, #058e3f);
+  box-shadow: var(--shadow-green-lg, 0 8px 20px rgba(6, 158, 45, 0.3));
+  transform: translateY(-2px);
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: var(--primary-hover, #058e3f);
+  box-shadow:
+    0 0 0 4px var(--primary-light, rgba(6, 158, 45, 0.2)),
+    var(--shadow-green-lg, 0 8px 20px rgba(6, 158, 45, 0.3));
+  transform: translateY(-2px);
+}
+
+/* Search Results Info */
+.search-results-info {
+  margin-bottom: 24px;
+  padding: 12px 20px;
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: var(--radius-lg, 0.75rem);
+  border-left: 4px solid var(--primary-color, #069e2d);
+}
+
+.results-text {
+  margin: 0;
   font-size: 14px;
+  color: var(--text-secondary, #4a5568);
+  font-weight: 500;
+}
+
+.results-count {
+  font-weight: 700;
+  color: var(--primary-color, #069e2d);
+  font-size: 16px;
+}
+
+.search-term {
+  font-style: italic;
+  color: var(--text-primary, #1a202c);
 }
 
 .loading-state {
@@ -644,12 +720,14 @@ onMounted(() => {
 }
 
 .modal {
-  background: var(--ecolink-surface);
-  border-radius: var(--radius);
-  max-width: 800px;
+  background: var(--bg-primary, #ffffff);
+  border-radius: var(--radius-xl, 1rem);
+  max-width: 900px;
   width: 100%;
   max-height: 90vh;
-  overflow-y: auto;
+  overflow: hidden;
+  box-shadow: var(--shadow-green-lg, 0 20px 40px rgba(6, 158, 45, 0.2));
+  border: 2px solid var(--border-green-light, #d4edda);
 }
 
 .project-detail-modal {

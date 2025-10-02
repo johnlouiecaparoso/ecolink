@@ -1,5 +1,5 @@
 <script setup>
-import RegisterForm from '@/components/auth/RegisterForm.vue'
+import RegisterForm from '@/components/auth/EnhancedRegisterForm.vue'
 </script>
 
 <template>
@@ -33,12 +33,6 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
         </div>
         <div class="panel-body">
           <RegisterForm />
-          <div style="margin-top: 14px; text-align: center">
-            <span class="panel-desc">Already have an account?</span>
-            <router-link class="muted-link" to="/login" style="margin-left: 8px"
-              >Sign in</router-link
-            >
-          </div>
         </div>
       </div>
     </section>

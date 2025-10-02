@@ -15,6 +15,11 @@ export const PERMISSIONS = {
   MANAGE_WALLET: 'manage_wallet',
   BUY_VIA_GCASH_MAYA: 'buy_via_gcash_maya',
   VIEW_CERTIFICATES: 'view_certificates',
+  SEARCH_PROJECTS: 'search_projects',
+  BUY_CREDITS: 'buy_credits',
+  DOWNLOAD_RECEIPTS: 'download_receipts',
+  LIST_CREDITS_FOR_SALE: 'list_credits_for_sale', // NEW: Allow users to sell credits
+  VIEW_TRANSACTION_HISTORY: 'view_transaction_history', // NEW: Transaction history access
 
   // Project Developer permissions
   SUBMIT_PROJECTS: 'submit_projects',
@@ -28,15 +33,9 @@ export const PERMISSIONS = {
   APPROVE_PROJECTS: 'approve_projects',
   UPLOAD_REPORTS: 'upload_reports',
 
-  // Buyer/Investor permissions
-  SEARCH_PROJECTS: 'search_projects',
-  BUY_CREDITS: 'buy_credits',
-  DOWNLOAD_RECEIPTS: 'download_receipts',
-
   // Admin permissions
   AUDIT_LOGS: 'audit_logs',
   APPROVE_USERS: 'approve_users',
-  APPROVE_PROJECTS: 'approve_projects',
   GENERATE_REPORTS: 'generate_reports',
   MANAGE_USERS: 'manage_users',
   VIEW_ANALYTICS: 'view_analytics',
@@ -53,14 +52,32 @@ export const PERMISSIONS = {
 
 // Define base permissions for each role
 const GENERAL_USER_PERMISSIONS = [
+  // Core user permissions
   PERMISSIONS.VIEW_DASHBOARD,
   PERMISSIONS.VIEW_PROFILE,
   PERMISSIONS.UPDATE_PROFILE,
   PERMISSIONS.SIGN_UP,
+
+  // Wallet & Credits permissions
   PERMISSIONS.VIEW_CREDITS,
   PERMISSIONS.MANAGE_WALLET,
   PERMISSIONS.BUY_VIA_GCASH_MAYA,
   PERMISSIONS.VIEW_CERTIFICATES,
+  PERMISSIONS.VIEW_TRANSACTION_HISTORY,
+
+  // Marketplace permissions
+  PERMISSIONS.SEARCH_PROJECTS,
+  PERMISSIONS.BUY_CREDITS,
+  PERMISSIONS.LIST_CREDITS_FOR_SALE, // NEW: Users can sell credits
+
+  // Document permissions
+  PERMISSIONS.DOWNLOAD_RECEIPTS,
+
+  // Project permissions (simplified for general users)
+  PERMISSIONS.SUBMIT_PROJECTS, // NEW: Allow project submission
+
+  // Sales permissions (for their own sales)
+  PERMISSIONS.SALES_DASHBOARD, // NEW: View their own sales
 ]
 
 const PROJECT_DEVELOPER_PERMISSIONS = [
@@ -74,9 +91,10 @@ const PROJECT_DEVELOPER_PERMISSIONS = [
 ]
 
 const VERIFIER_PERMISSIONS = [
-  PERMISSIONS.VIEW_DASHBOARD,
-  PERMISSIONS.VIEW_PROFILE,
-  PERMISSIONS.UPDATE_PROFILE,
+  // Include ALL general user permissions
+  ...GENERAL_USER_PERMISSIONS,
+
+  // Verifier-specific permissions
   PERMISSIONS.ACCESS_PROJECTS,
   PERMISSIONS.REVIEW_PROJECTS,
   PERMISSIONS.APPROVE_PROJECTS,
@@ -93,12 +111,38 @@ const BUYER_INVESTOR_PERMISSIONS = [
 ]
 
 const ADMIN_PERMISSIONS = [
+  // Core permissions
   PERMISSIONS.VIEW_DASHBOARD,
   PERMISSIONS.VIEW_PROFILE,
   PERMISSIONS.UPDATE_PROFILE,
+  PERMISSIONS.SIGN_UP,
+
+  // All user permissions
+  PERMISSIONS.VIEW_CREDITS,
+  PERMISSIONS.MANAGE_WALLET,
+  PERMISSIONS.BUY_VIA_GCASH_MAYA,
+  PERMISSIONS.VIEW_CERTIFICATES,
+  PERMISSIONS.VIEW_TRANSACTION_HISTORY,
+  PERMISSIONS.SEARCH_PROJECTS, // ✅ FIXED - This was missing!
+  PERMISSIONS.BUY_CREDITS,
+  PERMISSIONS.LIST_CREDITS_FOR_SALE,
+  PERMISSIONS.DOWNLOAD_RECEIPTS,
+  PERMISSIONS.SUBMIT_PROJECTS,
+  PERMISSIONS.SALES_DASHBOARD,
+
+  // Project developer permissions
+  PERMISSIONS.TRACK_STATUS,
+  PERMISSIONS.CREDIT_ISSUANCE,
+
+  // Verifier permissions
+  PERMISSIONS.ACCESS_PROJECTS,
+  PERMISSIONS.REVIEW_PROJECTS,
+  PERMISSIONS.APPROVE_PROJECTS,
+  PERMISSIONS.UPLOAD_REPORTS,
+
+  // Admin-specific permissions
   PERMISSIONS.AUDIT_LOGS,
   PERMISSIONS.APPROVE_USERS,
-  PERMISSIONS.APPROVE_PROJECTS,
   PERMISSIONS.GENERATE_REPORTS,
   PERMISSIONS.MANAGE_USERS,
   PERMISSIONS.VIEW_ANALYTICS,
@@ -124,10 +168,11 @@ export const ROUTE_PERMISSIONS = {
   '/marketplace': PERMISSIONS.SEARCH_PROJECTS,
   '/wallet': PERMISSIONS.MANAGE_WALLET,
   '/admin': PERMISSIONS.VIEW_ADMIN_PANEL,
-  '/users': PERMISSIONS.MANAGE_USERS,
+  '/admin/users': PERMISSIONS.MANAGE_USERS,
+  '/admin/audit-logs': PERMISSIONS.AUDIT_LOGS,
+  '/admin/database': PERMISSIONS.MANAGE_DATABASE,
+  '/admin/tables': PERMISSIONS.MANAGE_TABLES,
   '/analytics': PERMISSIONS.VIEW_ANALYTICS,
-  '/database': PERMISSIONS.MANAGE_DATABASE,
-  '/tables': PERMISSIONS.MANAGE_TABLES,
   '/verifier': PERMISSIONS.ACCESS_PROJECTS,
   '/certificates': PERMISSIONS.VIEW_CERTIFICATES,
   '/sales': PERMISSIONS.SALES_DASHBOARD,

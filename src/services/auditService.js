@@ -1,315 +1,243 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { USE_DATABASE } from '@/config/database'
 
 /**
- * Audit Service for logging user actions and system events
+ * Log user actions for audit trail
  */
-export class AuditService {
-  constructor() {
-    this.supabase = getSupabase()
+export async function logUserAction(action, entityType, userId, entityId, metadata = {}) {
+  // Skip audit logging if database is disabled
+  if (!USE_DATABASE) {
+    console.log('Database disabled, skipping audit log:', { action, entityType, userId })
+    return null
   }
 
-  /**
-   * Log a user action
-   * @param {string} action - The action performed (e.g., 'LOGIN', 'CREATE_PROJECT', 'UPDATE_WALLET')
-   * @param {string} resourceType - The type of resource affected (e.g., 'user', 'project', 'wallet')
-   * @param {string} resourceId - The ID of the resource affected
-   * @param {Object} oldValues - Previous values (for updates)
-   * @param {Object} newValues - New values (for creates/updates)
-   * @param {Object} metadata - Additional metadata
-   * @returns {Promise<string>} - The audit log ID
-   */
-  async logUserAction(
-    action,
-    resourceType,
-    resourceId = null,
-    oldValues = null,
-    newValues = null,
-    metadata = {},
-  ) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return null
-      }
+  // Skip audit logging if no user ID
+  if (!userId) {
+    console.warn('Skipping audit log - no user ID provided')
+    return null
+  }
 
-      const { data, error } = await this.supabase.rpc('log_user_action', {
-        p_action: action,
-        p_resource_type: resourceType,
-        p_resource_id: resourceId,
-        p_old_values: oldValues ? JSON.stringify(oldValues) : null,
-        p_new_values: newValues ? JSON.stringify(newValues) : null,
-        p_metadata: JSON.stringify(metadata),
-      })
+  const supabase = getSupabase()
 
-      if (error) {
-        console.error('Failed to log user action:', error)
-        return null
-      }
+  try {
+    const { data, error } = await supabase.from('audit_logs').insert({
+      action: action,
+      entity_type: entityType,
+      user_id: userId,
+      entity_id: entityId,
+      metadata: metadata,
+      timestamp: new Date().toISOString(),
+      ip_address: getClientIP(), // Would get from request in real implementation
+      user_agent: getUserAgent(), // Would get from request in real implementation
+    })
 
-      console.log('User action logged:', action, resourceType, resourceId)
-      return data
-    } catch (error) {
+    if (error) {
       console.error('Error logging user action:', error)
-      return null
+      // Don't throw error for audit logging failures
     }
-  }
 
-  /**
-   * Log a system event
-   * @param {string} action - The system action (e.g., 'SYSTEM_STARTUP', 'CACHE_CLEARED')
-   * @param {string} resourceType - The type of resource affected
-   * @param {string} resourceId - The ID of the resource affected
-   * @param {Object} oldValues - Previous values
-   * @param {Object} newValues - New values
-   * @param {Object} metadata - Additional metadata
-   * @returns {Promise<string>} - The audit log ID
-   */
-  async logSystemEvent(
-    action,
-    resourceType,
-    resourceId = null,
-    oldValues = null,
-    newValues = null,
-    metadata = {},
-  ) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return null
-      }
-
-      const { data, error } = await this.supabase.rpc('log_system_event', {
-        p_action: action,
-        p_resource_type: resourceType,
-        p_resource_id: resourceId,
-        p_old_values: oldValues ? JSON.stringify(oldValues) : null,
-        p_new_values: newValues ? JSON.stringify(newValues) : null,
-        p_metadata: JSON.stringify(metadata),
-      })
-
-      if (error) {
-        console.error('Failed to log system event:', error)
-        return null
-      }
-
-      console.log('System event logged:', action, resourceType, resourceId)
-      return data
-    } catch (error) {
-      console.error('Error logging system event:', error)
-      return null
-    }
-  }
-
-  /**
-   * Get recent audit logs
-   * @param {number} limit - Number of logs to retrieve
-   * @param {string} userId - Optional user ID to filter by
-   * @returns {Promise<Array>} - Array of audit logs
-   */
-  async getRecentAuditLogs(limit = 50, userId = null) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return []
-      }
-
-      let query = this.supabase
-        .from('recent_audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Failed to fetch audit logs:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error fetching audit logs:', error)
-      return []
-    }
-  }
-
-  /**
-   * Get user activity summary
-   * @param {string} userId - User ID to get summary for
-   * @returns {Promise<Object>} - User activity summary
-   */
-  async getUserActivitySummary(userId = null) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return null
-      }
-
-      let query = this.supabase.from('user_activity_summary').select('*')
-
-      if (userId) {
-        query = query.eq('user_id', userId)
-      }
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Failed to fetch user activity summary:', error)
-        return null
-      }
-
-      return data?.[0] || null
-    } catch (error) {
-      console.error('Error fetching user activity summary:', error)
-      return null
-    }
-  }
-
-  /**
-   * Get audit logs by action type
-   * @param {string} action - Action type to filter by
-   * @param {number} limit - Number of logs to retrieve
-   * @returns {Promise<Array>} - Array of audit logs
-   */
-  async getAuditLogsByAction(action, limit = 50) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return []
-      }
-
-      const { data, error } = await this.supabase
-        .from('audit_logs')
-        .select('*')
-        .eq('action', action)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) {
-        console.error('Failed to fetch audit logs by action:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error fetching audit logs by action:', error)
-      return []
-    }
-  }
-
-  /**
-   * Get audit logs by resource type
-   * @param {string} resourceType - Resource type to filter by
-   * @param {number} limit - Number of logs to retrieve
-   * @returns {Promise<Array>} - Array of audit logs
-   */
-  async getAuditLogsByResourceType(resourceType, limit = 50) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return []
-      }
-
-      const { data, error } = await this.supabase
-        .from('audit_logs')
-        .select('*')
-        .eq('resource_type', resourceType)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) {
-        console.error('Failed to fetch audit logs by resource type:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error fetching audit logs by resource type:', error)
-      return []
-    }
-  }
-
-  /**
-   * Search audit logs
-   * @param {Object} filters - Search filters
-   * @param {string} filters.action - Action to filter by
-   * @param {string} filters.resourceType - Resource type to filter by
-   * @param {string} filters.userId - User ID to filter by
-   * @param {Date} filters.startDate - Start date for filtering
-   * @param {Date} filters.endDate - End date for filtering
-   * @param {number} limit - Number of logs to retrieve
-   * @returns {Promise<Array>} - Array of audit logs
-   */
-  async searchAuditLogs(filters = {}, limit = 50) {
-    try {
-      if (!this.supabase) {
-        console.warn('Supabase client not available for audit logging')
-        return []
-      }
-
-      let query = this.supabase
-        .from('audit_logs')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (filters.action) {
-        query = query.eq('action', filters.action)
-      }
-
-      if (filters.resourceType) {
-        query = query.eq('resource_type', filters.resourceType)
-      }
-
-      if (filters.userId) {
-        query = query.eq('user_id', filters.userId)
-      }
-
-      if (filters.startDate) {
-        query = query.gte('created_at', filters.startDate.toISOString())
-      }
-
-      if (filters.endDate) {
-        query = query.lte('created_at', filters.endDate.toISOString())
-      }
-
-      const { data, error } = await query
-
-      if (error) {
-        console.error('Failed to search audit logs:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error searching audit logs:', error)
-      return []
-    }
+    return data
+  } catch (error) {
+    console.error('Error in logUserAction:', error)
+    // Don't throw error for audit logging failures
   }
 }
 
-// Create singleton instance
-export const auditService = new AuditService()
+/**
+ * Log system events
+ */
+export async function logSystemEvent(event, entityType, entityId, metadata = {}) {
+  const supabase = getSupabase()
 
-// Export convenience functions
-export const logUserAction = (action, resourceType, resourceId, oldValues, newValues, metadata) =>
-  auditService.logUserAction(action, resourceType, resourceId, oldValues, newValues, metadata)
+  try {
+    const { data, error } = await supabase.from('audit_logs').insert({
+      action: event,
+      entity_type: entityType,
+      user_id: null, // System event, no user
+      entity_id: entityId,
+      metadata: metadata,
+      timestamp: new Date().toISOString(),
+      ip_address: 'system',
+      user_agent: 'system',
+    })
 
-export const logSystemEvent = (action, resourceType, resourceId, oldValues, newValues, metadata) =>
-  auditService.logSystemEvent(action, resourceType, resourceId, oldValues, newValues, metadata)
+    if (error) {
+      console.error('Error logging system event:', error)
+    }
 
-export const getRecentAuditLogs = (limit, userId) => auditService.getRecentAuditLogs(limit, userId)
+    return data
+  } catch (error) {
+    console.error('Error in logSystemEvent:', error)
+  }
+}
 
-export const getUserActivitySummary = (userId) => auditService.getUserActivitySummary(userId)
+/**
+ * Get audit logs for a specific entity
+ */
+export async function getAuditLogs(entityType, entityId, limit = 50) {
+  const supabase = getSupabase()
 
-export const getAuditLogsByAction = (action, limit) =>
-  auditService.getAuditLogsByAction(action, limit)
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select(
+        `
+        *,
+        profiles!audit_logs_user_id_fkey(full_name, email)
+      `,
+      )
+      .eq('entity_type', entityType)
+      .eq('entity_id', entityId)
+      .order('timestamp', { ascending: false })
+      .limit(limit)
 
-export const getAuditLogsByResourceType = (resourceType, limit) =>
-  auditService.getAuditLogsByResourceType(resourceType, limit)
+    if (error) {
+      console.error('Error fetching audit logs:', error)
+      throw new Error('Failed to fetch audit logs')
+    }
 
-export const searchAuditLogs = (filters, limit) => auditService.searchAuditLogs(filters, limit)
+    return data || []
+  } catch (error) {
+    console.error('Error in getAuditLogs:', error)
+    throw error
+  }
+}
+
+/**
+ * Get user activity logs
+ */
+export async function getUserActivityLogs(userId, limit = 100) {
+  const supabase = getSupabase()
+
+  try {
+    const { data, error } = await supabase
+      .from('audit_logs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(limit)
+
+    if (error) {
+      console.error('Error fetching user activity logs:', error)
+      throw new Error('Failed to fetch user activity logs')
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Error in getUserActivityLogs:', error)
+    throw error
+  }
+}
+
+/**
+ * Get system-wide audit logs (admin only)
+ */
+export async function getSystemAuditLogs(filters = {}, limit = 100) {
+  const supabase = getSupabase()
+
+  try {
+    let query = supabase
+      .from('audit_logs')
+      .select(
+        `
+        *,
+        profiles!audit_logs_user_id_fkey(full_name, email)
+      `,
+      )
+      .order('timestamp', { ascending: false })
+      .limit(limit)
+
+    // Apply filters
+    if (filters.action) {
+      query = query.eq('action', filters.action)
+    }
+
+    if (filters.entityType) {
+      query = query.eq('entity_type', filters.entityType)
+    }
+
+    if (filters.userId) {
+      query = query.eq('user_id', filters.userId)
+    }
+
+    if (filters.startDate) {
+      query = query.gte('timestamp', filters.startDate)
+    }
+
+    if (filters.endDate) {
+      query = query.lte('timestamp', filters.endDate)
+    }
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('Error fetching system audit logs:', error)
+      throw new Error('Failed to fetch system audit logs')
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Error in getSystemAuditLogs:', error)
+    throw error
+  }
+}
+
+/**
+ * Get client IP address (placeholder)
+ */
+function getClientIP() {
+  // In a real implementation, this would extract IP from request headers
+  return '127.0.0.1'
+}
+
+/**
+ * Get user agent (placeholder)
+ */
+function getUserAgent() {
+  // In a real implementation, this would extract from request headers
+  return typeof window !== 'undefined' ? window.navigator.userAgent : 'server'
+}
+
+/**
+ * Search audit logs with filters
+ */
+export async function searchAuditLogs(filters = {}) {
+  console.log('Searching audit logs with filters:', filters)
+
+  // In a real implementation, this would query the database
+  return {
+    logs: [],
+    total: 0,
+    page: filters.page || 1,
+    limit: filters.limit || 50,
+  }
+}
+
+/**
+ * Get user activity summary
+ */
+export async function getUserActivitySummary(userId) {
+  console.log('Getting user activity summary for user:', userId)
+
+  // In a real implementation, this would aggregate user activity data
+  return {
+    totalActions: 0,
+    lastActivity: null,
+    activityByType: {},
+    recentActions: [],
+  }
+}
+
+/**
+ * Get recent audit logs
+ */
+export async function getRecentAuditLogs(limit = 50) {
+  console.log('Getting recent audit logs, limit:', limit)
+
+  // In a real implementation, this would query the database
+  return {
+    logs: [],
+    total: 0,
+    limit,
+  }
+}

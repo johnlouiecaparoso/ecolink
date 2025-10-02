@@ -214,12 +214,12 @@ onMounted(() => {
 <style scoped>
 .wallet-page {
   min-height: 100vh;
-  background: var(--ecolink-bg);
+  background: var(--bg-secondary, #f8fdf8);
 }
 
 .wallet-header {
-  background: var(--ecolink-surface);
-  border-bottom: 1px solid var(--ecolink-border);
+  background: var(--bg-primary, #ffffff);
+  border-bottom: 1px solid var(--border-color, #d1e7dd);
   padding: 24px;
 }
 
@@ -227,13 +227,13 @@ onMounted(() => {
   margin: 16px 0 8px 0;
   font-size: 32px;
   font-weight: 800;
-  color: var(--ecolink-text);
+  color: var(--text-primary, #1a1a1a);
 }
 
 .wallet-subtitle {
   margin: 0;
   font-size: 16px;
-  color: var(--ecolink-muted);
+  color: var(--text-secondary, #4a5568);
 }
 
 .wallet-content {
@@ -246,11 +246,11 @@ onMounted(() => {
 
 /* Balance Card */
 .balance-card {
-  background: linear-gradient(135deg, var(--ecolink-primary-600), var(--ecolink-primary-700));
+  background: linear-gradient(135deg, var(--primary-color, #069e2d), var(--primary-dark, #04773b));
   color: white;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg, 0.75rem);
   padding: 32px;
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-green, 0 4px 12px rgba(6, 158, 45, 0.3));
 }
 
 .balance-header {
@@ -278,6 +278,7 @@ onMounted(() => {
   font-size: 48px;
   font-weight: 800;
   margin-bottom: 24px;
+  color: white;
 }
 
 .balance-actions {

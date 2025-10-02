@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/store/userStore'
-import { getUserPaymentHistory, getPaymentStatistics } from '@/services/paymentService'
+import { paymentService } from '@/services/paymentService'
 import PageLayout from '@/components/layout/PageLayout.vue'
 import UiButton from '@/components/ui/Button.vue'
 
@@ -20,8 +20,8 @@ async function loadPaymentData() {
     error.value = ''
 
     const [history, stats] = await Promise.all([
-      getUserPaymentHistory(userStore.user?.id),
-      getPaymentStatistics(),
+      paymentService.getUserTransactions(userStore.user?.id),
+      Promise.resolve({ totalSpent: 0, totalTransactions: 0 }), // Mock stats for now
     ])
 
     paymentHistory.value = history
@@ -532,5 +532,3 @@ onMounted(() => {
   }
 }
 </style>
-
-

@@ -1,6 +1,17 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { USE_DATABASE } from '@/config/database'
 
 export async function getWalletBalance(userId = null) {
+  // Skip database calls if disabled
+  if (!USE_DATABASE) {
+    console.log('Database disabled, using sample data for wallet balance')
+    return {
+      current_balance: 1250.5,
+      currency: 'USD',
+      last_updated: new Date().toISOString(),
+    }
+  }
+
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')

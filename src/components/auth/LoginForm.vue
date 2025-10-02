@@ -1,13 +1,13 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { loginWithEmail } from '@/services/authService'
+import { TEST_ACCOUNTS, getTestAccountByEmail } from '@/utils/testAccounts'
 import UiInput from '@/components/ui/Input.vue'
 import UiButton from '@/components/ui/Button.vue'
 
 const router = useRouter()
-const route = useRoute()
 const store = useUserStore()
 const email = ref('')
 const password = ref('')
@@ -49,11 +49,15 @@ function validateForm() {
   return emailValid && passwordValid
 }
 
-function fillDemoCredentials() {
-  email.value = 'demo@ecolink.io'
-  password.value = 'demo123'
-  emailError.value = ''
-  passwordError.value = ''
+function fillTestAccount(accountType) {
+  const testAccount = TEST_ACCOUNTS[accountType]
+  if (testAccount) {
+    email.value = testAccount.email
+    password.value = testAccount.password
+    emailError.value = ''
+    passwordError.value = ''
+    console.log(`Filled ${accountType} test account credentials`)
+  }
 }
 
 async function handleSubmit() {
@@ -64,23 +68,18 @@ async function handleSubmit() {
   }
   loading.value = true
   try {
-    // Demo login for testing
-    if (email.value === 'demo@ecolink.io' && password.value === 'demo123') {
-      const mockSession = {
-        user: {
-          id: 'demo-user-123',
-          email: email.value,
-          user_metadata: { name: 'Demo User' },
-        },
-        access_token: 'demo-token',
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-      }
-      store.session = mockSession
-      const redirect = route.query.redirect || '/'
-      router.replace(redirect)
+    // Check if this is a test account
+    const testAccount = getTestAccountByEmail(email.value)
+    if (testAccount && password.value === testAccount.password) {
+      // Use test account mock session
+      store.session = testAccount.mockSession
+      store.role = testAccount.role
+      console.log(`Logged in as test ${testAccount.role}:`, testAccount.name)
+      router.replace('/')
       return
     }
 
+    // Try real authentication
     const { session } = await loginWithEmail({ email: email.value, password: password.value })
     // Set session immediately to avoid guard race conditions
     if (session) {
@@ -88,9 +87,8 @@ async function handleSubmit() {
     } else {
       await store.fetchSession()
     }
-    const redirect =
-      typeof route.query.redirect === 'string' && route.query.redirect ? route.query.redirect : '/'
-    router.replace(redirect)
+    // Redirect to homepage after successful login
+    router.replace('/')
   } catch (err) {
     const msg = String(err?.message || '')
     if (/email_not_confirmed|confirm your email/i.test(msg)) {
@@ -134,16 +132,40 @@ async function handleSubmit() {
 
     <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
 
-    <UiButton variant="primary" type="submit" :disabled="loading">
-      <span v-if="!loading">Sign in</span>
-      <span v-else>Signing in…</span>
-    </UiButton>
+    <UiButton type="submit" :loading="loading" block> Sign In </UiButton>
 
-    <div class="demo-login">
-      <p class="demo-text">Demo Login:</p>
-      <UiButton variant="outline" type="button" @click="fillDemoCredentials" :disabled="loading">
-        Use Demo Account
-      </UiButton>
+    <!-- Test Accounts Section -->
+    <div class="test-accounts">
+      <p class="test-title">Test Accounts (Development Only)</p>
+      <div class="test-buttons">
+        <UiButton
+          variant="outline"
+          type="button"
+          @click="fillTestAccount('admin')"
+          :disabled="loading"
+          size="small"
+        >
+          Admin Test
+        </UiButton>
+        <UiButton
+          variant="outline"
+          type="button"
+          @click="fillTestAccount('verifier')"
+          :disabled="loading"
+          size="small"
+        >
+          Verifier Test
+        </UiButton>
+        <UiButton
+          variant="outline"
+          type="button"
+          @click="fillTestAccount('user')"
+          :disabled="loading"
+          size="small"
+        >
+          User Test
+        </UiButton>
+      </div>
     </div>
   </form>
 </template>
@@ -154,16 +176,24 @@ button[disabled] {
   cursor: not-allowed;
 }
 
-.demo-login {
-  margin-top: 1rem;
+.test-accounts {
+  margin-top: 1.5rem;
   padding-top: 1rem;
   border-top: 1px solid var(--border-color);
   text-align: center;
 }
 
-.demo-text {
+.test-title {
   font-size: var(--font-size-sm);
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin: 0 0 0.75rem 0;
+  font-weight: 500;
+}
+
+.test-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 </style>

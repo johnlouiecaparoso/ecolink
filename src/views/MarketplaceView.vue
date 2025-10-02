@@ -67,27 +67,6 @@
                   </option>
                 </select>
               </div>
-
-              <!-- Price Range Filter -->
-              <div class="filter-section">
-                <h4 class="filter-label">Price Range ($)</h4>
-                <div class="price-range">
-                  <input
-                    v-model.number="priceRange.min"
-                    type="number"
-                    placeholder="Min"
-                    class="price-input"
-                    @input="applyFilters"
-                  />
-                  <input
-                    v-model.number="priceRange.max"
-                    type="number"
-                    placeholder="Max"
-                    class="price-input"
-                    @input="applyFilters"
-                  />
-                </div>
-              </div>
             </div>
           </div>
 
@@ -115,6 +94,16 @@
             <div v-if="loading" class="loading-state">
               <div class="loading-spinner"></div>
               <p>Loading marketplace listings...</p>
+              <div class="loading-skeleton">
+                <div class="skeleton-card" v-for="n in 6" :key="n">
+                  <div class="skeleton-image"></div>
+                  <div class="skeleton-content">
+                    <div class="skeleton-title"></div>
+                    <div class="skeleton-text"></div>
+                    <div class="skeleton-text short"></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- Error State -->
@@ -249,384 +238,206 @@
         </div>
       </div>
     </div>
-
-    <!-- Purchase Modal -->
-    <div v-if="showPurchaseModal" class="modal-overlay" @click="closePurchaseModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h2>Purchase Carbon Credits</h2>
-          <button class="close-btn" @click="closePurchaseModal">×</button>
-        </div>
-
-        <div v-if="selectedListing" class="modal-body">
-          <div class="purchase-project-info">
-            <h3>{{ selectedListing.project_title }}</h3>
-            <p class="project-location">{{ selectedListing.location }}</p>
-            <div class="price-info">
-              <span class="price-per-credit"
-                >{{
-                  formatCurrency(selectedListing.price_per_credit, selectedListing.currency)
-                }}
-                per credit</span
-              >
-            </div>
-          </div>
-
-          <div class="purchase-form">
-            <div class="form-group">
-              <label for="quantity">Quantity (Credits)</label>
-              <input
-                id="quantity"
-                v-model.number="purchaseQuantity"
-                type="number"
-                :min="1"
-                :max="selectedListing.available_quantity"
-                class="form-input"
-                required
-              />
-              <div class="input-help">
-                Maximum: {{ formatNumber(selectedListing.available_quantity) }} credits available
-              </div>
-            </div>
-
-            <div class="purchase-summary">
-              <div class="summary-row">
-                <span>Credits:</span>
-                <span>{{ purchaseQuantity }}</span>
-              </div>
-              <div class="summary-row">
-                <span>Price per credit:</span>
-                <span>{{
-                  formatCurrency(selectedListing.price_per_credit, selectedListing.currency)
-                }}</span>
-              </div>
-              <div class="summary-row subtotal">
-                <span>Subtotal:</span>
-                <span>{{
-                  formatCurrency(
-                    purchaseQuantity * selectedListing.price_per_credit,
-                    selectedListing.currency,
-                  )
-                }}</span>
-              </div>
-              <div class="summary-row">
-                <span>Platform fee (2.5%):</span>
-                <span>{{
-                  formatCurrency(
-                    purchaseQuantity * selectedListing.price_per_credit * 0.025,
-                    selectedListing.currency,
-                  )
-                }}</span>
-              </div>
-              <div class="summary-row total">
-                <span>Total:</span>
-                <span>{{
-                  formatCurrency(
-                    purchaseQuantity * selectedListing.price_per_credit * 1.025,
-                    selectedListing.currency,
-                  )
-                }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <UiButton variant="outline" @click="closePurchaseModal">Cancel</UiButton>
-          <UiButton
-            @click="handlePurchase"
-            :disabled="!purchaseQuantity || purchaseQuantity <= 0 || purchaseLoading"
-            :loading="purchaseLoading"
-          >
-            {{ purchaseLoading ? 'Processing...' : 'Purchase Credits' }}
-          </UiButton>
-        </div>
-      </div>
-    </div>
-
-    <!-- Payment Modal -->
-    <PaymentModal
-      :is-open="showPaymentModal"
-      :payment-data="paymentData"
-      @close="closePaymentModal"
-      @success="handlePaymentSuccess"
-      @error="(error) => console.error('Payment error:', error)"
-    />
   </div>
 </template>
 
-<script setup>
+<script>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
-import {
-  getMarketplaceListings,
-  purchaseCredits,
-  getMarketplaceStats,
-} from '@/services/marketplaceService'
-import UiButton from '@/components/ui/Button.vue'
-import PaymentModal from '@/components/PaymentModal.vue'
+import { getMarketplaceListings, getMarketplaceStats } from '@/services/marketplaceService'
 
-const router = useRouter()
-const userStore = useUserStore()
+export default {
+  name: 'MarketplaceViewFixed',
+  setup() {
+    const router = useRouter()
+    const userStore = useUserStore()
 
-// State
-const listings = ref([])
-const loading = ref(false)
-const error = ref('')
-const marketplaceStats = ref({
-  totalListings: 0,
-  totalCreditsAvailable: 0,
-  totalMarketValue: 0,
-  recentTransactions: 0,
-})
-
-// Filters and search
-const searchQuery = ref('')
-const selectedCategory = ref('all')
-const selectedCountry = ref('')
-const priceRange = ref({
-  min: null,
-  max: null,
-})
-const sortBy = ref('name')
-
-// Purchase modal
-const showPurchaseModal = ref(false)
-const selectedListing = ref(null)
-const purchaseQuantity = ref(1)
-const purchaseLoading = ref(false)
-
-// Payment Modal State
-const showPaymentModal = ref(false)
-const paymentData = ref(null)
-
-// Options
-const categories = [
-  { value: 'all', label: 'All' },
-  { value: 'Forestry', label: 'Forestry' },
-  { value: 'Renewable Energy', label: 'Renewable Energy' },
-  { value: 'Blue Carbon', label: 'Blue Carbon' },
-  { value: 'Energy Efficiency', label: 'Energy Efficiency' },
-]
-
-const countries = [
-  'Brazil',
-  'Paraguay',
-  'Kenya',
-  'India',
-  'Indonesia',
-  'Costa Rica',
-  'Peru',
-  'Colombia',
-  'Philippines',
-  'Malaysia',
-  'Thailand',
-]
-
-// Computed properties
-const filteredListings = computed(() => {
-  let filtered = listings.value
-
-  // Search filter
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    filtered = filtered.filter(
-      (listing) =>
-        listing.project_title.toLowerCase().includes(query) ||
-        listing.project_description.toLowerCase().includes(query) ||
-        listing.location.toLowerCase().includes(query),
-    )
-  }
-
-  // Category filter
-  if (selectedCategory.value !== 'all') {
-    filtered = filtered.filter((listing) => listing.category === selectedCategory.value)
-  }
-
-  // Country filter
-  if (selectedCountry.value) {
-    filtered = filtered.filter((listing) =>
-      listing.location.toLowerCase().includes(selectedCountry.value.toLowerCase()),
-    )
-  }
-
-  // Price range filter
-  if (priceRange.value.min !== null && priceRange.value.min !== '') {
-    filtered = filtered.filter((listing) => listing.price_per_credit >= priceRange.value.min)
-  }
-  if (priceRange.value.max !== null && priceRange.value.max !== '') {
-    filtered = filtered.filter((listing) => listing.price_per_credit <= priceRange.value.max)
-  }
-
-  // Apply sorting
-  return applySorting(filtered)
-})
-
-// Methods
-async function loadMarketplaceData() {
-  loading.value = true
-  error.value = ''
-
-  try {
-    const filters = {
-      category: selectedCategory.value !== 'all' ? selectedCategory.value : null,
-      country: selectedCountry.value,
-      minPrice: priceRange.value.min,
-      maxPrice: priceRange.value.max,
-      search: searchQuery.value,
-    }
-
-    const [listingsData, statsData] = await Promise.all([
-      getMarketplaceListings(filters),
-      getMarketplaceStats(),
-    ])
-
-    listings.value = listingsData
-    marketplaceStats.value = statsData
-  } catch (err) {
-    console.error('Error loading marketplace data:', err)
-    error.value = 'Failed to load marketplace data'
-  } finally {
-    loading.value = false
-  }
-}
-
-function handleSearch() {
-  loadMarketplaceData()
-}
-
-function applyFilters() {
-  loadMarketplaceData()
-}
-
-function applySorting(listings) {
-  const sorted = [...listings]
-
-  switch (sortBy.value) {
-    case 'name':
-      return sorted.sort((a, b) => a.project_title.localeCompare(b.project_title))
-    case 'price-low':
-      return sorted.sort((a, b) => a.price_per_credit - b.price_per_credit)
-    case 'price-high':
-      return sorted.sort((a, b) => b.price_per_credit - a.price_per_credit)
-    case 'tonnes':
-      return sorted.sort((a, b) => b.available_quantity - a.available_quantity)
-    case 'year':
-      return sorted.sort((a, b) => b.vintage_year - a.vintage_year)
-    default:
-      return sorted
-  }
-}
-
-function viewProject(listing) {
-  // Navigate to project detail page
-  router.push(`/project/${listing.project_id}`)
-}
-
-function showPurchaseModalFor(listing) {
-  if (!userStore.isAuthenticated) {
-    router.push('/login')
-    return
-  }
-
-  selectedListing.value = listing
-  purchaseQuantity.value = Math.min(1, listing.available_quantity)
-  showPurchaseModal.value = true
-}
-
-function closePurchaseModal() {
-  showPurchaseModal.value = false
-  selectedListing.value = null
-  purchaseQuantity.value = 1
-}
-
-async function handlePurchase() {
-  if (!selectedListing.value || purchaseQuantity.value <= 0) return
-
-  purchaseLoading.value = true
-
-  try {
-    // Create payment data for the payment modal
-    paymentData.value = {
-      amount: selectedListing.value.price_per_credit * purchaseQuantity.value,
-      currency: 'PHP',
-      credits: purchaseQuantity.value,
-      transactionId: `tx_${Date.now()}`,
-      userId: userStore.user?.id,
-      description: `Purchase ${purchaseQuantity.value} carbon credits from ${selectedListing.value.project_title}`,
-    }
-
-    // Close purchase modal and open payment modal
-    closePurchaseModal()
-    showPaymentModal.value = true
-  } catch (err) {
-    console.error('Error preparing purchase:', err)
-    alert('Failed to prepare purchase: ' + err.message)
-  } finally {
-    purchaseLoading.value = false
-  }
-}
-
-// Payment modal handlers
-function handlePaymentSuccess(paymentResult) {
-  console.log('Payment successful:', paymentResult)
-
-  // Complete the credit purchase with payment data
-  completePurchaseWithPayment(paymentResult)
-}
-
-async function completePurchaseWithPayment(paymentResult) {
-  try {
-    const result = await purchaseCredits(selectedListing.value.listing_id, {
-      quantity: purchaseQuantity.value,
-      paymentData: {
-        provider: paymentResult.provider,
-        paymentMethod: paymentResult.paymentMethod,
-        paymentIntentId: paymentResult.paymentId,
-      },
+    // State
+    const listings = ref([])
+    const loading = ref(false)
+    const error = ref('')
+    const marketplaceStats = ref({
+      totalListings: 0,
+      totalCreditsAvailable: 0,
+      totalMarketValue: 0,
+      recentTransactions: 0,
     })
 
-    if (result.requiresPayment) {
-      // Update payment record with successful payment
-      // This would typically be done by the payment provider webhook
-      console.log('Payment completed, transaction created:', result.transaction)
+    // Filters and search
+    const searchQuery = ref('')
+    const selectedCategory = ref('all')
+    const selectedCountry = ref('')
+    const sortBy = ref('name')
+
+    // Options
+    const categories = [
+      { value: 'all', label: 'All' },
+      { value: 'Forestry', label: 'Forestry' },
+      { value: 'Renewable Energy', label: 'Renewable Energy' },
+      { value: 'Blue Carbon', label: 'Blue Carbon' },
+      { value: 'Energy Efficiency', label: 'Energy Efficiency' },
+    ]
+
+    const countries = [
+      'Brazil',
+      'Paraguay',
+      'Kenya',
+      'India',
+      'Indonesia',
+      'Costa Rica',
+      'Peru',
+      'Colombia',
+      'Philippines',
+      'Malaysia',
+      'Thailand',
+    ]
+
+    // Computed properties
+    const filteredListings = computed(() => {
+      let filtered = listings.value
+
+      // Search filter
+      if (searchQuery.value) {
+        const query = searchQuery.value.toLowerCase()
+        filtered = filtered.filter(
+          (listing) =>
+            listing.project_title.toLowerCase().includes(query) ||
+            listing.project_description.toLowerCase().includes(query) ||
+            listing.location.toLowerCase().includes(query),
+        )
+      }
+
+      // Category filter
+      if (selectedCategory.value !== 'all') {
+        filtered = filtered.filter((listing) => listing.category === selectedCategory.value)
+      }
+
+      // Country filter
+      if (selectedCountry.value) {
+        filtered = filtered.filter((listing) =>
+          listing.location.toLowerCase().includes(selectedCountry.value.toLowerCase()),
+        )
+      }
+
+      // Apply sorting
+      return applySorting(filtered)
+    })
+
+    // Methods
+    async function loadMarketplaceData() {
+      console.log('Loading marketplace data...')
+      loading.value = true
+      error.value = ''
+
+      try {
+        const filters = {
+          category: selectedCategory.value !== 'all' ? selectedCategory.value : null,
+          country: selectedCountry.value,
+          search: searchQuery.value,
+        }
+
+        console.log('Fetching listings with filters:', filters)
+        const [listingsData, statsData] = await Promise.all([
+          getMarketplaceListings(filters),
+          getMarketplaceStats(),
+        ])
+
+        console.log('Received listings data:', listingsData)
+        console.log('Received stats data:', statsData)
+
+        listings.value = listingsData
+        marketplaceStats.value = statsData
+      } catch (err) {
+        console.error('Error loading marketplace data:', err)
+        error.value = 'Failed to load marketplace data'
+      } finally {
+        loading.value = false
+      }
     }
 
-    // Show success message
-    alert('Credits purchased successfully!')
+    function handleSearch() {
+      loadMarketplaceData()
+    }
 
-    // Reload marketplace data
-    await loadMarketplaceData()
+    function applyFilters() {
+      loadMarketplaceData()
+    }
 
-    // Close payment modal
-    closePaymentModal()
-  } catch (err) {
-    console.error('Error completing purchase:', err)
-    alert('Failed to complete purchase: ' + err.message)
-  }
+    function applySorting(listings) {
+      const sorted = [...listings]
+
+      switch (sortBy.value) {
+        case 'name':
+          return sorted.sort((a, b) => a.project_title.localeCompare(b.project_title))
+        case 'price-low':
+          return sorted.sort((a, b) => a.price_per_credit - b.price_per_credit)
+        case 'price-high':
+          return sorted.sort((a, b) => b.price_per_credit - a.price_per_credit)
+        case 'tonnes':
+          return sorted.sort((a, b) => b.available_quantity - a.available_quantity)
+        case 'year':
+          return sorted.sort((a, b) => b.vintage_year - a.vintage_year)
+        default:
+          return sorted
+      }
+    }
+
+    function viewProject(listing) {
+      // Navigate to project detail page
+      router.push(`/project/${listing.project_id}`)
+    }
+
+    function showPurchaseModalFor(listing) {
+      if (!userStore.isAuthenticated) {
+        router.push('/login')
+        return
+      }
+      // For now, just show an alert
+      alert('Purchase functionality coming soon!')
+    }
+
+    function formatCurrency(amount, currency = 'USD') {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+      }).format(amount)
+    }
+
+    function formatNumber(number) {
+      return new Intl.NumberFormat('en-US').format(number)
+    }
+
+    // Lifecycle
+    onMounted(async () => {
+      console.log('Marketplace mounted, loading data...')
+      await loadMarketplaceData()
+      console.log('Marketplace data loaded:', listings.value.length, 'listings')
+    })
+
+    return {
+      listings,
+      loading,
+      error,
+      marketplaceStats,
+      searchQuery,
+      selectedCategory,
+      selectedCountry,
+      sortBy,
+      categories,
+      countries,
+      filteredListings,
+      loadMarketplaceData,
+      handleSearch,
+      applyFilters,
+      applySorting,
+      viewProject,
+      showPurchaseModalFor,
+      formatCurrency,
+      formatNumber,
+    }
+  },
 }
-
-function closePaymentModal() {
-  showPaymentModal.value = false
-  paymentData.value = null
-}
-
-function formatCurrency(amount, currency = 'USD') {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-  }).format(amount)
-}
-
-function formatNumber(number) {
-  return new Intl.NumberFormat('en-US').format(number)
-}
-
-// Lifecycle
-onMounted(() => {
-  loadMarketplaceData()
-})
 </script>
 
 <style scoped>
@@ -784,26 +595,6 @@ onMounted(() => {
   outline: none;
 }
 
-.price-range {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem;
-}
-
-.price-input {
-  padding: 0.5rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-  outline: none;
-}
-
-.price-input:focus {
-  border-color: var(--primary-color);
-}
-
 /* Projects Content */
 .projects-content {
   min-height: 500px;
@@ -951,72 +742,6 @@ onMounted(() => {
   color: var(--text-muted);
 }
 
-.project-metrics {
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  flex-wrap: wrap;
-}
-
-.metric-badge {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: white;
-}
-
-.learn-more-button {
-  width: 100%;
-  padding: 0.75rem;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-}
-
-.learn-more-button:hover {
-  background: var(--primary-hover);
-}
-
-/* Purchase Button */
-.purchase-button {
-  width: 100%;
-  padding: 0.75rem;
-  background: var(--primary-color);
-  color: white;
-  border: none;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-  margin-top: 0.5rem;
-}
-
-.purchase-button:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.purchase-button:disabled {
-  background: var(--text-muted);
-  cursor: not-allowed;
-}
-
-/* Card Actions */
-.card-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-/* Seller Info */
 .seller-info {
   margin-bottom: 1rem;
   padding: 0.75rem;
@@ -1036,7 +761,6 @@ onMounted(() => {
   margin-left: 0.5rem;
 }
 
-/* Vintage Badge */
 .vintage-badge {
   position: absolute;
   bottom: 0.75rem;
@@ -1109,159 +833,49 @@ onMounted(() => {
   margin-bottom: 1rem;
 }
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+/* Card Actions */
+.card-actions {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.modal-content {
-  background: var(--bg-primary);
-  border-radius: var(--radius-lg);
-  max-width: 500px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: var(--shadow-xl);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.modal-header h2 {
-  margin: 0;
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: var(--text-muted);
-  padding: 0;
-  width: 2rem;
-  height: 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-body {
-  padding: 1.5rem;
-}
-
-.purchase-project-info {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.purchase-project-info h3 {
-  margin: 0 0 0.5rem 0;
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.project-location {
-  margin: 0 0 0.75rem 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-sm);
-}
-
-.price-per-credit {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--primary-color);
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.form-input {
+.learn-more-button {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid var(--border-color);
+  background: var(--primary-color);
+  color: white;
+  border: none;
   border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  font-size: var(--font-size-base);
-}
-
-.form-input:focus {
-  outline: none;
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px rgba(6, 158, 45, 0.1);
-}
-
-.input-help {
-  margin-top: 0.5rem;
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.purchase-summary {
-  background: var(--bg-muted);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-}
-
-.summary-row {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: var(--font-size-sm);
-}
-
-.summary-row.subtotal {
-  border-top: 1px solid var(--border-color);
-  padding-top: 0.5rem;
-  margin-top: 0.5rem;
   font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
 }
 
-.summary-row.total {
-  border-top: 1px solid var(--border-color);
-  padding-top: 0.5rem;
+.learn-more-button:hover {
+  background: var(--primary-hover);
+}
+
+.purchase-button {
+  width: 100%;
+  padding: 0.75rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
   margin-top: 0.5rem;
-  font-weight: 600;
-  font-size: var(--font-size-base);
 }
 
-.modal-actions {
-  display: flex;
-  gap: 1rem;
-  padding: 1.5rem;
-  border-top: 1px solid var(--border-color);
+.purchase-button:hover:not(:disabled) {
+  background: var(--primary-hover);
 }
 
-.modal-actions .btn {
-  flex: 1;
+.purchase-button:disabled {
+  background: var(--text-muted);
+  cursor: not-allowed;
 }
 
 /* Animations */
@@ -1308,9 +922,77 @@ onMounted(() => {
   .projects-grid {
     grid-template-columns: 1fr;
   }
+}
 
-  .price-range {
-    grid-template-columns: 1fr;
+/* Skeleton Loading */
+.loading-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+  width: 100%;
+}
+
+.skeleton-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 1.5rem;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+.skeleton-image {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.skeleton-title {
+  height: 1.5rem;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-text {
+  height: 1rem;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  border-radius: 4px;
+  animation: skeleton-shimmer 1.5s infinite;
+}
+
+.skeleton-text.short {
+  width: 60%;
+}
+
+@keyframes skeleton-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
   }
 }
 </style>

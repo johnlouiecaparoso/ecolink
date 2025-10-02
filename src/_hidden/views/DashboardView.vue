@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getProfile } from '@/services/profileService'
-import ComprehensiveDashboard from '@/components/dashboard/ComprehensiveDashboard.vue'
+// import ComprehensiveDashboard from '@/components/dashboard/ComprehensiveDashboard.vue'
 
 const router = useRouter()
 const store = useUserStore()
@@ -274,9 +274,24 @@ onMounted(async () => {
         </div>
       </header>
 
-      <!-- Comprehensive Dashboard -->
+      <!-- Dashboard Content -->
       <div class="dashboard-content">
-        <ComprehensiveDashboard />
+        <h1>Welcome to EcoLink Dashboard</h1>
+        <p>Manage your carbon credits, projects, and transactions.</p>
+        <div class="dashboard-stats">
+          <div class="stat-card">
+            <h3>Total Credits</h3>
+            <p>1,250</p>
+          </div>
+          <div class="stat-card">
+            <h3>Active Projects</h3>
+            <p>5</p>
+          </div>
+          <div class="stat-card">
+            <h3>Transactions</h3>
+            <p>12</p>
+          </div>
+        </div>
       </div>
 
       <!-- Mobile Menu Overlay -->
@@ -671,6 +686,35 @@ onMounted(async () => {
   padding: 32px;
   flex: 1;
   overflow-y: auto;
+}
+
+.dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+
+.dashboard-stats .stat-card {
+  background: var(--bg-primary);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border-color);
+}
+
+.dashboard-stats .stat-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+}
+
+.dashboard-stats .stat-card p {
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-color);
 }
 
 /* Mobile Menu Button */

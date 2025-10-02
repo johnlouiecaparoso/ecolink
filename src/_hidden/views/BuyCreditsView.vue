@@ -298,7 +298,7 @@ export default {
 .credit-price {
   font-size: 1.125rem;
   font-weight: 700;
-  color: #3182ce;
+  color: #069e2d;
 }
 
 .credit-body {
@@ -324,7 +324,7 @@ export default {
 
 .credit-type {
   font-size: 0.875rem;
-  color: #3182ce;
+  color: #069e2d;
   font-weight: 500;
 }
 
@@ -434,7 +434,7 @@ export default {
 
 .total-amount {
   font-size: 1.25rem;
-  color: #3182ce;
+  color: #069e2d;
 }
 
 .payment-section {
@@ -468,8 +468,8 @@ export default {
 }
 
 .payment-option input[type='radio']:checked + .payment-label {
-  border-color: #3182ce;
-  background: #ebf8ff;
+  border-color: #069e2d;
+  background: #f0fdf4;
 }
 
 .payment-icon {
@@ -513,12 +513,12 @@ export default {
 }
 
 .btn-primary {
-  background: #3182ce;
+  background: #069e2d;
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #2c5aa0;
+  background: #058e3f;
 }
 
 .btn-primary:disabled {
