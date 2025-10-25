@@ -1,249 +1,285 @@
 import { getSupabase } from '@/services/supabaseClient'
-import {
-  ROLES,
-  PERMISSIONS,
-  ROLE_PERMISSIONS,
-  hasPermission,
-  hasAnyPermission,
-  hasAllPermissions,
-  isAdmin,
-  isGeneralUser,
-  isProjectDeveloper,
-  isVerifier,
-  isBuyerInvestor,
-  canAccessRoute,
-} from '@/constants/roles'
+import { ROLES } from '@/constants/roles'
 
+/**
+ * Role service for managing user roles and permissions
+ */
 export class RoleService {
   constructor() {
     this.supabase = getSupabase()
   }
 
   /**
-   * Get user role from profile
-   * @param {string} userId - User ID
-   * @returns {Promise<string>} User role
+   * Check if user is admin
    */
-  async getUserRole(userId) {
-    if (!this.supabase || !userId) return ROLES.GENERAL_USER
+  isAdmin(role) {
+    return role === ROLES.ADMIN
+  }
+
+  /**
+   * Check if user is general user
+   */
+  isGeneralUser(role) {
+    return role === ROLES.GENERAL_USER
+  }
+
+  /**
+   * Check if user is project developer
+   */
+  isProjectDeveloper(role) {
+    return role === ROLES.PROJECT_DEVELOPER
+  }
+
+  /**
+   * Check if user is verifier
+   */
+  isVerifier(role) {
+    return role === ROLES.VERIFIER
+  }
+
+  /**
+   * Check if user is buyer/investor
+   */
+  isBuyerInvestor(role) {
+    return role === ROLES.BUYER_INVESTOR
+  }
+
+  /**
+   * Check if user has specific permission
+   */
+  hasPermission(role, permission) {
+    const rolePermissions = this.getRolePermissions(role)
+    return rolePermissions.includes(permission)
+  }
+
+  /**
+   * Check if user has any of the specified permissions
+   */
+  hasAnyPermission(role, permissions) {
+    return permissions.some((permission) => this.hasPermission(role, permission))
+  }
+
+  /**
+   * Check if user has all specified permissions
+   */
+  hasAllPermissions(role, permissions) {
+    return permissions.every((permission) => this.hasPermission(role, permission))
+  }
+
+  /**
+   * Check if user can access a specific route
+   */
+  canAccessRoute(role, routePath) {
+    const routePermissions = this.getRoutePermissions(routePath)
+    return this.hasAnyPermission(role, routePermissions)
+  }
+
+  /**
+   * Get permissions for a role
+   */
+  getRolePermissions(role) {
+    const permissions = {
+      [ROLES.ADMIN]: [
+        'view_all_projects',
+        'edit_all_projects',
+        'delete_all_projects',
+        'approve_projects',
+        'reject_projects',
+        'view_all_users',
+        'edit_user_roles',
+        'view_audit_logs',
+        'manage_system_settings',
+        'view_analytics',
+        'manage_marketplace',
+        'view_all_transactions',
+      ],
+      [ROLES.VERIFIER]: [
+        'view_all_projects',
+        'edit_project_status',
+        'approve_projects',
+        'reject_projects',
+        'view_project_details',
+        'add_verification_notes',
+        'view_verification_history',
+      ],
+      [ROLES.PROJECT_DEVELOPER]: [
+        'create_projects',
+        'edit_own_projects',
+        'delete_own_projects',
+        'view_own_projects',
+        'submit_projects',
+        'view_project_status',
+        'create_credit_listings',
+        'manage_own_listings',
+      ],
+      [ROLES.BUYER_INVESTOR]: [
+        'view_marketplace',
+        'purchase_credits',
+        'view_own_portfolio',
+        'retire_credits',
+        'view_certificates',
+        'view_receipts',
+        'manage_wallet',
+      ],
+      [ROLES.GENERAL_USER]: [
+        'view_marketplace',
+        'view_own_profile',
+        'edit_own_profile',
+        'view_own_transactions',
+      ],
+    }
+
+    return permissions[role] || []
+  }
+
+  /**
+   * Get required permissions for a route
+   */
+  getRoutePermissions(routePath) {
+    const routePermissions = {
+      '/admin': ['view_all_projects', 'manage_system_settings'],
+      '/admin/projects': ['view_all_projects'],
+      '/admin/users': ['view_all_users', 'edit_user_roles'],
+      '/admin/analytics': ['view_analytics'],
+      '/admin/audit': ['view_audit_logs'],
+      '/verifier': ['view_all_projects', 'edit_project_status'],
+      '/projects': ['create_projects', 'view_own_projects'],
+      '/marketplace': ['view_marketplace'],
+      '/portfolio': ['view_own_portfolio'],
+      '/wallet': ['manage_wallet'],
+      '/certificates': ['view_certificates'],
+      '/receipts': ['view_receipts'],
+    }
+
+    // Find matching route (supports dynamic routes)
+    for (const [route, permissions] of Object.entries(routePermissions)) {
+      if (routePath.startsWith(route)) {
+        return permissions
+      }
+    }
+
+    // Default permissions for unknown routes
+    return ['view_own_profile']
+  }
+
+  /**
+   * Update user role
+   */
+  async updateUserRole(userId, newRole) {
+    const supabase = getSupabase()
+
+    if (!supabase) {
+      throw new Error('Supabase client not available')
+    }
 
     try {
-      const { data, error } = await this.supabase
+      // Validate role
+      if (!Object.values(ROLES).includes(newRole)) {
+        throw new Error('Invalid role')
+      }
+
+      // Update user role in profiles table
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating user role:', error)
+        throw new Error('Failed to update user role')
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in updateUserRole:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get user role
+   */
+  async getUserRole(userId) {
+    const supabase = getSupabase()
+
+    if (!supabase) {
+      return ROLES.GENERAL_USER
+    }
+
+    try {
+      const { data: profile, error } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', userId)
         .single()
 
-      if (error) {
-        console.error('Error fetching user role:', error)
-        return ROLES.GENERAL_USER // Default to general user role
+      if (error || !profile) {
+        return ROLES.GENERAL_USER
       }
 
-      return data?.role || ROLES.GENERAL_USER
+      return profile.role || ROLES.GENERAL_USER
     } catch (error) {
-      console.error('Error in getUserRole:', error)
+      console.error('Error getting user role:', error)
       return ROLES.GENERAL_USER
     }
   }
 
   /**
-   * Update user role
-   * @param {string} userId - User ID
-   * @param {string} role - New role
-   * @returns {Promise<boolean>} Success status
+   * Get all available roles
    */
-  async updateUserRole(userId, role) {
-    if (!this.supabase || !userId || !Object.values(ROLES).includes(role)) {
-      return false
+  getAllRoles() {
+    return Object.values(ROLES)
+  }
+
+  /**
+   * Get role display name
+   */
+  getRoleDisplayName(role) {
+    const displayNames = {
+      [ROLES.ADMIN]: 'Administrator',
+      [ROLES.VERIFIER]: 'Verifier',
+      [ROLES.PROJECT_DEVELOPER]: 'Project Developer',
+      [ROLES.BUYER_INVESTOR]: 'Buyer/Investor',
+      [ROLES.GENERAL_USER]: 'General User',
     }
 
-    try {
-      const { error } = await this.supabase.from('profiles').update({ role }).eq('id', userId)
-
-      if (error) {
-        console.error('Error updating user role:', error)
-        return false
-      }
-
-      return true
-    } catch (error) {
-      console.error('Error in updateUserRole:', error)
-      return false
-    }
+    return displayNames[role] || 'Unknown Role'
   }
 
   /**
-   * Check if user has specific permission
-   * @param {string} userRole - User role
-   * @param {string} permission - Permission to check
-   * @returns {boolean} Has permission
+   * Get role description
    */
-  hasPermission(userRole, permission) {
-    return hasPermission(userRole, permission)
-  }
-
-  /**
-   * Check if user has any of the specified permissions
-   * @param {string} userRole - User role
-   * @param {string[]} permissions - Permissions to check
-   * @returns {boolean} Has any permission
-   */
-  hasAnyPermission(userRole, permissions) {
-    return hasAnyPermission(userRole, permissions)
-  }
-
-  /**
-   * Check if user has all specified permissions
-   * @param {string} userRole - User role
-   * @param {string[]} permissions - Permissions to check
-   * @returns {boolean} Has all permissions
-   */
-  hasAllPermissions(userRole, permissions) {
-    return hasAllPermissions(userRole, permissions)
-  }
-
-  /**
-   * Check if user is admin
-   * @param {string} userRole - User role
-   * @returns {boolean} Is admin
-   */
-  isAdmin(userRole) {
-    return isAdmin(userRole)
-  }
-
-  /**
-   * Check if user is general user
-   * @param {string} userRole - User role
-   * @returns {boolean} Is general user
-   */
-  isGeneralUser(userRole) {
-    return isGeneralUser(userRole)
-  }
-
-  /**
-   * Check if user is project developer
-   * @param {string} userRole - User role
-   * @returns {boolean} Is project developer
-   */
-  isProjectDeveloper(userRole) {
-    return isProjectDeveloper(userRole)
-  }
-
-  /**
-   * Check if user is verifier
-   * @param {string} userRole - User role
-   * @returns {boolean} Is verifier
-   */
-  isVerifier(userRole) {
-    return isVerifier(userRole)
-  }
-
-  /**
-   * Check if user is buyer/investor
-   * @param {string} userRole - User role
-   * @returns {boolean} Is buyer/investor
-   */
-  isBuyerInvestor(userRole) {
-    return isBuyerInvestor(userRole)
-  }
-
-  /**
-   * Check if user can access specific route
-   * @param {string} userRole - User role
-   * @param {string} routePath - Route path
-   * @returns {boolean} Can access route
-   */
-  canAccessRoute(userRole, routePath) {
-    return canAccessRoute(userRole, routePath)
-  }
-
-  /**
-   * Get all users with their roles (admin only)
-   * @returns {Promise<Array>} Users with roles
-   */
-  async getAllUsersWithRoles() {
-    if (!this.supabase) return []
-
-    try {
-      const { data, error } = await this.supabase
-        .from('profiles')
-        .select(
-          `
-          id,
-          full_name,
-          role,
-          kyc_level,
-          created_at,
-          updated_at
-        `,
-        )
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Error fetching users with roles:', error)
-        return []
-      }
-
-      return data || []
-    } catch (error) {
-      console.error('Error in getAllUsersWithRoles:', error)
-      return []
-    }
-  }
-
-  /**
-   * Get role statistics (admin only)
-   * @returns {Promise<Object>} Role statistics
-   */
-  async getRoleStatistics() {
-    if (!this.supabase) return {}
-
-    try {
-      const { data, error } = await this.supabase.from('profiles').select('role')
-
-      if (error) {
-        console.error('Error fetching role statistics:', error)
-        return {}
-      }
-
-      const stats = data.reduce((acc, profile) => {
-        const role = profile.role || ROLES.GENERAL_USER
-        acc[role] = (acc[role] || 0) + 1
-        return acc
-      }, {})
-
-      return stats
-    } catch (error) {
-      console.error('Error in getRoleStatistics:', error)
-      return {}
-    }
-  }
-
-  /**
-   * Get permissions for a role
-   * @param {string} role - User role
-   * @returns {Array} Array of permissions
-   */
-  getRolePermissions(role) {
-    return ROLE_PERMISSIONS[role] || []
-  }
-
-  /**
-   * Validate role assignment (check if current user can assign role)
-   * @param {string} currentUserRole - Current user's role
-   * @param {string} targetRole - Role to be assigned
-   * @returns {boolean} Can assign role
-   */
-  canAssignRole(currentUserRole, targetRole) {
-    // Only admins can assign admin role
-    if (targetRole === ROLES.ADMIN) {
-      return currentUserRole === ROLES.ADMIN
+  getRoleDescription(role) {
+    const descriptions = {
+      [ROLES.ADMIN]: 'Full system access with ability to manage all aspects of the platform',
+      [ROLES.VERIFIER]: 'Can review and approve/reject carbon credit projects',
+      [ROLES.PROJECT_DEVELOPER]: 'Can create and manage carbon credit projects',
+      [ROLES.BUYER_INVESTOR]: 'Can purchase and manage carbon credits',
+      [ROLES.GENERAL_USER]: 'Basic user access to view marketplace and manage profile',
     }
 
-    // Admins can assign any role
-    return currentUserRole === ROLES.ADMIN
+    return descriptions[role] || 'No description available'
   }
 }
 
 // Export singleton instance
 export const roleService = new RoleService()
+
+// Export individual functions for convenience (bound to service instance)
+export const isAdmin = roleService.isAdmin.bind(roleService)
+export const isVerifier = roleService.isVerifier.bind(roleService)
+export const isProjectDeveloper = roleService.isProjectDeveloper.bind(roleService)
+export const isBuyerInvestor = roleService.isBuyerInvestor.bind(roleService)
+export const isGeneralUser = roleService.isGeneralUser.bind(roleService)
+export const hasPermission = roleService.hasPermission.bind(roleService)
+export const hasAnyPermission = roleService.hasAnyPermission.bind(roleService)
+export const hasAllPermissions = roleService.hasAllPermissions.bind(roleService)
+export const getRolePermissions = roleService.getRolePermissions.bind(roleService)
+export const canAccessRoute = roleService.canAccessRoute.bind(roleService)
+export const updateUserRole = roleService.updateUserRole.bind(roleService)
+export const getUserRole = roleService.getUserRole.bind(roleService)
+export const getAllRoles = roleService.getAllRoles.bind(roleService)
+export const getRoleDescription = roleService.getRoleDescription.bind(roleService)
+export const getRoleDisplayName = roleService.getRoleDisplayName.bind(roleService)

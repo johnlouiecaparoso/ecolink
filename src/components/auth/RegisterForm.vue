@@ -1,9 +1,10 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-// import { registerWithEmail } from '@/services/authServiceSimple'
+import { registerWithEmail } from '@/services/authService'
 import { useUserStore } from '@/store/userStore'
 import UiButton from '@/components/ui/Button.vue'
+import UiInput from '@/components/ui/Input.vue'
 
 const router = useRouter()
 const name = ref('')
@@ -16,12 +17,10 @@ const nameError = ref('')
 const emailError = ref('')
 const passwordError = ref('')
 const confirmError = ref('')
-const showPassword = ref(false)
-const showConfirm = ref(false)
+// Removed showPassword and showConfirm as UiInput handles password visibility internally
 const store = useUserStore()
 
 async function handleSubmit() {
-  console.log('Registration form submitted!')
   errorMessage.value = ''
   nameError.value = ''
   emailError.value = ''
@@ -32,9 +31,14 @@ async function handleSubmit() {
   if (!name.value || name.value.trim().length < 2) {
     nameError.value = 'Enter your full name'
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
+
+  // Require email
+  if (!email.value) {
+    emailError.value = 'Email is required'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value)) {
     emailError.value = 'Enter a valid email address'
   }
+
   if (password.value.length < 8) {
     passwordError.value = 'Password must be at least 8 characters'
   }
@@ -42,29 +46,21 @@ async function handleSubmit() {
     confirmError.value = 'Passwords do not match'
   }
 
-  console.log('Validation errors:', {
-    nameError: nameError.value,
-    emailError: emailError.value,
-    passwordError: passwordError.value,
-    confirmError: confirmError.value,
-  })
-
   if (nameError.value || emailError.value || passwordError.value || confirmError.value) {
-    console.log('Form validation failed, not submitting')
     return
   }
 
-  console.log('Form validation passed, submitting...')
   loading.value = true
   try {
-    // Simulate registration (no actual API call needed for testing)
-    console.log('Simulating registration...')
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    // Register with email
+    await registerWithEmail({
+      name: name.value.trim(),
+      email: email.value,
+      password: password.value,
+    })
 
-    console.log('Registration complete, redirecting to login...')
-    // Direct redirect to login page
+    // Redirect to login page on success
     router.replace('/login')
-    console.log('Redirect completed')
   } catch (err) {
     console.error('Registration failed:', err)
     errorMessage.value = err?.message || 'Unable to register. Please try again.'
@@ -75,91 +71,205 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <form class="form-grid" @submit.prevent="handleSubmit">
-    <div class="input">
-      <label for="name">Full name</label>
-      <input id="name" v-model="name" type="text" placeholder="Jane Doe" required />
-      <small v-if="nameError" style="color: #b00020; font-weight: 600">{{ nameError }}</small>
+  <div class="register-form-container">
+    <div class="register-header">
+      <h2 class="register-title">Create your account</h2>
+      <p class="register-subtitle">Get started with EcoLink in minutes.</p>
     </div>
+    <form class="form-grid" @submit.prevent="handleSubmit">
+      <UiInput
+        id="name"
+        label="Full name"
+        type="text"
+        placeholder="Jane Doe"
+        v-model="name"
+        :error="nameError"
+        required
+      />
 
-    <div class="input">
-      <label for="email">Email</label>
-      <input id="email" v-model="email" type="email" placeholder="you@ecolink.io" required />
-      <small v-if="emailError" style="color: #b00020; font-weight: 600">{{ emailError }}</small>
-    </div>
+      <UiInput
+        id="email"
+        label="Email"
+        type="email"
+        placeholder="you@ecolink.io"
+        v-model="email"
+        :error="emailError"
+        required
+      />
 
-    <div class="input">
-      <label for="password">Password</label>
-      <div class="password-wrapper">
-        <input
-          id="password"
-          v-model="password"
-          :type="showPassword ? 'text' : 'password'"
-          placeholder="Create a strong password"
-          required
-        />
-        <button
-          type="button"
-          class="eye-toggle"
-          :aria-label="showPassword ? 'Hide password' : 'Show password'"
-          @click="showPassword = !showPassword"
-        >
-          {{ showPassword ? '🙈' : '👁️' }}
-        </button>
-      </div>
-      <small v-if="passwordError" style="color: #b00020; font-weight: 600">{{
-        passwordError
-      }}</small>
-    </div>
+      <UiInput
+        id="password"
+        label="Password"
+        type="password"
+        placeholder="Create a strong password"
+        v-model="password"
+        :error="passwordError"
+        required
+      />
 
-    <div class="input">
-      <label for="confirm">Confirm password</label>
-      <div class="password-wrapper">
-        <input
-          id="confirm"
-          v-model="confirmPassword"
-          :type="showConfirm ? 'text' : 'password'"
-          placeholder="Re-enter password"
-          required
-        />
-        <button
-          type="button"
-          class="eye-toggle"
-          :aria-label="showConfirm ? 'Hide password' : 'Show password'"
-          @click="showConfirm = !showConfirm"
-        >
-          {{ showConfirm ? '🙈' : '👁️' }}
-        </button>
-      </div>
-      <small v-if="confirmError" style="color: #b00020; font-weight: 600">{{ confirmError }}</small>
-    </div>
+      <UiInput
+        id="confirm"
+        label="Confirm password"
+        type="password"
+        placeholder="Re-enter password"
+        v-model="confirmPassword"
+        :error="confirmError"
+        required
+      />
 
-    <div v-if="errorMessage" style="color: #b00020; font-weight: 600">
-      {{ errorMessage }}
-    </div>
+      <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
 
-    <UiButton type="submit" :loading="loading" block> Create Account </UiButton>
-  </form>
+      <UiButton type="submit" :loading="loading" block> Create Account </UiButton>
+    </form>
+  </div>
 </template>
 
 <style scoped>
+/* Enhanced Register Form - Properly centered and sized */
+.register-form-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 1.5rem 1rem;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  border: none;
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s ease;
+}
+
+/* Register Header - Centered and properly spaced */
+.register-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.register-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.025em;
+}
+
+.register-subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Form Grid - Optimized spacing and centering */
+.form-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Ensure form elements are properly sized */
+.form-grid > * {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Specific styling for UiInput components */
+.form-grid :deep(.enhanced-input) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.form-grid :deep(.enhanced-input__field) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 button[disabled] {
   opacity: 0.8;
   cursor: not-allowed;
 }
 
-.password-wrapper {
-  position: relative;
+/* Enhanced error message styling */
+.form-grid > div[style*='color: #b00020'] {
+  text-align: center;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
 }
 
-.eye-toggle {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  font-size: 18px;
+/* Responsive Design for Register Form */
+@media (max-width: 768px) {
+  .register-form-container {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .form-grid {
+    gap: 1rem;
+  }
+
+  .register-title {
+    font-size: 1.5rem;
+  }
+
+  .register-subtitle {
+    font-size: 0.875rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .register-form-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .form-grid {
+    gap: 0.875rem;
+  }
+
+  .register-title {
+    font-size: 1.375rem;
+  }
+
+  .register-subtitle {
+    font-size: 0.8rem;
+  }
+}
+
+/* Ensure proper centering on all screen sizes */
+@media (min-width: 769px) {
+  .register-form-container {
+    padding: 2.5rem 2rem;
+  }
+
+  .form-grid {
+    gap: 1.75rem;
+  }
+}
+
+/* Fix for very small screens */
+@media (max-width: 360px) {
+  .register-form-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .form-grid {
+    gap: 0.875rem;
+  }
 }
 </style>

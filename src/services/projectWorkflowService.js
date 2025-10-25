@@ -1,0 +1,451 @@
+import { getSupabase } from '@/services/supabaseClient'
+import { getCurrentUserId } from '@/utils/authHelper'
+import { logUserAction } from '@/services/auditService'
+import { notifyProjectApproved, notifyProjectRejected } from '@/services/emailService'
+
+/**
+ * Enhanced Project Workflow Service
+ * Handles the complete flow from project submission to marketplace listing
+ */
+export class ProjectWorkflowService {
+  constructor() {
+    this.supabase = getSupabase()
+  }
+
+  /**
+   * Submit a new project for verification
+   * @param {Object} projectData - Project submission data
+   * @returns {Promise<Object>} Created project
+   */
+  async submitProject(projectData, userId = null) {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      // Use provided userId or try to get from auth
+      let finalUserId = userId
+      if (!finalUserId) {
+        finalUserId = await getCurrentUserId()
+      }
+      if (!finalUserId) {
+        throw new Error('User not authenticated')
+      }
+
+      // Create the project
+      const { data, error } = await this.supabase
+        .from('projects')
+        .insert([
+          {
+            title: projectData.title.trim(),
+            description: projectData.description.trim(),
+            category: projectData.category.trim(),
+            location: projectData.location.trim(),
+            expected_impact: projectData.expected_impact.trim(),
+            status: 'pending',
+            user_id: finalUserId,
+          },
+        ])
+        .select()
+        .single()
+
+      if (error) {
+        throw new Error(error.message || 'Failed to submit project')
+      }
+
+      // Log the submission
+      await logUserAction('PROJECT_SUBMITTED', 'project', finalUserId, data.id, {
+        title: data.title,
+        category: data.category,
+        location: data.location,
+      })
+
+      return data
+    } catch (error) {
+      console.error('Error submitting project:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get all projects for a user
+   * @param {string} userId - User ID (optional, uses current user if not provided)
+   * @returns {Promise<Array>} User's projects
+   */
+  async getUserProjects(userId = null) {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      if (!userId) {
+        const {
+          data: { user },
+        } = await this.supabase.auth.getUser()
+        if (!user) {
+          throw new Error('User not authenticated')
+        }
+        userId = user.id
+      }
+
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch user projects')
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error fetching user projects:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get all pending projects (for verifiers/admins)
+   * @returns {Promise<Array>} Pending projects
+   */
+  async getPendingProjects() {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .select(
+          `
+          *,
+          profiles!user_id(full_name, email)
+        `,
+        )
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch pending projects')
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error fetching pending projects:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Approve a project and generate credits
+   * @param {string} projectId - Project ID
+   * @param {string} verifierNotes - Verification notes
+   * @returns {Promise<Object>} Updated project with generated credits
+   */
+  async approveProject(projectId, verifierNotes = '') {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await this.supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
+      // Update project status to approved
+      const { data: updatedProject, error: updateError } = await this.supabase
+        .from('projects')
+        .update({
+          status: 'approved',
+          verification_notes: verifierNotes,
+          verified_by: user.id,
+          verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId)
+        .select()
+        .single()
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Failed to approve project')
+      }
+
+      // Generate project credits (this will be handled by the database trigger)
+      // But we can also manually create credits if needed
+      const creditsData = await this.generateProjectCredits(projectId)
+
+      // Send approval notification
+      try {
+        await notifyProjectApproved(projectId, updatedProject.user_id, verifierNotes)
+      } catch (emailError) {
+        console.error('Error sending approval notification:', emailError)
+      }
+
+      // Log the approval
+      await logUserAction('PROJECT_APPROVED', 'project', user.id, projectId, {
+        verifier_notes: verifierNotes,
+        credits_generated: creditsData?.total_credits,
+      })
+
+      return {
+        project: updatedProject,
+        credits: creditsData,
+      }
+    } catch (error) {
+      console.error('Error approving project:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Reject a project
+   * @param {string} projectId - Project ID
+   * @param {string} rejectionNotes - Rejection notes
+   * @param {string} improvementSuggestions - Improvement suggestions
+   * @returns {Promise<Object>} Updated project
+   */
+  async rejectProject(projectId, rejectionNotes = '', improvementSuggestions = '') {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      const {
+        data: { user },
+      } = await this.supabase.auth.getUser()
+      if (!user) {
+        throw new Error('User not authenticated')
+      }
+
+      // Update project status to rejected
+      const { data: updatedProject, error: updateError } = await this.supabase
+        .from('projects')
+        .update({
+          status: 'rejected',
+          verification_notes: rejectionNotes,
+          verified_by: user.id,
+          verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId)
+        .select()
+        .single()
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Failed to reject project')
+      }
+
+      // Send rejection notification
+      try {
+        await notifyProjectRejected(
+          projectId,
+          updatedProject.user_id,
+          rejectionNotes,
+          improvementSuggestions,
+        )
+      } catch (emailError) {
+        console.error('Error sending rejection notification:', emailError)
+      }
+
+      // Log the rejection
+      await logUserAction('PROJECT_REJECTED', 'project', user.id, projectId, {
+        rejection_notes: rejectionNotes,
+        improvement_suggestions: improvementSuggestions,
+      })
+
+      return updatedProject
+    } catch (error) {
+      console.error('Error rejecting project:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Generate credits for an approved project
+   * @param {string} projectId - Project ID
+   * @returns {Promise<Object>} Generated credits data
+   */
+  async generateProjectCredits(projectId) {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      // Get project details
+      const { data: project, error: projectError } = await this.supabase
+        .from('projects')
+        .select('*')
+        .eq('id', projectId)
+        .single()
+
+      if (projectError || !project) {
+        throw new Error('Project not found')
+      }
+
+      // Calculate credits based on category and impact
+      const creditsAmount = this.calculateCreditsAmount(project.category, project.expected_impact)
+      const basePrice = this.calculateBasePrice(project.category)
+
+      // Check if credits already exist
+      const { data: existingCredits } = await this.supabase
+        .from('project_credits')
+        .select('*')
+        .eq('project_id', projectId)
+        .single()
+
+      if (existingCredits) {
+        return existingCredits
+      }
+
+      // Create project credits
+      const { data: credits, error: creditsError } = await this.supabase
+        .from('project_credits')
+        .insert([
+          {
+            project_id: projectId,
+            total_credits: creditsAmount,
+            available_credits: creditsAmount,
+            price_per_credit: basePrice,
+          },
+        ])
+        .select()
+        .single()
+
+      if (creditsError) {
+        throw new Error(creditsError.message || 'Failed to generate project credits')
+      }
+
+      // Create marketplace listing
+      const { data: listing, error: listingError } = await this.supabase
+        .from('credit_listings')
+        .insert([
+          {
+            project_credits_id: credits.id,
+            seller_id: project.user_id,
+            quantity: creditsAmount,
+            price_per_credit: basePrice,
+          },
+        ])
+        .select()
+        .single()
+
+      if (listingError) {
+        console.error('Error creating marketplace listing:', listingError)
+        // Don't fail the entire operation if listing creation fails
+      }
+
+      return {
+        ...credits,
+        listing: listing,
+      }
+    } catch (error) {
+      console.error('Error generating project credits:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Calculate credits amount based on project category and impact
+   * @param {string} category - Project category
+   * @param {string} expectedImpact - Expected impact description
+   * @returns {number} Credits amount
+   */
+  calculateCreditsAmount(category, expectedImpact) {
+    // Base credits by category
+    const baseCredits = {
+      Forestry: 1000,
+      'Renewable Energy': 500,
+      'Blue Carbon': 800,
+      'Energy Efficiency': 300,
+      'Waste Management': 400,
+      Agriculture: 600,
+    }
+
+    let credits = baseCredits[category] || 500
+
+    // Adjust based on impact keywords
+    const impactText = expectedImpact.toLowerCase()
+    if (impactText.includes('hectare') || impactText.includes('acres')) {
+      credits *= 1.5
+    }
+    if (impactText.includes('tonne') || impactText.includes('ton')) {
+      credits *= 2
+    }
+    if (impactText.includes('mw') || impactText.includes('megawatt')) {
+      credits *= 3
+    }
+
+    return Math.round(credits)
+  }
+
+  /**
+   * Calculate base price based on project category
+   * @param {string} category - Project category
+   * @returns {number} Base price per credit
+   */
+  calculateBasePrice(category) {
+    const basePrices = {
+      Forestry: 15.0,
+      'Renewable Energy': 20.0,
+      'Blue Carbon': 18.0,
+      'Energy Efficiency': 12.0,
+      'Waste Management': 14.0,
+      Agriculture: 16.0,
+    }
+
+    return basePrices[category] || 15.0
+  }
+
+  /**
+   * Get project statistics
+   * @returns {Promise<Object>} Project statistics
+   */
+  async getProjectStats() {
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      // Get total projects
+      const { count: totalProjects } = await this.supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+
+      // Get projects by status
+      const { count: pendingProjects } = await this.supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      const { count: approvedProjects } = await this.supabase
+        .from('projects')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'approved')
+
+      // Get total credits generated
+      const { data: creditsData } = await this.supabase
+        .from('project_credits')
+        .select('total_credits')
+
+      const totalCreditsGenerated =
+        creditsData?.reduce((sum, credit) => sum + credit.total_credits, 0) || 0
+
+      return {
+        totalProjects: totalProjects || 0,
+        pendingProjects: pendingProjects || 0,
+        approvedProjects: approvedProjects || 0,
+        totalCreditsGenerated,
+      }
+    } catch (error) {
+      console.error('Error fetching project stats:', error)
+      throw error
+    }
+  }
+}
+
+// Export singleton instance
+export const projectWorkflowService = new ProjectWorkflowService()

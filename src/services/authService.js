@@ -19,6 +19,7 @@ export async function loginWithEmail({ email, password }) {
 export async function registerWithEmail({ name, email, password }) {
   const supabase = getSupabase()
   const redirectTo = typeof window !== 'undefined' ? window.location.origin + '/login' : undefined
+
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -29,7 +30,10 @@ export async function registerWithEmail({ name, email, password }) {
   })
   if (error) {
     // Log failed registration attempt
-    await logUserAction('REGISTRATION_FAILED', 'user', null, null, { email, error: error.message })
+    await logUserAction('REGISTRATION_FAILED', 'user', null, null, {
+      email,
+      error: error.message,
+    })
     throw new Error(error.message || 'Unable to register. Please try again.')
   }
 
@@ -41,7 +45,9 @@ export async function registerWithEmail({ name, email, password }) {
     try {
       await createUserProfile(data.user.id, { full_name: name })
       // Log profile creation
-      await logUserAction('PROFILE_CREATED', 'profile', data.user.id, null, { full_name: name })
+      await logUserAction('PROFILE_CREATED', 'profile', data.user.id, null, {
+        full_name: name,
+      })
     } catch (profileError) {
       console.warn('Failed to create profile:', profileError)
       // Log profile creation failure
@@ -59,14 +65,14 @@ async function createUserProfile(userId, profileData) {
   const supabase = getSupabase()
   if (!supabase) return
 
-  const { error } = await supabase.from('profiles').insert([
-    {
-      id: userId,
-      full_name: profileData.full_name,
-      role: profileData.role || 'user',
-      kyc_level: 0,
-    },
-  ])
+  const profileRecord = {
+    id: userId,
+    full_name: profileData.full_name,
+    role: profileData.role || 'user',
+    kyc_level: 0,
+  }
+
+  const { error } = await supabase.from('profiles').insert([profileRecord])
 
   if (error) {
     console.error('Profile creation error:', error)

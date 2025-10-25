@@ -1,4 +1,5 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { getCurrentUserId } from '@/utils/authHelper'
 import { notifyProjectSubmitted } from '@/services/emailService'
 
 export class ProjectService {
@@ -24,9 +25,10 @@ export class ProjectService {
    * @param {string} projectData.category - Project category
    * @param {string} projectData.location - Project location
    * @param {string} projectData.expected_impact - Expected impact
+   * @param {string} userId - Optional user ID (if not provided, will try to get from auth)
    * @returns {Promise<Object>} Created project
    */
-  async createProject(projectData) {
+  async createProject(projectData, userId = null) {
     const { title, description, category, location, expected_impact } = projectData
 
     // Validate required fields
@@ -35,6 +37,15 @@ export class ProjectService {
     }
 
     try {
+      // Use provided userId or try to get from auth
+      let finalUserId = userId
+      if (!finalUserId) {
+        finalUserId = await getCurrentUserId()
+      }
+      if (!finalUserId) {
+        throw new Error('User not authenticated')
+      }
+
       const { data, error } = await this.supabase
         .from('projects')
         .insert([
@@ -45,6 +56,7 @@ export class ProjectService {
             location: location.trim(),
             expected_impact: expected_impact.trim(),
             status: 'pending',
+            user_id: finalUserId, // Add user_id to track who created the project
           },
         ])
         .select()
@@ -160,20 +172,30 @@ export class ProjectService {
   }
 
   /**
-   * Delete a project (only if status is pending)
+   * Delete a project (only if status is pending for regular users, any status for admins)
    * @param {string} projectId - Project ID
+   * @param {boolean} isAdmin - Whether the user is an admin
    * @returns {Promise<boolean>} Success status
    */
-  async deleteProject(projectId) {
+  async deleteProject(projectId, isAdmin = false) {
     if (!projectId) {
       throw new Error('Project ID missing')
     }
 
     try {
-      // First check if project exists and is pending
+      // First check if project exists
       const project = await this.getProject(projectId)
-      if (project.status !== 'pending') {
-        throw new Error('Only pending projects can be deleted')
+
+      // For non-admin users, only allow deletion of pending projects
+      if (!isAdmin && project.status !== 'pending') {
+        throw new Error(
+          'Only pending projects can be deleted. Contact an administrator for approved/rejected projects.',
+        )
+      }
+
+      // For admin users, show warning for approved projects
+      if (isAdmin && project.status === 'approved') {
+        console.warn('Admin deleting approved project:', project.title)
       }
 
       const { error } = await this.supabase.from('projects').delete().eq('id', projectId)
@@ -187,6 +209,44 @@ export class ProjectService {
       console.error('Error deleting project:', error)
       throw error
     }
+  }
+
+  /**
+   * Admin-only: Delete any project regardless of status
+   * @param {string} projectId - Project ID
+   * @returns {Promise<boolean>} Success status
+   */
+  async adminDeleteProject(projectId) {
+    return this.deleteProject(projectId, true)
+  }
+
+  /**
+   * Admin-only: Delete multiple projects
+   * @param {string[]} projectIds - Array of project IDs
+   * @returns {Promise<{success: number, failed: number, errors: string[]}>} Results
+   */
+  async adminDeleteMultipleProjects(projectIds) {
+    if (!Array.isArray(projectIds) || projectIds.length === 0) {
+      throw new Error('Project IDs array is required')
+    }
+
+    const results = {
+      success: 0,
+      failed: 0,
+      errors: [],
+    }
+
+    for (const projectId of projectIds) {
+      try {
+        await this.adminDeleteProject(projectId)
+        results.success++
+      } catch (error) {
+        results.failed++
+        results.errors.push(`Project ${projectId}: ${error.message}`)
+      }
+    }
+
+    return results
   }
 
   /**
@@ -276,6 +336,63 @@ export class ProjectService {
       return data
     } catch (error) {
       console.error('Error updating project status:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Assign project to a verifier
+   * @param {string} projectId - Project ID
+   * @param {string} verifierId - Verifier user ID
+   * @returns {Promise<Object>} Updated project
+   */
+  async assignProjectToVerifier(projectId, verifierId) {
+    if (!projectId || !verifierId) {
+      throw new Error('Project ID and Verifier ID are required')
+    }
+
+    try {
+      const { data, error } = await this.supabase
+        .from('projects')
+        .update({
+          assigned_verifier_id: verifierId,
+          assigned_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', projectId)
+        .select()
+        .single()
+
+      if (error) {
+        throw new Error(error.message || 'Failed to assign project to verifier')
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error assigning project to verifier:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Get available verifiers for assignment
+   * @returns {Promise<Array>} List of verifiers
+   */
+  async getAvailableVerifiers() {
+    try {
+      const { data, error } = await this.supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .eq('role', 'verifier')
+        .order('full_name')
+
+      if (error) {
+        throw new Error(error.message || 'Failed to fetch verifiers')
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error fetching verifiers:', error)
       throw error
     }
   }
@@ -372,6 +489,10 @@ export const updateProject = projectService.updateProject.bind(projectService)
 export const deleteProject = projectService.deleteProject.bind(projectService)
 export const getAllProjects = projectService.getAllProjects.bind(projectService)
 export const updateProjectStatus = projectService.updateProjectStatus.bind(projectService)
+export const assignProjectToVerifier = projectService.assignProjectToVerifier.bind(projectService)
+export const getAvailableVerifiers = projectService.getAvailableVerifiers.bind(projectService)
 export const getProjectStats = projectService.getProjectStats.bind(projectService)
 export const getProjectCategories = projectService.getProjectCategories.bind(projectService)
 export const getProjectStatuses = projectService.getProjectStatuses.bind(projectService)
+
+// Service instance is already exported above as 'export const projectService'

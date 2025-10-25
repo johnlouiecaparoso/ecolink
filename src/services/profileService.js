@@ -1,4 +1,5 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { TEST_ACCOUNTS } from '@/utils/testAccounts'
 
 /**
  * Create a new user profile
@@ -36,9 +37,64 @@ export async function createProfile(profileData) {
 }
 
 /**
+ * Check if a user ID is a test account
+ */
+function isTestAccount(userId) {
+  return Object.values(TEST_ACCOUNTS).some((account) => account.mockSession.user.id === userId)
+}
+
+/**
+ * Get test account profile data
+ */
+function getTestAccountProfile(userId) {
+  const testAccount = Object.values(TEST_ACCOUNTS).find(
+    (account) => account.mockSession.user.id === userId,
+  )
+
+  if (!testAccount) return null
+
+  return {
+    id: userId,
+    full_name: testAccount.name,
+    email: testAccount.email,
+    role: testAccount.role,
+    company:
+      testAccount.role === 'admin'
+        ? 'EcoLink Admin'
+        : testAccount.role === 'verifier'
+          ? 'EcoLink Verification'
+          : 'Caraga State University',
+    location:
+      testAccount.role === 'admin'
+        ? 'San Francisco, CA'
+        : testAccount.role === 'verifier'
+          ? 'New York, NY'
+          : 'Butuan City',
+    bio:
+      testAccount.role === 'admin'
+        ? 'System administrator with full access to all features.'
+        : testAccount.role === 'verifier'
+          ? 'Certified verifier responsible for project validation.'
+          : 'Regular user exploring carbon credit marketplace.',
+    kyc_level: testAccount.role === 'admin' ? 3 : testAccount.role === 'verifier' ? 2 : 1,
+    avatar_url: null,
+    phone: '',
+    website: '',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+}
+
+/**
  * Get user profile by ID
  */
 export async function getProfile(userId) {
+  // Check if this is a test account first
+  if (isTestAccount(userId)) {
+    console.log('Using test account profile for user:', userId)
+    return getTestAccountProfile(userId)
+  }
+
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
@@ -84,6 +140,16 @@ export async function getProfile(userId) {
  * Update user profile
  */
 export async function updateProfile(userId, updates) {
+  // Check if this is a test account first
+  if (isTestAccount(userId)) {
+    console.log('Updating test account profile for user:', userId)
+    // For test accounts, we'll just return the updated profile data
+    // In a real app, you might want to store this in localStorage or sessionStorage
+    const currentProfile = getTestAccountProfile(userId)
+    const updatedProfile = { ...currentProfile, ...updates, updated_at: new Date().toISOString() }
+    return updatedProfile
+  }
+
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')

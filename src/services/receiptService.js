@@ -6,6 +6,14 @@ import { getSupabase } from '@/services/supabaseClient'
 export async function generateReceipt(transactionId) {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    throw new Error('Supabase client not initialized')
+  }
+
+  if (!transactionId) {
+    throw new Error('Transaction ID is required')
+  }
+
   try {
     // Get transaction details with all related data
     const { data: transaction, error: transactionError } = await supabase
@@ -108,6 +116,14 @@ export async function generateReceipt(transactionId) {
 export async function getUserReceipts(userId) {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    throw new Error('Supabase client not initialized')
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required')
+  }
+
   try {
     const { data, error } = await supabase
       .from('receipts')
@@ -128,7 +144,7 @@ export async function getUserReceipts(userId) {
 
     if (error) {
       console.error('Error fetching user receipts:', error)
-      throw new Error('Failed to fetch receipts')
+      throw new Error(`Failed to fetch receipts: ${error.message}`)
     }
 
     return data || []
@@ -144,6 +160,14 @@ export async function getUserReceipts(userId) {
 export async function downloadReceipt(receiptId) {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    throw new Error('Supabase client not initialized')
+  }
+
+  if (!receiptId) {
+    throw new Error('Receipt ID is required')
+  }
+
   try {
     const { data: receipt, error } = await supabase
       .from('receipts')
@@ -151,7 +175,12 @@ export async function downloadReceipt(receiptId) {
       .eq('id', receiptId)
       .single()
 
-    if (error || !receipt) {
+    if (error) {
+      console.error('Error fetching receipt:', error)
+      throw new Error(`Receipt not found: ${error.message}`)
+    }
+
+    if (!receipt) {
       throw new Error('Receipt not found')
     }
 
@@ -172,6 +201,14 @@ export async function downloadReceipt(receiptId) {
 export async function generateCarbonImpactReport(userId) {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    throw new Error('Supabase client not initialized')
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required')
+  }
+
   try {
     // Get all completed transactions for the user
     const { data: transactions, error } = await supabase
@@ -191,27 +228,53 @@ export async function generateCarbonImpactReport(userId) {
 
     if (error) {
       console.error('Error fetching user transactions:', error)
-      throw new Error('Failed to fetch transactions')
+      throw new Error(`Failed to fetch transactions: ${error.message}`)
+    }
+
+    // Handle case where no transactions exist
+    if (!transactions || transactions.length === 0) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        summary: {
+          totalCreditsPurchased: 0,
+          totalAmountSpent: 0,
+          totalTransactions: 0,
+          averagePricePerCredit: 0,
+        },
+        environmentalImpact: {
+          co2OffsetTonnes: 0,
+          equivalentTreesPlanted: 0,
+          equivalentCarsOffRoad: 0,
+          equivalentHomesPowered: 0,
+        },
+        categoryBreakdown: {},
+        recentPurchases: [],
+      }
     }
 
     // Calculate impact metrics
-    const totalCreditsPurchased = transactions.reduce((sum, t) => sum + t.quantity, 0)
-    const totalAmountSpent = transactions.reduce((sum, t) => sum + t.total_amount, 0)
+    const totalCreditsPurchased = transactions.reduce((sum, t) => sum + (t.quantity || 0), 0)
+    const totalAmountSpent = transactions.reduce((sum, t) => sum + (t.total_amount || 0), 0)
 
     // Group by category
     const categoryBreakdown = transactions.reduce((acc, transaction) => {
-      const category = transaction.project_credits.projects.category
-      if (!acc[category]) {
-        acc[category] = {
-          credits: 0,
-          amount: 0,
-          projects: new Set(),
+      // Add null checks for nested objects
+      if (transaction.project_credits?.projects?.category) {
+        const category = transaction.project_credits.projects.category
+        if (!acc[category]) {
+          acc[category] = {
+            credits: 0,
+            amount: 0,
+            projects: new Set(),
+          }
+        }
+        acc[category].credits += transaction.quantity || 0
+        acc[category].amount += transaction.total_amount || 0
+        if (transaction.project_credits.projects.title) {
+          acc[category].projects.add(transaction.project_credits.projects.title)
         }
       }
-      acc[category].credits += transaction.quantity
-      acc[category].amount += transaction.total_amount
-      acc[category].projects.add(transaction.project_credits.projects.title)
-
       return acc
     }, {})
 
@@ -227,7 +290,8 @@ export async function generateCarbonImpactReport(userId) {
         totalCreditsPurchased,
         totalAmountSpent,
         totalTransactions: transactions.length,
-        averagePricePerCredit: totalAmountSpent / totalCreditsPurchased,
+        averagePricePerCredit:
+          totalCreditsPurchased > 0 ? totalAmountSpent / totalCreditsPurchased : 0,
       },
       environmentalImpact: {
         co2OffsetTonnes: totalCreditsPurchased,
@@ -238,11 +302,11 @@ export async function generateCarbonImpactReport(userId) {
       categoryBreakdown,
       recentPurchases: transactions.slice(0, 10).map((t) => ({
         date: t.completed_at,
-        project: t.project_credits.projects.title,
-        category: t.project_credits.projects.category,
-        credits: t.quantity,
-        amount: t.total_amount,
-        currency: t.currency,
+        project: t.project_credits?.projects?.title || 'Unknown Project',
+        category: t.project_credits?.projects?.category || 'Unknown',
+        credits: t.quantity || 0,
+        amount: t.total_amount || 0,
+        currency: t.currency || 'PHP',
       })),
     }
 
@@ -261,5 +325,3 @@ function generateReceiptNumber(transactionId) {
   const random = Math.random().toString(36).substr(2, 4)
   return `RCP-${timestamp}-${random}`.toUpperCase()
 }
-
-

@@ -1,12 +1,64 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import {
-  initializePayment,
-  confirmPayment,
-  getSupportedPaymentMethods,
-  getAvailableProviders,
-  calculatePaymentFees,
-} from '@/services/paymentService'
+// Payment service imports temporarily disabled
+// import {
+//   initializePayment,
+//   confirmPayment,
+//   getSupportedPaymentMethods,
+//   getAvailableProviders,
+//   calculatePaymentFees,
+// } from '@/services/paymentService'
+
+// Mock implementations for development
+const initializePayment = async (data) => {
+  console.log('Mock initializePayment called with:', data)
+  return {
+    success: true,
+    paymentIntentId: 'mock_pi_' + Date.now(),
+    clientSecret: 'mock_secret_' + Date.now(),
+    provider: data.provider,
+    amount: data.amount,
+    currency: data.currency,
+    status: 'requires_payment_method',
+  }
+}
+
+const confirmPayment = async (paymentIntentId, provider, methodData) => {
+  console.log('Mock confirmPayment called with:', { paymentIntentId, provider, methodData })
+  return {
+    success: true,
+    paymentId: 'mock_payment_' + Date.now(),
+    amount: 100,
+    currency: 'PHP',
+    provider: provider,
+    status: 'succeeded',
+  }
+}
+
+const getSupportedPaymentMethods = (provider) => {
+  console.log('Mock getSupportedPaymentMethods called for provider:', provider)
+  return ['gcash', 'maya', 'card']
+}
+
+const getAvailableProviders = () => {
+  console.log('Mock getAvailableProviders called')
+  return [
+    { id: 'paymongo', name: 'PayMongo', description: 'Philippines payment gateway' },
+    { id: 'stripe', name: 'Stripe', description: 'Global payment processor' },
+  ]
+}
+
+const calculatePaymentFees = (amount, provider, method) => {
+  console.log('Mock calculatePaymentFees called with:', { amount, provider, method })
+  const fee = amount * 0.03 // 3% fee
+  return {
+    amount: amount,
+    fee: fee,
+    total: amount + fee,
+    currency: 'PHP',
+  }
+}
+
 import UiButton from '@/components/ui/Button.vue'
 // import UiInput from '@/components/ui/Input.vue'
 

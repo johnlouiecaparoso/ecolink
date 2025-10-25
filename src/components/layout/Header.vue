@@ -106,6 +106,9 @@
               <router-link to="/receipts" class="dropdown-item" @click="showUserMenu = false">
                 Receipts
               </router-link>
+
+              <!-- Admin Tools moved to Admin Dashboard page -->
+
               <!-- Hidden for now: Preferences, Analytics, Social Impact -->
               <!-- <router-link to="/preferences" class="dropdown-item" @click="showUserMenu = false">
                 Preferences
@@ -116,6 +119,8 @@
               <router-link to="/social" class="dropdown-item" @click="showUserMenu = false">
                 Social Impact
               </router-link> -->
+
+              <div class="dropdown-divider"></div>
               <button @click="handleLogout" class="dropdown-item logout">Logout</button>
             </div>
           </div>
@@ -270,7 +275,7 @@
               </router-link>
               <router-link
                 v-if="userStore.isAuthenticated"
-                to="/projects"
+                to="/submit-project"
                 @click="mobileMenuOpen = false"
                 style="
                   display: block !important;
@@ -369,8 +374,9 @@
               >
                 Retire Credits
               </router-link>
+              <!-- Verifier Specific Links -->
               <router-link
-                v-if="userStore.isVerifier || userStore.isAdmin"
+                v-if="userStore.isVerifier && !userStore.isAdmin"
                 to="/verifier"
                 @click="mobileMenuOpen = false"
                 style="
@@ -385,6 +391,76 @@
                 "
               >
                 Verifier Panel
+              </router-link>
+
+              <!-- Admin Specific Links -->
+              <router-link
+                v-if="userStore.isAdmin"
+                to="/admin"
+                @click="mobileMenuOpen = false"
+                style="
+                  display: block !important;
+                  padding: 0.75rem !important;
+                  background: #fff3cd !important;
+                  border: 1px solid #ffc107 !important;
+                  border-radius: 6px !important;
+                  text-decoration: none !important;
+                  color: #856404 !important;
+                  font-weight: 500 !important;
+                "
+              >
+                Admin Dashboard
+              </router-link>
+              <router-link
+                v-if="userStore.isAdmin"
+                to="/admin/users"
+                @click="mobileMenuOpen = false"
+                style="
+                  display: block !important;
+                  padding: 0.75rem !important;
+                  background: #fff3cd !important;
+                  border: 1px solid #ffc107 !important;
+                  border-radius: 6px !important;
+                  text-decoration: none !important;
+                  color: #856404 !important;
+                  font-weight: 500 !important;
+                "
+              >
+                User Management
+              </router-link>
+              <router-link
+                v-if="userStore.isAdmin"
+                to="/admin/database"
+                @click="mobileMenuOpen = false"
+                style="
+                  display: block !important;
+                  padding: 0.75rem !important;
+                  background: #fff3cd !important;
+                  border: 1px solid #ffc107 !important;
+                  border-radius: 6px !important;
+                  text-decoration: none !important;
+                  color: #856404 !important;
+                  font-weight: 500 !important;
+                "
+              >
+                Database Management
+              </router-link>
+              <router-link
+                v-if="userStore.isAdmin"
+                to="/admin/audit-logs"
+                @click="mobileMenuOpen = false"
+                style="
+                  display: block !important;
+                  padding: 0.75rem !important;
+                  background: #fff3cd !important;
+                  border: 1px solid #ffc107 !important;
+                  border-radius: 6px !important;
+                  text-decoration: none !important;
+                  color: #856404 !important;
+                  font-weight: 500 !important;
+                "
+              >
+                Audit Logs
               </router-link>
               <button
                 v-if="userStore.isAuthenticated"
@@ -487,10 +563,17 @@ const navItems = computed(() => {
     { path: '/buy-credits', label: 'Buy Credits' },
   ]
 
-  // Add verifier-specific navigation for verifiers and admins
-  if (userStore.isVerifier || userStore.isAdmin) {
+  // Add verifier-specific navigation for verifiers only
+  if (userStore.isVerifier && !userStore.isAdmin) {
     authenticatedItems.splice(3, 0, { path: '/verifier', label: 'Verifier Panel' })
   }
+
+  // Add admin-specific navigation for admins
+  if (userStore.isAdmin) {
+    authenticatedItems.splice(3, 0, { path: '/admin', label: 'Admin Dashboard' })
+  }
+
+  // Admin Dashboard is now in main navigation, other admin features remain in profile dropdown
 
   // EXPLICITLY exclude certificates and receipts from main nav (they're in profile dropdown)
   return authenticatedItems.filter(
@@ -772,6 +855,8 @@ function handleLogout() {
   color: var(--text-light);
 }
 
+/* Admin navigation items removed - admin features accessible via profile dropdown */
+
 /* Desktop Actions */
 .desktop-actions {
   display: none;
@@ -873,7 +958,9 @@ function handleLogout() {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 1000;
-  min-width: 12rem;
+  min-width: 14rem;
+  max-width: 18rem;
+  overflow: hidden;
 }
 
 .dropdown-item {
@@ -889,6 +976,7 @@ function handleLogout() {
   cursor: pointer;
   transition: var(--transition);
   border-bottom: 1px solid var(--border-light);
+  box-sizing: border-box;
 }
 
 .dropdown-item:last-child {
@@ -907,6 +995,45 @@ function handleLogout() {
 .dropdown-item.logout:hover {
   color: #dc2626;
   background: #fef2f2;
+}
+
+/* Admin Dropdown Items */
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 0.5rem 0;
+}
+
+.dropdown-section-title {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: #f3f4f6;
+  border-bottom: 1px solid #d1d5db;
+}
+
+.dropdown-item.admin-item {
+  background: #f9fafb;
+  color: #4b5563;
+  border-left: 3px solid #9ca3af;
+  font-weight: 500;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dropdown-item.admin-item:hover {
+  background: #e5e7eb;
+  color: #374151;
+  border-left-color: #6b7280;
 }
 
 .auth-buttons {

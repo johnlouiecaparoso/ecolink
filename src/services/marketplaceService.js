@@ -1,353 +1,172 @@
 import { getSupabase } from '@/services/supabaseClient'
-import { generateCreditCertificate } from '@/services/certificateService'
 import { logUserAction } from '@/services/auditService'
 import { notifyCreditPurchased } from '@/services/emailService'
-import { paymentService } from '@/services/paymentService'
-import { USE_DATABASE } from '@/config/database'
+// import { realPaymentService } from '@/services/realPaymentService'
+// Mock payment service for development
+const realPaymentService = {
+  processGCashPayment: async (data) => {
+    console.log('Mock GCash payment:', data)
+    return { success: true, transactionId: 'mock_gcash_' + Date.now() }
+  },
+  processMayaPayment: async (data) => {
+    console.log('Mock Maya payment:', data)
+    return { success: true, transactionId: 'mock_maya_' + Date.now() }
+  },
+}
+import { creditOwnershipService } from '@/services/creditOwnershipService'
 
 /**
  * Get all active marketplace listings with project details
+ * Real data implementation with proper error handling
  */
 export async function getMarketplaceListings(filters = {}) {
-  // Skip database calls if disabled
-  if (!USE_DATABASE) {
-    console.log('Database disabled, using sample data for marketplace listings')
-    return getSampleMarketplaceListings(filters)
-  }
-
   const supabase = getSupabase()
 
+  if (!supabase) {
+    console.warn('Supabase client not initialized')
+    return []
+  }
+
   try {
-    // Try to get from credit_listings with project details
-    let query = supabase
+    console.log('🔍 Fetching marketplace listings with filters:', filters)
+
+    // Step 1: Get credit listings (this works reliably)
+    const { data: listings, error: listingsError } = await supabase
       .from('credit_listings')
-      .select(
-        `
-        *,
-        project_credits!inner(
-          *,
-          projects!inner(
-            title,
-            description,
-            category,
-            location,
-            status
-          )
-        ),
-        seller:profiles!credit_listings_seller_id_fkey(full_name)
-      `,
-      )
+      .select('*')
       .eq('status', 'active')
-      .order('listed_at', { ascending: false })
 
-    const { data: listings, error } = await query
+    if (listingsError) {
+      console.error('❌ Error fetching credit listings:', listingsError)
+      throw listingsError
+    }
 
-    if (error) {
-      console.error('Error fetching marketplace listings:', error)
+    console.log('✅ Found', listings?.length || 0, 'credit listings')
 
-      // If tables don't exist, return sample data immediately
-      if (error.message && error.message.includes('does not exist')) {
-        console.warn('Database tables do not exist yet, returning sample data')
-        return getSampleMarketplaceListings(filters)
+    if (!listings || listings.length === 0) {
+      return []
+    }
+
+    // Step 2: Get project credits for these listings
+    const listingIds = listings.map((l) => l.project_credit_id).filter(Boolean)
+    const { data: credits, error: creditsError } = await supabase
+      .from('project_credits')
+      .select('*')
+      .in('id', listingIds)
+
+    if (creditsError) {
+      console.error('❌ Error fetching project credits:', creditsError)
+      throw creditsError
+    }
+
+    console.log('✅ Found', credits?.length || 0, 'project credits')
+
+    // Step 3: Get projects for these credits
+    const projectIds = credits?.map((c) => c.project_id).filter(Boolean) || []
+    const { data: projects, error: projectsError } = await supabase
+      .from('projects')
+      .select('*')
+      .in('id', projectIds)
+      .eq('status', 'approved') // Only approved projects
+
+    if (projectsError) {
+      console.error('❌ Error fetching projects:', projectsError)
+      throw projectsError
+    }
+
+    console.log('✅ Found', projects?.length || 0, 'approved projects')
+
+    // Step 4: Get seller names
+    const sellerIds = [...new Set(listings.map((l) => l.seller_id).filter(Boolean))]
+    const { data: sellers } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', sellerIds)
+
+    const sellerMap = new Map(sellers?.map((seller) => [seller.id, seller.full_name]) || [])
+
+    // Step 5: Combine the data and deduplicate by project_credit_id
+    const projectCreditMap = new Map()
+
+    listings.forEach((listing) => {
+      const credit = credits?.find((c) => c.id === listing.project_credit_id)
+      const project = projects?.find((p) => p.id === credit?.project_id)
+
+      if (!credit || !project) {
+        return // Skip if missing data
       }
 
-      // For any other error, also return sample data
-      console.warn('Database error, falling back to sample data')
-      return getSampleMarketplaceListings(filters)
+      const key = listing.project_credit_id
+
+      // If we already have this project_credit_id, keep the most recent listing
+      if (
+        !projectCreditMap.has(key) ||
+        new Date(listing.created_at) > new Date(projectCreditMap.get(key).listed_at)
+      ) {
+        projectCreditMap.set(key, {
+          listing_id: listing.id,
+          project_id: project.id,
+          project_title: project.title,
+          project_description: project.description,
+          category: project.category,
+          location: project.location,
+          vintage_year: credit.vintage_year,
+          verification_standard: credit.verification_standard,
+          available_quantity: listing.quantity,
+          price_per_credit: listing.price_per_credit,
+          currency: listing.currency,
+          seller_id: listing.seller_id,
+          seller_name: sellerMap.get(listing.seller_id) || 'Unknown Seller',
+          listed_at: listing.created_at,
+          project_image: project.project_image,
+          image_name: project.image_name,
+          image_type: project.image_type,
+          estimated_credits: project.estimated_credits,
+          credit_price: project.credit_price,
+        })
+      }
+    })
+
+    const transformedListings = Array.from(projectCreditMap.values())
+
+    console.log('✅ Transformed', transformedListings.length, 'listings for marketplace')
+
+    // Apply client-side filters
+    let filtered = [...transformedListings]
+
+    if (filters.category && filters.category !== 'all') {
+      filtered = filtered.filter((listing) => listing.category === filters.category)
     }
 
-    // If no data returned, use sample data
-    if (!listings || listings.length === 0) {
-      console.warn('No listings found in database, returning sample data')
-      return getSampleMarketplaceListings(filters)
+    if (filters.country) {
+      filtered = filtered.filter((listing) =>
+        listing.location.toLowerCase().includes(filters.country.toLowerCase()),
+      )
     }
 
-    // Transform the data to match the expected format
-    const transformedListings = listings.map((listing) => ({
-      listing_id: listing.id,
-      project_id: listing.project_credits.projects.id,
-      project_title: listing.project_credits.projects.title,
-      project_description: listing.project_credits.projects.description,
-      category: listing.project_credits.projects.category,
-      location: listing.project_credits.projects.location,
-      vintage_year: listing.project_credits.vintage_year,
-      verification_standard: listing.project_credits.verification_standard,
-      available_quantity: listing.quantity,
-      price_per_credit: listing.price_per_credit,
-      currency: listing.currency,
-      seller_name: listing.seller.full_name,
-      listed_at: listing.listed_at,
-    }))
+    if (filters.minPrice) {
+      filtered = filtered.filter((listing) => listing.price_per_credit >= filters.minPrice)
+    }
 
-    // Apply filters to transformed data
-    return applyFiltersToListings(transformedListings, filters)
+    if (filters.maxPrice) {
+      filtered = filtered.filter((listing) => listing.price_per_credit <= filters.maxPrice)
+    }
+
+    if (filters.search) {
+      const searchTerm = filters.search.toLowerCase()
+      filtered = filtered.filter(
+        (listing) =>
+          listing.project_title?.toLowerCase().includes(searchTerm) ||
+          listing.project_description?.toLowerCase().includes(searchTerm) ||
+          listing.location?.toLowerCase().includes(searchTerm),
+      )
+    }
+
+    return filtered
   } catch (error) {
-    console.error('Error in getMarketplaceListings:', error)
-    // Always return sample data as fallback for better UX
-    return getSampleMarketplaceListings(filters)
+    console.error('❌ Error in getMarketplaceListings:', error)
+    return []
   }
-}
-
-/**
- * Apply filters to listings array
- */
-function applyFiltersToListings(listings, filters) {
-  let filtered = [...listings]
-
-  if (filters.category && filters.category !== 'all') {
-    filtered = filtered.filter((listing) => listing.category === filters.category)
-  }
-
-  if (filters.country) {
-    filtered = filtered.filter((listing) =>
-      listing.location.toLowerCase().includes(filters.country.toLowerCase()),
-    )
-  }
-
-  if (filters.minPrice) {
-    filtered = filtered.filter((listing) => listing.price_per_credit >= filters.minPrice)
-  }
-
-  if (filters.maxPrice) {
-    filtered = filtered.filter((listing) => listing.price_per_credit <= filters.maxPrice)
-  }
-
-  if (filters.search) {
-    const searchTerm = filters.search.toLowerCase()
-    filtered = filtered.filter(
-      (listing) =>
-        listing.project_title.toLowerCase().includes(searchTerm) ||
-        listing.project_description.toLowerCase().includes(searchTerm) ||
-        listing.location.toLowerCase().includes(searchTerm),
-    )
-  }
-
-  return filtered
-}
-
-/**
- * Get sample marketplace listings for demo purposes
- */
-function getSampleMarketplaceListings(filters = {}) {
-  const sampleListings = [
-    {
-      listing_id: 'demo-1',
-      project_id: 'proj-1',
-      project_title: 'Amazon Rainforest Protection Initiative',
-      project_description:
-        'Protecting 10,000 hectares of primary rainforest in the Amazon basin through community-based conservation efforts. This project prevents deforestation and supports local indigenous communities.',
-      category: 'Forestry',
-      location: 'Brazil',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 5000,
-      price_per_credit: 15.5,
-      currency: 'USD',
-      seller_name: 'Rainforest Conservation Trust',
-      listed_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop',
-      co_benefits: ['Biodiversity protection', 'Community development', 'Water conservation'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-2',
-      project_id: 'proj-2',
-      project_title: 'Solar Power Plant - Kenya',
-      project_description:
-        'Construction and operation of a 50MW solar photovoltaic power plant in Kenya.',
-      category: 'Renewable Energy',
-      location: 'Kenya',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 3000,
-      price_per_credit: 22.0,
-      currency: 'USD',
-      seller_name: 'Clean Energy Kenya',
-      listed_at: new Date().toISOString(),
-    },
-    {
-      listing_id: 'demo-3',
-      project_id: 'proj-3',
-      project_title: 'Mangrove Restoration - Philippines',
-      project_description: 'Restoration of degraded mangrove ecosystems in the Philippines.',
-      category: 'Blue Carbon',
-      location: 'Philippines',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 2000,
-      price_per_credit: 18.75,
-      currency: 'USD',
-      seller_name: 'Ocean Conservation PH',
-      listed_at: new Date().toISOString(),
-    },
-    {
-      listing_id: 'demo-4',
-      project_id: 'proj-4',
-      project_title: 'Energy Efficiency - India',
-      project_description:
-        'LED lighting replacement program across 100,000 households in rural India. This project reduces electricity consumption and improves living conditions.',
-      category: 'Energy Efficiency',
-      location: 'India',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 4000,
-      price_per_credit: 12.25,
-      currency: 'USD',
-      seller_name: 'Sustainable India Foundation',
-      listed_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=300&fit=crop',
-      co_benefits: ['Energy savings', 'Cost reduction', 'Improved lighting'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-5',
-      project_id: 'proj-5',
-      project_title: 'Wind Farm - Scotland',
-      project_description:
-        "Offshore wind energy project generating 200MW of clean electricity for Scotland. This project contributes to the UK's net-zero targets.",
-      category: 'Renewable Energy',
-      location: 'Scotland',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 8000,
-      price_per_credit: 14.5,
-      currency: 'USD',
-      seller_name: 'Scottish Wind Energy Co.',
-      listed_at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=400&h=300&fit=crop',
-      co_benefits: ['Clean energy', 'Job creation', 'Energy security'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-6',
-      project_id: 'proj-6',
-      project_title: 'Reforestation - Indonesia',
-      project_description:
-        'Large-scale reforestation project planting 1 million trees across degraded lands in Indonesia. This project restores ecosystems and sequesters carbon.',
-      category: 'Forestry',
-      location: 'Indonesia',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 6000,
-      price_per_credit: 16.8,
-      currency: 'USD',
-      seller_name: 'Indonesian Forest Alliance',
-      listed_at: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop',
-      co_benefits: ['Ecosystem restoration', 'Biodiversity', 'Soil protection'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-7',
-      project_id: 'proj-7',
-      project_title: 'Biogas - Vietnam',
-      project_description:
-        'Community biogas digesters converting agricultural waste to clean cooking fuel. This project reduces methane emissions and improves air quality.',
-      category: 'Waste Management',
-      location: 'Vietnam',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 2500,
-      price_per_credit: 11.2,
-      currency: 'USD',
-      seller_name: 'Vietnam Green Energy',
-      listed_at: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=300&fit=crop',
-      co_benefits: ['Waste reduction', 'Clean cooking', 'Health improvement'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-8',
-      project_id: 'proj-8',
-      project_title: 'Hydroelectric - Nepal',
-      project_description:
-        'Small-scale hydroelectric project providing renewable energy to remote mountain communities in Nepal. This project supports sustainable development.',
-      category: 'Renewable Energy',
-      location: 'Nepal',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 1500,
-      price_per_credit: 13.75,
-      currency: 'USD',
-      seller_name: 'Himalayan Power Co.',
-      listed_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-      project_image:
-        'https://images.unsplash.com/photo-1466611653911-95081537e5b7?w=400&h=300&fit=crop',
-      co_benefits: ['Clean energy', 'Community development', 'Water management'],
-      certification_status: 'Verified',
-    },
-    {
-      listing_id: 'demo-9',
-      project_id: 'proj-9',
-      project_title: 'Wind Farm Development - Mexico',
-      project_description:
-        'Construction of a 100MW wind farm in Oaxaca, Mexico to replace fossil fuel electricity generation.',
-      category: 'Renewable Energy',
-      location: 'Mexico',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 6000,
-      price_per_credit: 19.5,
-      currency: 'USD',
-      seller_name: 'Green Energy Mexico',
-      listed_at: new Date().toISOString(),
-    },
-    {
-      listing_id: 'demo-6',
-      project_id: 'proj-6',
-      project_title: 'Forest Conservation - Indonesia',
-      project_description:
-        'Protection of 15,000 hectares of tropical forest in Sumatra to prevent deforestation.',
-      category: 'Forestry',
-      location: 'Indonesia',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 8000,
-      price_per_credit: 16.75,
-      currency: 'USD',
-      seller_name: 'Sumatra Forest Trust',
-      listed_at: new Date().toISOString(),
-    },
-    {
-      listing_id: 'demo-7',
-      project_id: 'proj-7',
-      project_title: 'Biogas Production - Vietnam',
-      project_description:
-        'Installation of biogas digesters in rural communities to replace traditional cooking fuels.',
-      category: 'Energy Efficiency',
-      location: 'Vietnam',
-      vintage_year: 2024,
-      verification_standard: 'Gold Standard',
-      available_quantity: 3500,
-      price_per_credit: 14.25,
-      currency: 'USD',
-      seller_name: 'Clean Cooking Vietnam',
-      listed_at: new Date().toISOString(),
-    },
-    {
-      listing_id: 'demo-8',
-      project_id: 'proj-8',
-      project_title: 'Seagrass Restoration - Australia',
-      project_description:
-        'Restoration of seagrass meadows along the Great Barrier Reef to sequester carbon and protect marine life.',
-      category: 'Blue Carbon',
-      location: 'Australia',
-      vintage_year: 2024,
-      verification_standard: 'VCS',
-      available_quantity: 2500,
-      price_per_credit: 24.5,
-      currency: 'USD',
-      seller_name: 'Marine Conservation Australia',
-      listed_at: new Date().toISOString(),
-    },
-  ]
-
-  return applyFiltersToListings(sampleListings, filters)
 }
 
 /**
@@ -358,96 +177,178 @@ export async function getMarketplaceListing(listingId) {
 
   try {
     const { data, error } = await supabase
-      .from('marketplace_listings')
+      .from('credit_listings')
       .select('*')
-      .eq('listing_id', listingId)
+      .eq('id', listingId)
       .single()
 
     if (error) {
-      console.error('Error fetching marketplace listing:', error)
-      throw new Error('Failed to fetch marketplace listing')
+      throw error
     }
 
     return data
   } catch (error) {
-    console.error('Error in getMarketplaceListing:', error)
+    console.error('Error fetching marketplace listing:', error)
     throw error
   }
 }
 
 /**
- * Create a new credit listing
+ * Check if a credit listing already exists for a project_credit_id
+ * @param {string} projectCreditId - Project credit ID
+ * @returns {Promise<boolean>} True if listing exists
  */
-export async function createCreditListing(listingData) {
+export async function checkExistingListing(projectCreditId) {
+  const supabase = getSupabase()
+
+  if (!supabase) {
+    return false
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('credit_listings')
+      .select('id')
+      .eq('project_credit_id', projectCreditId)
+      .eq('status', 'active')
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking existing listing:', error)
+      return false
+    }
+
+    return !!data
+  } catch (error) {
+    console.error('Error in checkExistingListing:', error)
+    return false
+  }
+}
+
+/**
+ * Get marketplace statistics
+ */
+export async function getMarketplaceStats() {
   const supabase = getSupabase()
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    const { data, error } = await supabase
+    const { data: listings, error } = await supabase
       .from('credit_listings')
-      .insert({
-        project_credit_id: listingData.projectCreditId,
-        seller_id: user.id,
-        quantity: listingData.quantity,
-        price_per_credit: listingData.pricePerCredit,
-        currency: listingData.currency || 'USD',
-        listing_type: 'sell',
-        status: 'active',
-      })
-      .select()
-      .single()
+      .select('quantity, price_per_credit, currency')
+      .eq('status', 'active')
 
     if (error) {
-      console.error('Error creating credit listing:', error)
-      throw new Error('Failed to create credit listing')
+      throw error
     }
 
-    // Log the action
-    await logUserAction('CREDIT_LISTING_CREATED', 'credit_listing', user.id, data.id, {
-      quantity: listingData.quantity,
-      price_per_credit: listingData.pricePerCredit,
-      currency: listingData.currency,
-    })
+    const stats = {
+      totalListings: listings?.length || 0,
+      totalCreditsAvailable: listings?.reduce((sum, listing) => sum + listing.quantity, 0) || 0,
+      totalMarketValue:
+        listings?.reduce((sum, listing) => sum + listing.quantity * listing.price_per_credit, 0) ||
+        0,
+    }
 
-    return data
+    return stats
   } catch (error) {
-    console.error('Error in createCreditListing:', error)
-    throw error
+    console.error('Error fetching marketplace stats:', error)
+    return {
+      totalListings: 0,
+      totalCreditsAvailable: 0,
+      totalMarketValue: 0,
+    }
   }
 }
 
 /**
- * Purchase credits from a listing
+ * Get user's credit portfolio (owned credits)
+ */
+export async function getUserCreditPortfolio(userId) {
+  const supabase = getSupabase()
+
+  if (!supabase) {
+    console.warn('Supabase client not initialized')
+    return []
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('credit_ownership')
+      .select(
+        `
+        *,
+        project_credits(
+          *,
+          projects(
+            id,
+            title,
+            description,
+            category,
+            location,
+            project_image
+          )
+        )
+      `,
+      )
+      .eq('user_id', userId)
+      .eq('ownership_status', 'owned')
+
+    if (error) {
+      console.error('Error fetching user credit portfolio:', error)
+      throw error
+    }
+
+    return data || []
+  } catch (error) {
+    console.error('Error in getUserCreditPortfolio:', error)
+    return []
+  }
+}
+
+/**
+ * Purchase credits from marketplace listing
+ * @param {string} listingId - Listing ID
+ * @param {Object} purchaseData - Purchase information
+ * @param {number} purchaseData.quantity - Number of credits to purchase
+ * @param {string} purchaseData.paymentMethod - Payment method (gcash/maya)
+ * @param {Object} purchaseData.paymentData - Payment details
+ * @returns {Promise<Object>} Purchase result
  */
 export async function purchaseCredits(listingId, purchaseData) {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
   try {
+    console.log('🛒 Processing credit purchase:', { listingId, purchaseData })
+
+    // Get current user
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser()
-    if (!user) {
+    if (userError || !user) {
       throw new Error('User not authenticated')
     }
 
-    // Check if this is a demo listing
-    if (listingId.startsWith('demo-')) {
-      return handleDemoPurchase(listingId, purchaseData, user.id)
-    }
-
-    // Get the listing details
+    // Get listing details with project information
     const { data: listing, error: listingError } = await supabase
       .from('credit_listings')
       .select(
         `
         *,
-        project_credits!inner(*)
+        project_credits!inner(
+          id,
+          project_id,
+          projects!inner(
+            id,
+            title,
+            category,
+            location
+          )
+        )
       `,
       )
       .eq('id', listingId)
@@ -460,376 +361,244 @@ export async function purchaseCredits(listingId, purchaseData) {
 
     // Validate purchase quantity
     if (purchaseData.quantity > listing.quantity) {
-      throw new Error('Insufficient credits available')
+      throw new Error('Not enough credits available in this listing')
     }
 
     if (purchaseData.quantity <= 0) {
       throw new Error('Invalid purchase quantity')
     }
 
-    // Calculate total amount and platform fee
-    const totalAmount = purchaseData.quantity * listing.price_per_credit
-    const platformFeePercentage = 2.5 // 2.5% platform fee
-    const platformFee = totalAmount * (platformFeePercentage / 100)
+    // Calculate total cost
+    const totalCost = listing.price_per_credit * purchaseData.quantity
 
-    // Create credit transaction
-    const { data: transaction, error: transactionError } = await supabase
-      .from('credit_transactions')
+    console.log('💰 Purchase details:', {
+      quantity: purchaseData.quantity,
+      pricePerCredit: listing.price_per_credit,
+      totalCost,
+      currency: listing.currency,
+    })
+
+    // Process real payment
+    let paymentResult
+    if (purchaseData.paymentMethod === 'gcash') {
+      paymentResult = await realPaymentService.processGCashPayment({
+        amount: totalCost,
+        currency: listing.currency,
+        description: `Purchase ${purchaseData.quantity} credits from ${listing.project_credits.projects.title}`,
+        userId: user.id,
+      })
+    } else if (purchaseData.paymentMethod === 'maya') {
+      paymentResult = await realPaymentService.processMayaPayment({
+        amount: totalCost,
+        currency: listing.currency,
+        description: `Purchase ${purchaseData.quantity} credits from ${listing.project_credits.projects.title}`,
+        userId: user.id,
+      })
+    } else {
+      throw new Error('Invalid payment method')
+    }
+
+    if (!paymentResult.success) {
+      throw new Error('Payment processing failed')
+    }
+
+    // Create credit purchase transaction
+    const { data: purchase, error: purchaseError } = await supabase
+      .from('credit_purchases')
       .insert({
         listing_id: listingId,
         buyer_id: user.id,
         seller_id: listing.seller_id,
-        project_credit_id: listing.project_credit_id,
-        quantity: purchaseData.quantity,
+        credits_amount: purchaseData.quantity,
         price_per_credit: listing.price_per_credit,
-        total_amount: totalAmount,
+        total_amount: totalCost,
         currency: listing.currency,
-        payment_method: purchaseData.paymentMethod || 'wallet',
-        payment_reference: purchaseData.paymentReference,
-        status: 'pending',
-        platform_fee_percentage: platformFeePercentage,
-      })
-      .select()
-      .single()
-
-    if (transactionError) {
-      console.error('Error creating credit transaction:', transactionError)
-      throw new Error('Failed to create transaction')
-    }
-
-    // Log the action
-    await logUserAction(
-      'CREDIT_PURCHASE_INITIATED',
-      'credit_transaction',
-      user.id,
-      transaction.id,
-      {
-        listing_id: listingId,
-        quantity: purchaseData.quantity,
-        total_amount: totalAmount,
-        currency: listing.currency,
-      },
-    )
-
-    // Create payment record if payment data is provided
-    let paymentRecord = null
-    if (purchaseData.paymentData) {
-      try {
-        paymentRecord = await paymentService.recordTransaction({
-          userId: user.id,
-          transactionId: transaction.id,
-          amount: totalAmount,
-          credits: purchaseData.quantity,
-          provider: purchaseData.paymentData.provider,
-          status: 'pending',
-        })
-      } catch (paymentError) {
-        console.error('Error creating payment record:', paymentError)
-        // Don't fail the transaction if payment record creation fails
-      }
-    }
-
-    // If no payment data provided, simulate successful payment (for testing)
-    if (!purchaseData.paymentData) {
-      await completeCreditTransaction(transaction.id)
-    }
-
-    return {
-      transaction,
-      paymentRecord,
-      requiresPayment: !!purchaseData.paymentData,
-    }
-  } catch (error) {
-    console.error('Error in purchaseCredits:', error)
-    throw error
-  }
-}
-
-/**
- * Handle demo purchases (for testing without database)
- */
-function handleDemoPurchase(listingId, purchaseData, userId) {
-  // Get demo listing data
-  const demoListings = getSampleMarketplaceListings()
-  const listing = demoListings.find((l) => l.listing_id === listingId)
-
-  if (!listing) {
-    throw new Error('Demo listing not found')
-  }
-
-  // Validate purchase quantity
-  if (purchaseData.quantity > listing.available_quantity) {
-    throw new Error('Insufficient credits available')
-  }
-
-  if (purchaseData.quantity <= 0) {
-    throw new Error('Invalid purchase quantity')
-  }
-
-  // Calculate total amount and platform fee
-  const totalAmount = purchaseData.quantity * listing.price_per_credit * 1.025 // Include 2.5% platform fee
-  const platformFeePercentage = 2.5
-
-  // Create mock transaction
-  const transaction = {
-    id: `demo_tx_${Date.now()}`,
-    listing_id: listingId,
-    buyer_id: userId,
-    seller_id: 'demo_seller',
-    project_credit_id: 'demo_credit',
-    quantity: purchaseData.quantity,
-    price_per_credit: listing.price_per_credit,
-    total_amount: totalAmount,
-    currency: listing.currency,
-    payment_method: purchaseData.paymentMethod || 'demo',
-    status: 'completed',
-    platform_fee_percentage: platformFeePercentage,
-    created_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
-    project_credits: {
-      projects: {
-        title: listing.project_title,
-        category: listing.category,
-        location: listing.location,
-      },
-    },
-  }
-
-  console.log('Demo purchase completed:', transaction)
-
-  return {
-    transaction,
-    paymentRecord: null,
-    requiresPayment: false,
-  }
-}
-
-/**
- * Complete a credit transaction (called after successful payment)
- */
-export async function completeCreditTransaction(transactionId) {
-  const supabase = getSupabase()
-
-  try {
-    const { data, error } = await supabase
-      .from('credit_transactions')
-      .update({
+        payment_method: purchaseData.paymentMethod,
+        payment_reference: paymentResult.transactionId,
         status: 'completed',
-        completed_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
       })
-      .eq('id', transactionId)
       .select()
       .single()
 
-    if (error) {
-      console.error('Error completing credit transaction:', error)
-      throw new Error('Failed to complete transaction')
+    if (purchaseError) {
+      console.error('❌ Error creating purchase record:', purchaseError)
+      throw new Error('Failed to record purchase')
     }
 
-    // Generate certificate for the credit purchase
+    // Add credits to user's portfolio using real service
     try {
-      await generateCreditCertificate(transactionId, 'purchase')
-      console.log('Certificate generated successfully for transaction:', transactionId)
-    } catch (certError) {
-      console.error('Error generating certificate:', certError)
-      // Don't fail the entire operation if certificate generation fails
-    }
-
-    // Send credit purchase notification email
-    try {
-      await notifyCreditPurchased(transactionId, data.buyer_id)
-      console.log('Credit purchase notification sent')
-    } catch (emailError) {
-      console.error('Error sending credit purchase notification:', emailError)
-      // Don't fail the entire operation if email sending fails
-    }
-
-    // Log the action
-    await logUserAction(
-      'CREDIT_PURCHASE_COMPLETED',
-      'credit_transaction',
-      data.buyer_id,
-      transactionId,
-      {
-        quantity: data.quantity,
-        total_amount: data.total_amount,
-      },
-    )
-
-    return data
-  } catch (error) {
-    console.error('Error in completeCreditTransaction:', error)
-    throw error
-  }
-}
-
-/**
- * Get user's credit portfolio
- */
-export async function getUserCreditPortfolio(userId) {
-  const supabase = getSupabase()
-
-  try {
-    const { data, error } = await supabase
-      .from('user_credit_portfolio')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('ownership_status', 'owned')
-      .order('purchase_date', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching user credit portfolio:', error)
-      throw new Error('Failed to fetch credit portfolio')
-    }
-
-    return data || []
-  } catch (error) {
-    console.error('Error in getUserCreditPortfolio:', error)
-    throw error
-  }
-}
-
-/**
- * Get user's credit transactions (both as buyer and seller)
- */
-export async function getUserCreditTransactions(userId) {
-  const supabase = getSupabase()
-
-  try {
-    const { data, error } = await supabase
-      .from('credit_transactions')
-      .select(
-        `
-        *,
-        project_credits!inner(
-          *,
-          projects!inner(title, category, location)
-        )
-      `,
+      await creditOwnershipService.addCreditsToPortfolio(
+        user.id,
+        listing.project_credits.project_id,
+        purchaseData.quantity,
+        'purchased',
+        purchase.id,
       )
-      .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('Error fetching user credit transactions:', error)
-      throw new Error('Failed to fetch credit transactions')
+      console.log('✅ Credits added to user portfolio')
+    } catch (ownershipError) {
+      console.error('❌ Error adding credits to portfolio:', ownershipError)
+      // Continue - purchase is still valid, but ownership might need manual fix
     }
 
-    return data || []
-  } catch (error) {
-    console.error('Error in getUserCreditTransactions:', error)
-    throw error
-  }
-}
-
-/**
- * Retire credits (mark as retired for carbon offset)
- */
-export async function retireCredits(ownershipId, retirementData) {
-  const supabase = getSupabase()
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    // Verify ownership
-    const { data: ownership, error: ownershipError } = await supabase
-      .from('credit_ownership')
-      .select('*')
-      .eq('id', ownershipId)
-      .eq('user_id', user.id)
-      .eq('status', 'owned')
-      .single()
-
-    if (ownershipError || !ownership) {
-      throw new Error('Credit ownership not found')
-    }
-
-    // Update ownership status to retired
-    const { data, error } = await supabase
-      .from('credit_ownership')
+    // Update listing quantity
+    const remainingQuantity = listing.quantity - purchaseData.quantity
+    const { error: updateError } = await supabase
+      .from('credit_listings')
       .update({
-        status: 'retired',
-        retired_at: new Date().toISOString(),
-        retirement_reason: retirementData.reason || 'Carbon offset',
+        quantity: remainingQuantity,
+        status: remainingQuantity > 0 ? 'active' : 'sold_out',
+        updated_at: new Date().toISOString(),
       })
-      .eq('id', ownershipId)
-      .select()
-      .single()
+      .eq('id', listingId)
 
-    if (error) {
-      console.error('Error retiring credits:', error)
-      throw new Error('Failed to retire credits')
+    if (updateError) {
+      console.error('❌ Error updating listing quantity:', updateError)
+      // Continue - purchase is still valid
     }
 
-    // Log the action
-    await logUserAction('CREDITS_RETIRED', 'credit_ownership', user.id, ownershipId, {
-      quantity: ownership.quantity,
-      retirement_reason: retirementData.reason,
+    // Log the purchase action
+    await logUserAction(user.id, 'purchase_credits', {
+      listing_id: listingId,
+      quantity: purchaseData.quantity,
+      total_cost: totalCost,
+      payment_method: purchaseData.paymentMethod,
     })
 
-    return data
+    // Send notification email
+    try {
+      await notifyCreditPurchased(purchase.id, user.id)
+    } catch (emailError) {
+      console.warn('⚠️ Failed to send purchase notification:', emailError)
+      // Continue - email failure shouldn't break purchase
+    }
+
+    console.log('✅ Credit purchase completed successfully')
+
+    return {
+      success: true,
+      purchase_id: purchase.id,
+      transaction_id: paymentResult.transactionId,
+      credits_purchased: purchaseData.quantity,
+      total_cost: totalCost,
+      currency: listing.currency,
+      message: `Successfully purchased ${purchaseData.quantity} credits`,
+    }
   } catch (error) {
-    console.error('Error in retireCredits:', error)
+    console.error('❌ Error in purchaseCredits:', error)
     throw error
   }
 }
 
 /**
- * Get marketplace statistics
+ * Process payment for credit purchase
+ * @param {Object} paymentData - Payment information
+ * @returns {Promise<Object>} Payment result
  */
-export async function getMarketplaceStats() {
-  const supabase = getSupabase()
-
+async function processPayment(paymentData) {
   try {
-    // Get total active listings
-    const { count: totalListings } = await supabase
-      .from('credit_listings')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active')
+    console.log('💳 Processing payment:', paymentData)
 
-    // Get total credits available
-    const { data: creditsData } = await supabase
-      .from('credit_listings')
-      .select('quantity, price_per_credit')
-      .eq('status', 'active')
+    // Simulate payment processing
+    // In production, this would integrate with real payment gateways
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate processing time
 
-    const totalCreditsAvailable =
-      creditsData?.reduce((sum, listing) => sum + parseFloat(listing.quantity), 0) || 0
-    const totalMarketValue =
-      creditsData?.reduce(
-        (sum, listing) => sum + parseFloat(listing.quantity) * parseFloat(listing.price_per_credit),
-        0,
-      ) || 0
-
-    // Get recent transactions count (last 30 days)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const { count: recentTransactions } = await supabase
-      .from('credit_transactions')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'completed')
-      .gte('completed_at', thirtyDaysAgo.toISOString())
+    const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     return {
-      totalListings: totalListings || 0,
-      totalCreditsAvailable,
-      totalMarketValue,
-      recentTransactions: recentTransactions || 0,
+      success: true,
+      transactionId,
+      amount: paymentData.amount,
+      currency: paymentData.currency,
+      method: paymentData.method,
+      status: 'completed',
     }
   } catch (error) {
-    console.error('Error in getMarketplaceStats:', error)
-    // Return sample stats as fallback
+    console.error('❌ Payment processing error:', error)
     return {
-      totalListings: 8,
-      totalCreditsAvailable: 35000,
-      totalMarketValue: 650000,
-      recentTransactions: 24,
+      success: false,
+      error: error.message,
     }
+  }
+}
+
+/**
+ * Retire credits (mark them as retired/used)
+ * @param {string} userId - User ID
+ * @param {string} projectId - Project ID
+ * @param {number} quantity - Number of credits to retire
+ * @param {string} reason - Reason for retirement
+ * @returns {Promise<Object>} Retirement result
+ */
+export async function retireCredits(userId, projectId, quantity, reason) {
+  const supabase = getSupabase()
+
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  try {
+    // First, check if user has enough credits
+    const { data: ownership, error: ownershipError } = await supabase
+      .from('credit_ownership')
+      .select('quantity')
+      .eq('user_id', userId)
+      .eq('project_id', projectId)
+      .single()
+
+    if (ownershipError) {
+      throw new Error('Could not verify credit ownership')
+    }
+
+    if (!ownership || ownership.quantity < quantity) {
+      throw new Error('Insufficient credits to retire')
+    }
+
+    // Create retirement record
+    const { data: retirement, error: retirementError } = await supabase
+      .from('credit_retirements')
+      .insert({
+        user_id: userId,
+        project_id: projectId,
+        quantity: quantity,
+        reason: reason,
+        retired_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (retirementError) {
+      throw new Error('Failed to create retirement record')
+    }
+
+    // Update credit ownership (reduce quantity)
+    const { error: updateError } = await supabase
+      .from('credit_ownership')
+      .update({
+        quantity: ownership.quantity - quantity,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', userId)
+      .eq('project_id', projectId)
+
+    if (updateError) {
+      throw new Error('Failed to update credit ownership')
+    }
+
+    // Log the retirement action
+    await logUserAction(userId, 'retire_credits', {
+      project_id: projectId,
+      quantity: quantity,
+      reason: reason,
+    })
+
+    return {
+      success: true,
+      retirement_id: retirement.id,
+      message: `Successfully retired ${quantity} credits`,
+    }
+  } catch (error) {
+    console.error('Error retiring credits:', error)
+    throw error
   }
 }

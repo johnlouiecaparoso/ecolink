@@ -9,7 +9,7 @@ export const TEST_ACCOUNTS = {
     role: ROLES.ADMIN,
     mockSession: {
       user: {
-        id: 'admin-test-123',
+        id: '11111111-1111-1111-1111-111111111111',
         email: 'admin@ecolink.test',
         user_metadata: { name: 'Admin User' },
       },
@@ -24,7 +24,7 @@ export const TEST_ACCOUNTS = {
     role: ROLES.VERIFIER,
     mockSession: {
       user: {
-        id: 'verifier-test-123',
+        id: '22222222-2222-2222-2222-222222222222',
         email: 'verifier@ecolink.test',
         user_metadata: { name: 'Verifier User' },
       },
@@ -39,11 +39,26 @@ export const TEST_ACCOUNTS = {
     role: ROLES.GENERAL_USER,
     mockSession: {
       user: {
-        id: 'user-test-123',
+        id: '33333333-3333-3333-3333-333333333333',
         email: 'user@ecolink.test',
         user_metadata: { name: 'General User' },
       },
       access_token: 'user-test-token',
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    },
+  },
+  projectDeveloper: {
+    email: 'developer@ecolink.test',
+    password: 'developer123',
+    name: 'Project Developer',
+    role: ROLES.PROJECT_DEVELOPER,
+    mockSession: {
+      user: {
+        id: '44444444-4444-4444-4444-444444444444',
+        email: 'developer@ecolink.test',
+        user_metadata: { name: 'Project Developer' },
+      },
+      access_token: 'developer-test-token',
       expires_at: Math.floor(Date.now() / 1000) + 3600,
     },
   },

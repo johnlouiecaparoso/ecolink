@@ -10,31 +10,7 @@ const MarketplaceView = () =>
 const WalletView = () => import(/* webpackChunkName: "user" */ '@/views/WalletView.vue')
 const ProfileView = () => import(/* webpackChunkName: "user" */ '@/views/ProfileView.vue')
 
-// Hidden Components (Dashboard System) - Optimized lazy loading
-const DashboardView = () =>
-  import(/* webpackChunkName: "dashboard" */ '@/_hidden/views/DashboardView.vue')
-const ProjectsView = () =>
-  import(/* webpackChunkName: "projects" */ '@/_hidden/views/ProjectsView.vue')
-const ProjectDetailView = () =>
-  import(/* webpackChunkName: "projects" */ '@/_hidden/views/ProjectDetailView.vue')
-const VerifierView = () =>
-  import(/* webpackChunkName: "admin" */ '@/_hidden/views/VerifierView.vue')
-const AdminView = () => import(/* webpackChunkName: "admin" */ '@/_hidden/views/AdminView.vue')
-const AnalyticsView = () =>
-  import(/* webpackChunkName: "analytics" */ '@/_hidden/views/AnalyticsView.vue')
-const UsersView = () => import(/* webpackChunkName: "admin" */ '@/_hidden/views/UsersView.vue')
-const DatabaseManagementView = () =>
-  import(/* webpackChunkName: "admin" */ '@/_hidden/views/DatabaseManagementView.vue')
-const TableManagementView = () =>
-  import(/* webpackChunkName: "admin" */ '@/_hidden/views/TableManagementView.vue')
-const AuditLogsView = () =>
-  import(/* webpackChunkName: "admin" */ '@/_hidden/views/AuditLogsView.vue')
-const CertificatesView = () =>
-  import(/* webpackChunkName: "user" */ '@/_hidden/views/CertificatesView.vue')
-const SalesView = () => import(/* webpackChunkName: "user" */ '@/_hidden/views/SalesView.vue')
-const BuyCreditsView = () =>
-  import(/* webpackChunkName: "user" */ '@/_hidden/views/BuyCreditsView.vue')
-const ReceiptsView = () => import(/* webpackChunkName: "user" */ '@/_hidden/views/ReceiptsView.vue')
+// Hidden Components removed - all old dashboard routes now redirect to homepage
 const EmailSettingsView = () =>
   import(/* webpackChunkName: "settings" */ '@/views/EmailSettingsView.vue')
 const PaymentSettingsView = () =>
@@ -62,12 +38,10 @@ const router = createRouter({
       component: () => import('@/views/MobileTestView.vue'),
     },
 
-    // Authenticated User Routes
+    // Redirect old dashboard routes to homepage
     {
       path: '/dashboard',
-      name: 'dashboard',
-      component: DashboardView,
-      meta: { requiresAuth: true },
+      redirect: '/',
     },
     {
       path: '/profile',
@@ -81,104 +55,30 @@ const router = createRouter({
       component: WalletView,
       meta: { requiresAuth: true },
     },
+    // Project and Credit Routes
     {
-      path: '/projects',
-      name: 'projects',
-      component: ProjectsView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/projects/:id',
-      name: 'project-detail',
-      component: ProjectDetailView,
+      path: '/submit-project',
+      name: 'submit-project',
+      component: () => import('@/views/SubmitProjectView.vue'),
       meta: { requiresAuth: true },
     },
     {
       path: '/buy-credits',
       name: 'buy-credits',
-      component: BuyCreditsView,
+      component: () => import('@/views/BuyCreditsView.vue'),
       meta: { requiresAuth: true },
     },
-
-    // Admin Routes
-    {
-      path: '/admin',
-      name: 'admin',
-      component: AdminView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
-      path: '/admin/users',
-      name: 'admin-users',
-      component: UsersView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
-      path: '/admin/database',
-      name: 'admin-database',
-      component: DatabaseManagementView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
-      path: '/admin/tables',
-      name: 'admin-tables',
-      component: TableManagementView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-    {
-      path: '/admin/audit-logs',
-      name: 'admin-audit-logs',
-      component: AuditLogsView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin'],
-      },
-    },
-
-    // Verifier Routes
-    {
-      path: '/verifier',
-      name: 'verifier',
-      component: VerifierView,
-      meta: {
-        requiresAuth: true,
-        roles: ['verifier', 'admin'],
-      },
-    },
-
-    // Analytics Routes
-    {
-      path: '/analytics',
-      name: 'analytics',
-      component: AnalyticsView,
-      meta: {
-        requiresAuth: true,
-        roles: ['admin', 'project_developer'],
-      },
-    },
-
-    // Sales Routes
-    {
-      path: '/sales',
-      name: 'sales',
-      component: SalesView,
-      meta: {
-        requiresAuth: true,
-        roles: ['project_developer', 'admin'],
-      },
-    },
+    // Redirect old project routes
+    { path: '/projects', redirect: '/submit-project' },
+    { path: '/projects/:id', redirect: '/submit-project' },
+    { path: '/admin', redirect: '/' },
+    { path: '/admin/users', redirect: '/' },
+    { path: '/admin/database', redirect: '/' },
+    { path: '/admin/tables', redirect: '/' },
+    { path: '/admin/audit-logs', redirect: '/' },
+    { path: '/verifier', redirect: '/' },
+    { path: '/analytics', redirect: '/' },
+    { path: '/sales', redirect: '/' },
 
     // Settings Routes
     {
@@ -194,19 +94,9 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
 
-    // Certificate & Receipt Routes
-    {
-      path: '/certificates',
-      name: 'certificates',
-      component: CertificatesView,
-      meta: { requiresAuth: true },
-    },
-    {
-      path: '/receipts',
-      name: 'receipts',
-      component: ReceiptsView,
-      meta: { requiresAuth: true },
-    },
+    // Redirect old certificate and receipt routes
+    { path: '/certificates', redirect: '/' },
+    { path: '/receipts', redirect: '/' },
 
     // User Preference & Social Routes
     {

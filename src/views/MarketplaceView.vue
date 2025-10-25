@@ -27,6 +27,24 @@
             />
           </div>
         </div>
+
+        <!-- Admin Controls -->
+        <div v-if="userStore.isAdmin || userStore.role === 'admin'" class="admin-controls">
+          <button
+            @click="showAdminDelete = !showAdminDelete"
+            class="admin-btn"
+            :class="{ active: showAdminDelete }"
+          >
+            🗑️ Admin Delete Mode
+          </button>
+          <button
+            v-if="showAdminDelete && selectedListings.length > 0"
+            @click="bulkDeleteListings()"
+            class="danger-btn"
+          >
+            Delete {{ selectedListings.length }} Projects
+          </button>
+        </div>
       </div>
     </div>
 
@@ -126,15 +144,53 @@
               </p>
             </div>
 
+            <!-- Admin Bulk Selection Controls -->
+            <div
+              v-if="(userStore.isAdmin || userStore.role === 'admin') && showAdminDelete"
+              class="admin-bulk-controls"
+            >
+              <div class="bulk-actions">
+                <button @click="selectAllListings()" class="bulk-btn">
+                  Select All ({{ filteredListings.length }})
+                </button>
+                <button @click="clearSelection()" class="bulk-btn">Clear Selection</button>
+                <span class="selection-count"> {{ selectedListings.length }} selected </span>
+              </div>
+            </div>
+
             <!-- Listings Grid -->
             <div v-else class="projects-grid">
               <div
                 v-for="listing in filteredListings"
                 :key="listing.listing_id"
                 class="project-card"
+                :class="{
+                  'admin-selected': showAdminDelete && selectedListings.includes(listing.id),
+                }"
               >
+                <!-- Admin Selection Checkbox -->
+                <div
+                  v-if="(userStore.isAdmin || userStore.role === 'admin') && showAdminDelete"
+                  class="admin-selection"
+                  @click.stop
+                >
+                  <input
+                    type="checkbox"
+                    :checked="selectedListings.includes(listing.id)"
+                    @change="toggleListingSelection(listing.id)"
+                    class="admin-checkbox"
+                  />
+                  <span class="admin-label">Select for deletion</span>
+                </div>
+
                 <div class="project-image">
                   <img
+                    v-if="listing.project_image"
+                    :src="listing.project_image"
+                    :alt="listing.project_title"
+                  />
+                  <img
+                    v-else
                     :src="`https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=250&fit=crop&${listing.listing_id}`"
                     :alt="listing.project_title"
                   />
@@ -230,11 +286,102 @@
                     >
                       {{ listing.available_quantity > 0 ? 'Purchase Credits' : 'Sold Out' }}
                     </button>
+
+                    <!-- Admin Delete Button -->
+                    <button
+                      v-if="userStore.isAdmin || userStore.role === 'admin'"
+                      class="admin-delete-button"
+                      @click="adminDeleteListing(listing)"
+                    >
+                      🗑️ Admin Delete
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchase Modal -->
+    <div v-if="showPurchaseModal" class="modal-overlay" @click="closePurchaseModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">Purchase Credits</h3>
+          <button class="modal-close" @click="closePurchaseModal">×</button>
+        </div>
+
+        <div v-if="selectedListing" class="modal-body">
+          <div class="purchase-project-info">
+            <h4>{{ selectedListing.project_title }}</h4>
+            <p class="project-location">{{ selectedListing.location }}</p>
+            <p class="project-category">{{ selectedListing.category }}</p>
+          </div>
+
+          <div class="purchase-details">
+            <div class="quantity-section">
+              <label class="form-label">Quantity:</label>
+              <input
+                v-model.number="purchaseQuantity"
+                type="number"
+                min="1"
+                :max="selectedListing.available_quantity"
+                class="form-input"
+                placeholder="Enter quantity"
+              />
+              <small class="input-help"
+                >Available: {{ selectedListing.available_quantity }} credits</small
+              >
+            </div>
+
+            <div class="payment-section">
+              <label class="form-label">Payment Method:</label>
+              <div class="payment-options">
+                <label class="payment-option">
+                  <input
+                    v-model="selectedPaymentMethod"
+                    type="radio"
+                    value="gcash"
+                    name="payment"
+                  />
+                  <span class="payment-label">📱 GCash</span>
+                </label>
+                <label class="payment-option">
+                  <input v-model="selectedPaymentMethod" type="radio" value="maya" name="payment" />
+                  <span class="payment-label">💳 Maya</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="purchase-summary">
+              <div class="summary-row">
+                <span>Price per credit:</span>
+                <span>{{ formatCurrency(selectedListing.price_per_credit) }}</span>
+              </div>
+              <div class="summary-row">
+                <span>Quantity:</span>
+                <span>{{ purchaseQuantity }}</span>
+              </div>
+              <div class="summary-row total">
+                <span>Total:</span>
+                <span>{{
+                  formatCurrency(selectedListing.price_per_credit * purchaseQuantity)
+                }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button class="btn btn-secondary" @click="closePurchaseModal">Cancel</button>
+          <button
+            class="btn btn-primary"
+            @click="handlePurchase"
+            :disabled="!selectedPaymentMethod || purchaseLoading || purchaseQuantity <= 0"
+          >
+            {{ purchaseLoading ? 'Processing...' : 'Complete Purchase' }}
+          </button>
         </div>
       </div>
     </div>
@@ -245,7 +392,13 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
-import { getMarketplaceListings, getMarketplaceStats } from '@/services/marketplaceService'
+import {
+  getMarketplaceListings,
+  getMarketplaceStats,
+  purchaseCredits,
+} from '@/services/marketplaceService'
+import { getSimpleMarketplaceListings } from '@/services/simpleMarketplaceService'
+import { projectService } from '@/services/projectService'
 
 export default {
   name: 'MarketplaceViewFixed',
@@ -269,6 +422,17 @@ export default {
     const selectedCategory = ref('all')
     const selectedCountry = ref('')
     const sortBy = ref('name')
+
+    // Admin state
+    const selectedListings = ref([])
+    const showAdminDelete = ref(false)
+
+    // Purchase state
+    const showPurchaseModal = ref(false)
+    const selectedListing = ref(null)
+    const purchaseQuantity = ref(1)
+    const purchaseLoading = ref(false)
+    const selectedPaymentMethod = ref('')
 
     // Options
     const categories = [
@@ -324,9 +488,74 @@ export default {
       return applySorting(filtered)
     })
 
+    // Purchase methods
+    function showPurchaseModalFor(listing) {
+      if (!userStore.isAuthenticated) {
+        router.push('/login')
+        return
+      }
+
+      selectedListing.value = listing
+      purchaseQuantity.value = Math.min(1, listing.available_quantity)
+      showPurchaseModal.value = true
+    }
+
+    function closePurchaseModal() {
+      showPurchaseModal.value = false
+      selectedListing.value = null
+      purchaseQuantity.value = 1
+      selectedPaymentMethod.value = ''
+    }
+
+    async function handlePurchase() {
+      if (!selectedListing.value || purchaseQuantity.value <= 0) return
+      if (!selectedPaymentMethod.value) {
+        alert('Please select a payment method!')
+        return
+      }
+
+      purchaseLoading.value = true
+
+      try {
+        console.log('🛒 Processing marketplace purchase:', {
+          listing: selectedListing.value,
+          quantity: purchaseQuantity.value,
+          paymentMethod: selectedPaymentMethod.value,
+        })
+
+        const purchaseData = {
+          quantity: purchaseQuantity.value,
+          paymentMethod: selectedPaymentMethod.value,
+          paymentData: {
+            amount: selectedListing.value.price_per_credit * purchaseQuantity.value,
+            currency: selectedListing.value.currency || 'USD',
+            description: `Purchase ${purchaseQuantity.value} credits from ${selectedListing.value.project_title}`,
+          },
+        }
+
+        const result = await purchaseCredits(selectedListing.value.listing_id, purchaseData)
+
+        console.log('✅ Purchase completed:', result)
+
+        // Show success message
+        alert(
+          `Purchase successful!\n\n✅ ${result.credits_purchased} credits purchased\n💰 Total cost: ${result.currency} ${result.total_cost.toFixed(2)}\n\nCredits have been added to your portfolio.`,
+        )
+
+        // Close modal and reload data
+        closePurchaseModal()
+        await loadMarketplaceData()
+      } catch (err) {
+        console.error('❌ Purchase error:', err)
+        alert(`Purchase failed: ${err.message || 'Please try again.'}`)
+      } finally {
+        purchaseLoading.value = false
+      }
+    }
+
     // Methods
     async function loadMarketplaceData() {
-      console.log('Loading marketplace data...')
+      console.log('🔍 Loading marketplace data with real database queries...')
       loading.value = true
       error.value = ''
 
@@ -337,14 +566,37 @@ export default {
           search: searchQuery.value,
         }
 
-        console.log('Fetching listings with filters:', filters)
-        const [listingsData, statsData] = await Promise.all([
-          getMarketplaceListings(filters),
-          getMarketplaceStats(),
-        ])
+        console.log('📊 Fetching listings with filters:', filters)
 
-        console.log('Received listings data:', listingsData)
-        console.log('Received stats data:', statsData)
+        // Use the real marketplace service with step-by-step approach
+        let listingsData, statsData
+
+        try {
+          ;[listingsData, statsData] = await Promise.all([
+            getMarketplaceListings(filters),
+            getMarketplaceStats(),
+          ])
+        } catch (error) {
+          console.warn('⚠️ Main marketplace service failed, trying simple approach:', error)
+          // Fallback to simple marketplace service
+          listingsData = await getSimpleMarketplaceListings(filters)
+          statsData = {
+            totalListings: listingsData?.length || 0,
+            totalCreditsAvailable:
+              listingsData?.reduce((sum, listing) => sum + (listing.available_quantity || 0), 0) ||
+              0,
+            totalMarketValue:
+              listingsData?.reduce(
+                (sum, listing) =>
+                  sum + (listing.price_per_credit * listing.available_quantity || 0),
+                0,
+              ) || 0,
+            recentTransactions: 0,
+          }
+        }
+
+        console.log('✅ Received listings data:', listingsData?.length || 0, 'listings')
+        console.log('✅ Received stats data:', statsData)
 
         listings.value = listingsData
         marketplaceStats.value = statsData
@@ -408,9 +660,102 @@ export default {
       return new Intl.NumberFormat('en-US').format(number)
     }
 
+    // Admin functions
+    function toggleListingSelection(listingId) {
+      const index = selectedListings.value.indexOf(listingId)
+      if (index > -1) {
+        selectedListings.value.splice(index, 1)
+      } else {
+        selectedListings.value.push(listingId)
+      }
+    }
+
+    function selectAllListings() {
+      selectedListings.value = filteredListings.value.map((l) => l.id)
+    }
+
+    function clearSelection() {
+      selectedListings.value = []
+    }
+
+    async function adminDeleteListing(listing) {
+      if (
+        !confirm(
+          `⚠️ ADMIN DELETE: Are you sure you want to delete "${listing.project_title}" from the marketplace? This will remove the project from public view.`,
+        )
+      ) {
+        return
+      }
+
+      try {
+        // Delete the project (which will cascade to listings)
+        await projectService.adminDeleteProject(listing.project_id)
+        await loadMarketplaceData()
+        console.log('Successfully deleted project from marketplace')
+      } catch (err) {
+        console.error('Error deleting project from marketplace:', err)
+        alert('Failed to delete project from marketplace')
+      }
+    }
+
+    async function bulkDeleteListings() {
+      if (selectedListings.value.length === 0) {
+        alert('No listings selected')
+        return
+      }
+
+      const listingNames = selectedListings.value
+        .map((id) => {
+          const listing = listings.value.find((l) => l.id === id)
+          return listing ? listing.project_title : 'Unknown'
+        })
+        .join(', ')
+
+      if (
+        !confirm(
+          `⚠️ ADMIN BULK DELETE: Are you sure you want to delete ${selectedListings.value.length} projects from the marketplace?\n\nProjects: ${listingNames}\n\nThis action cannot be undone!`,
+        )
+      ) {
+        return
+      }
+
+      try {
+        const projectIds = selectedListings.value
+          .map((id) => {
+            const listing = listings.value.find((l) => l.id === id)
+            return listing ? listing.project_id : null
+          })
+          .filter((id) => id !== null)
+
+        const results = await projectService.adminDeleteMultipleProjects(projectIds)
+
+        if (results.success > 0) {
+          console.log(`Successfully deleted ${results.success} projects from marketplace`)
+        }
+
+        if (results.failed > 0) {
+          console.error(`Failed to delete ${results.failed} projects:`, results.errors)
+          alert(`Failed to delete ${results.failed} projects. Check console for details.`)
+        }
+
+        await loadMarketplaceData()
+        clearSelection()
+        showAdminDelete.value = false
+      } catch (err) {
+        console.error('Error bulk deleting projects:', err)
+        alert('Failed to delete projects from marketplace')
+      }
+    }
+
     // Lifecycle
     onMounted(async () => {
       console.log('Marketplace mounted, loading data...')
+
+      // Debug admin role detection
+      console.log('🔍 Admin Debug Info (Marketplace):')
+      console.log('- userStore.role:', userStore.role)
+      console.log('- userStore.isAdmin:', userStore.isAdmin)
+
       await loadMarketplaceData()
       console.log('Marketplace data loaded:', listings.value.length, 'listings')
     })
@@ -435,6 +780,22 @@ export default {
       showPurchaseModalFor,
       formatCurrency,
       formatNumber,
+      // Purchase functions
+      showPurchaseModal,
+      selectedListing,
+      purchaseQuantity,
+      purchaseLoading,
+      selectedPaymentMethod,
+      closePurchaseModal,
+      handlePurchase,
+      // Admin functions
+      selectedListings,
+      showAdminDelete,
+      toggleListingSelection,
+      selectAllListings,
+      clearSelection,
+      adminDeleteListing,
+      bulkDeleteListings,
     }
   },
 }
@@ -622,6 +983,337 @@ export default {
   color: var(--text-primary);
   outline: none;
   cursor: pointer;
+}
+
+/* Purchase Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-close:hover {
+  color: #374151;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.purchase-project-info {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.purchase-project-info h4 {
+  margin: 0 0 8px 0;
+  color: #1f2937;
+  font-size: 1.1rem;
+}
+
+.project-location,
+.project-category {
+  margin: 4px 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.purchase-details {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.quantity-section,
+.payment-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.form-input {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-help {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.payment-options {
+  display: flex;
+  gap: 16px;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.payment-option input[type='radio'] {
+  margin: 0;
+}
+
+.payment-label {
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.purchase-summary {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.summary-row.total {
+  font-weight: 600;
+  color: #1f2937;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+  background: #e5e7eb;
+}
+
+.btn-primary {
+  background: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.btn-primary:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+}
+
+/* Admin Styles */
+.admin-controls {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20px;
+  padding: 16px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-color);
+}
+
+.admin-btn {
+  background: var(--ecolink-orange-500);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.admin-btn:hover {
+  background: var(--ecolink-orange-600);
+  transform: translateY(-1px);
+}
+
+.admin-btn.active {
+  background: var(--ecolink-red-500);
+  box-shadow: 0 0 0 2px var(--ecolink-red-200);
+}
+
+.danger-btn {
+  background: var(--ecolink-red-500);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover {
+  background: var(--ecolink-red-600);
+  transform: translateY(-1px);
+}
+
+.admin-bulk-controls {
+  background: var(--ecolink-red-50);
+  border: 1px solid var(--ecolink-red-200);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 24px;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+
+.bulk-btn {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.bulk-btn:hover {
+  background: var(--bg-secondary);
+  border-color: var(--ecolink-blue-300);
+}
+
+.selection-count {
+  font-weight: 600;
+  color: var(--ecolink-red-600);
+  font-size: 14px;
+}
+
+.admin-selection {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ecolink-red-300);
+  z-index: 10;
+}
+
+.admin-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.admin-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ecolink-red-600);
+  cursor: pointer;
+}
+
+.project-card.admin-selected {
+  border: 2px solid var(--ecolink-red-400);
+  background: var(--ecolink-red-50);
+  box-shadow: 0 0 0 1px var(--ecolink-red-200);
+}
+
+.project-card.admin-selected .project-title {
+  color: var(--ecolink-red-700);
 }
 
 /* Projects Grid */
@@ -876,6 +1568,25 @@ export default {
 .purchase-button:disabled {
   background: var(--text-muted);
   cursor: not-allowed;
+}
+
+.admin-delete-button {
+  background: #dc2626;
+  color: white;
+  border: 1px solid #dc2626;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.admin-delete-button:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-1px);
 }
 
 /* Animations */

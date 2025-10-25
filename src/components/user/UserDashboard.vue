@@ -67,8 +67,8 @@ const quickActions = computed(() => {
       label: 'Create Project',
       icon: '➕',
       action: () => {
-        // Navigate to projects page with form open
-        window.location.href = '/projects?action=create'
+        // Navigate to submit project page
+        window.location.href = '/submit-project'
       },
     })
   }
@@ -78,7 +78,10 @@ const quickActions = computed(() => {
       id: 'browse-marketplace',
       label: 'Browse Marketplace',
       icon: '🛒',
-      action: () => console.log('Browse marketplace'),
+      action: () => {
+        // Navigate to marketplace
+        window.location.href = '/marketplace'
+      },
     })
   }
 
@@ -87,7 +90,10 @@ const quickActions = computed(() => {
       id: 'manage-wallet',
       label: 'Manage Wallet',
       icon: '💰',
-      action: () => console.log('Manage wallet'),
+      action: () => {
+        // Navigate to wallet
+        window.location.href = '/wallet'
+      },
     })
   }
 

@@ -20,11 +20,18 @@
     "test:e2e:ui": "playwright test --ui",
     "test:all": "npm run test:run && npm run test:e2e",
     "lighthouse": "lighthouse http://localhost:5173 --output html --output-path ./lighthouse-report.html",
-    "lighthouse:ci": "lhci autorun"
+    "lighthouse:ci": "lhci autorun",
+    "setup:supabase": "node setup-supabase.js",
+    "setup:accounts": "node setup-test-accounts.js",
+    "test:supabase": "node test-supabase-integration.js",
+    "test:integration": "node test-complete-integration.js",
+    "test:integration:fixed": "node test-integration-fixed.js",
+    "test:simple": "node simple-integration-test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "chart.js": "^4.5.0",
+    "dotenv": "^17.2.3",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-chartjs": "^5.3.2",

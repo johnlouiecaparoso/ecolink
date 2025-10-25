@@ -7,6 +7,7 @@ import { analytics } from '@/utils/analytics'
 import { initializeMobile } from '@/utils/mobile'
 import { optimizeImageLoading } from '@/utils/imageOptimization'
 import { setupServiceWorkerCache } from '@/utils/cache'
+import { initSupabase } from '@/services/supabaseClient'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -14,8 +15,35 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Mount the app - Cache buster: 2024-10-02-V2-INTERFACE-UPDATE
+// Initialize Supabase client
+initSupabase()
+
+// Mount the app - Cache buster: 2024-10-02-V3-SINGLE-BOX-LOGIN
 app.mount('#app')
+
+// Gentle cache invalidation after app is mounted
+if (typeof window !== 'undefined') {
+  // Only clear caches after app is fully loaded
+  setTimeout(() => {
+    if ('caches' in window) {
+      caches.keys().then((names) => {
+        names.forEach((name) => {
+          if (name.includes('ecolink')) {
+            caches.delete(name)
+          }
+        })
+      })
+    }
+  }, 1000)
+
+  // Version check without forced reload
+  const currentVersion = '1.0.0'
+  const storedVersion = localStorage.getItem('app-version')
+  if (storedVersion !== currentVersion) {
+    localStorage.setItem('app-version', currentVersion)
+    console.log('App version updated to:', currentVersion)
+  }
+}
 
 // Initialize analytics
 analytics.initialize()

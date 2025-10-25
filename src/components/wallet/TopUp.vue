@@ -165,34 +165,55 @@ function handleCancel() {
 .topup-form {
   max-width: 500px;
   margin: 0 auto;
+  background: #ffffff;
+  padding: 32px;
+  position: relative;
+  z-index: 1002;
 }
 
 .form-header {
-  margin-bottom: 24px;
+  margin-bottom: 32px;
   text-align: center;
+  background: #f8fafc;
+  padding: 24px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  position: relative;
+  z-index: 1003;
 }
 
 .form-title {
   margin: 0 0 8px 0;
-  font-size: 24px;
+  font-size: 28px;
   font-weight: 700;
-  color: var(--ecolink-primary-700);
+  color: #1f2937;
 }
 
 .form-description {
   margin: 0;
-  color: var(--ecolink-muted);
-  font-size: 14px;
+  color: #6b7280;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 .form-grid {
   display: grid;
-  gap: 20px;
+  gap: 24px;
+  background: #ffffff;
+  padding: 24px;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  position: relative;
+  z-index: 1003;
 }
 
 .quick-amounts {
   display: grid;
-  gap: 8px;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 .input-label {
@@ -232,7 +253,11 @@ function handleCancel() {
 .payment-methods {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  gap: 12px;
+  background: #f8fafc;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
 }
 
 .payment-method {
@@ -285,17 +310,25 @@ function handleCancel() {
 
 .form-actions {
   display: flex;
-  gap: 12px;
+  gap: 16px;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: 32px;
+  padding: 24px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 2px solid #e5e7eb;
+  position: relative;
+  z-index: 1003;
 }
 
 .payment-info {
-  margin-top: 24px;
-  padding: 16px;
-  background: var(--ecolink-primary-50);
-  border-radius: 8px;
-  border: 1px solid var(--ecolink-primary-200);
+  margin-top: 32px;
+  padding: 24px;
+  background: #f0f9ff;
+  border-radius: 12px;
+  border: 2px solid #0ea5e9;
+  position: relative;
+  z-index: 1003;
 }
 
 .payment-info h4 {

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { loginWithEmail } from '@/services/authService'
-import { TEST_ACCOUNTS, getTestAccountByEmail } from '@/utils/testAccounts'
+import { getTestAccountByEmail } from '@/utils/testAccounts'
 import UiInput from '@/components/ui/Input.vue'
 import UiButton from '@/components/ui/Button.vue'
 
@@ -44,30 +44,20 @@ function validatePassword() {
 }
 
 function validateForm() {
-  const emailValid = validateEmail()
-  const passwordValid = validatePassword()
-  return emailValid && passwordValid
-}
-
-function fillTestAccount(accountType) {
-  const testAccount = TEST_ACCOUNTS[accountType]
-  if (testAccount) {
-    email.value = testAccount.email
-    password.value = testAccount.password
-    emailError.value = ''
-    passwordError.value = ''
-    console.log(`Filled ${accountType} test account credentials`)
-  }
+  return validatePassword() && validateEmail()
 }
 
 async function handleSubmit() {
   errorMessage.value = ''
+  emailError.value = ''
 
   if (!validateForm()) {
     return
   }
   loading.value = true
   try {
+    let session
+
     // Check if this is a test account
     const testAccount = getTestAccountByEmail(email.value)
     if (testAccount && password.value === testAccount.password) {
@@ -79,8 +69,10 @@ async function handleSubmit() {
       return
     }
 
-    // Try real authentication
-    const { session } = await loginWithEmail({ email: email.value, password: password.value })
+    // Try real email authentication
+    const result = await loginWithEmail({ email: email.value, password: password.value })
+    session = result.session
+
     // Set session immediately to avoid guard race conditions
     if (session) {
       store.session = session
@@ -107,93 +99,188 @@ async function handleSubmit() {
 </script>
 
 <template>
-  <form class="form-grid" @submit.prevent="handleSubmit">
-    <UiInput
-      id="email"
-      label="Email"
-      type="email"
-      placeholder="you@ecolink.io"
-      v-model="email"
-      :error="emailError"
-      @blur="validateEmail"
-      @input="emailError = ''"
-    />
-
-    <UiInput
-      id="password"
-      label="Password"
-      type="password"
-      placeholder="Enter your password"
-      v-model="password"
-      :error="passwordError"
-      @blur="validatePassword"
-      @input="passwordError = ''"
-    />
-
-    <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
-
-    <UiButton type="submit" :loading="loading" block> Sign In </UiButton>
-
-    <!-- Test Accounts Section -->
-    <div class="test-accounts">
-      <p class="test-title">Test Accounts (Development Only)</p>
-      <div class="test-buttons">
-        <UiButton
-          variant="outline"
-          type="button"
-          @click="fillTestAccount('admin')"
-          :disabled="loading"
-          size="small"
-        >
-          Admin Test
-        </UiButton>
-        <UiButton
-          variant="outline"
-          type="button"
-          @click="fillTestAccount('verifier')"
-          :disabled="loading"
-          size="small"
-        >
-          Verifier Test
-        </UiButton>
-        <UiButton
-          variant="outline"
-          type="button"
-          @click="fillTestAccount('user')"
-          :disabled="loading"
-          size="small"
-        >
-          User Test
-        </UiButton>
-      </div>
+  <div class="login-form-container">
+    <div class="login-header">
+      <h2 class="login-title">Welcome back</h2>
+      <p class="login-subtitle">Sign in to access your EcoLink dashboard.</p>
     </div>
-  </form>
+    <form class="form-grid" @submit.prevent="handleSubmit">
+      <!-- Email Input -->
+      <UiInput
+        id="email"
+        label="Email"
+        type="email"
+        placeholder="you@ecolink.io"
+        v-model="email"
+        :error="emailError"
+        @blur="validateEmail"
+        @input="emailError = ''"
+      />
+
+      <UiInput
+        id="password"
+        label="Password"
+        type="password"
+        placeholder="Enter your password"
+        v-model="password"
+        :error="passwordError"
+        @blur="validatePassword"
+        @input="passwordError = ''"
+      />
+
+      <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
+
+      <UiButton type="submit" :loading="loading" block> Sign In </UiButton>
+    </form>
+  </div>
 </template>
 
 <style scoped>
+/* Enhanced Login Form - Properly centered and sized */
+.login-form-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 1.5rem 1rem;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  border: none;
+  position: relative;
+  overflow: visible;
+  transition: all 0.3s ease;
+}
+
+/* Login Header - Centered and properly spaced */
+.login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+}
+
+.login-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.025em;
+}
+
+.login-subtitle {
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Form Grid - Optimized spacing and centering */
+.form-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* Ensure form elements are properly sized */
+.form-grid > * {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Specific styling for UiInput components */
+.form-grid :deep(.enhanced-input) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.form-grid :deep(.enhanced-input__field) {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
 button[disabled] {
   opacity: 0.8;
   cursor: not-allowed;
 }
 
-.test-accounts {
-  margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
+/* Enhanced error message styling */
+.form-grid > div[style*='color: #b00020'] {
   text-align: center;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  margin: 0.5rem 0;
 }
 
-.test-title {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-  margin: 0 0 0.75rem 0;
-  font-weight: 500;
+/* Responsive Design for Login Form */
+@media (max-width: 768px) {
+  .login-form-container {
+    padding: 1.25rem 0.75rem;
+  }
+
+  .form-grid {
+    gap: 1rem;
+  }
+
+  .login-title {
+    font-size: 1.5rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.875rem;
+  }
 }
 
-.test-buttons {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  flex-wrap: wrap;
+@media (max-width: 480px) {
+  .login-form-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .form-grid {
+    gap: 0.875rem;
+  }
+
+  .login-title {
+    font-size: 1.375rem;
+  }
+
+  .login-subtitle {
+    font-size: 0.8rem;
+  }
+}
+
+/* Ensure proper centering on all screen sizes */
+@media (min-width: 769px) {
+  .login-form-container {
+    padding: 2.5rem 2rem;
+  }
+
+  .form-grid {
+    gap: 1.75rem;
+  }
+}
+
+/* Fix for very small screens */
+@media (max-width: 360px) {
+  .login-form-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .form-grid {
+    gap: 0.875rem;
+  }
 }
 </style>

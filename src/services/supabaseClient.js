@@ -1,10 +1,24 @@
 import { createClient } from '@supabase/supabase-js'
 import { requireEnv } from '@/utils/env'
 
-let supabase
+// Singleton pattern to prevent multiple instances
+let supabase = null
+let isInitializing = false
 
 export function initSupabase() {
+  // Return existing instance if already initialized
+  if (supabase) {
+    return supabase
+  }
+
+  // Prevent multiple simultaneous initializations
+  if (isInitializing) {
+    console.warn('Supabase client initialization already in progress')
+    return null
+  }
+
   try {
+    isInitializing = true
     const url = requireEnv('VITE_SUPABASE_URL')
     const key = requireEnv('VITE_SUPABASE_ANON_KEY')
 
@@ -26,6 +40,8 @@ export function initSupabase() {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
+        storage: window.localStorage,
+        storageKey: 'ecolink-supabase-auth-token',
       },
     })
 
@@ -36,11 +52,14 @@ export function initSupabase() {
       }
     })
 
+    console.log('✅ Supabase client initialized successfully')
     return supabase
   } catch (error) {
     console.error('Failed to initialize Supabase client:', error)
-    // Return a mock client to prevent app crash
+    supabase = null
     return null
+  } finally {
+    isInitializing = false
   }
 }
 
@@ -49,4 +68,10 @@ export function getSupabase() {
     return initSupabase()
   }
   return supabase
+}
+
+// Reset function for testing
+export function resetSupabase() {
+  supabase = null
+  isInitializing = false
 }

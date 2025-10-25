@@ -1,7 +1,16 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useUserStore } from '@/store/userStore'
+import { generateCarbonImpactReport } from '@/services/receiptService'
+import { formatDate } from '@/utils/formatDate'
 import PortfolioChart from '@/components/charts/PortfolioChart.vue'
 import CategoryChart from '@/components/charts/CategoryChart.vue'
+
+// User store and state
+const userStore = useUserStore()
+const loading = ref(false)
+const error = ref('')
+const carbonImpactData = ref(null)
 
 // Chart data
 const portfolioChartData = ref({
@@ -17,6 +26,38 @@ const portfolioChartData = ref({
     },
   ],
 })
+
+// Load carbon impact data
+const loadCarbonImpactData = async () => {
+  if (!userStore.user?.id) return
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const impactReport = await generateCarbonImpactReport(userStore.user.id)
+    carbonImpactData.value = impactReport
+
+    // Update category chart data with real data
+    if (impactReport.categoryBreakdown) {
+      const categories = Object.keys(impactReport.categoryBreakdown)
+      const categoryData = categories.map(
+        (category) => impactReport.categoryBreakdown[category].credits,
+      )
+      const totalCredits = categoryData.reduce((sum, credits) => sum + credits, 0)
+
+      categoryChartData.value.labels = categories
+      categoryChartData.value.datasets[0].data = categoryData.map((credits) =>
+        totalCredits > 0 ? Math.round((credits / totalCredits) * 100) : 0,
+      )
+    }
+  } catch (err) {
+    console.error('Error loading carbon impact data:', err)
+    error.value = 'Failed to load impact data'
+  } finally {
+    loading.value = false
+  }
+}
 
 const portfolioChartOptions = ref({
   plugins: {
@@ -77,6 +118,11 @@ const categoryChartOptions = ref({
     },
   },
 })
+
+// Load data on component mount
+onMounted(() => {
+  loadCarbonImpactData()
+})
 </script>
 
 <template>
@@ -85,16 +131,33 @@ const categoryChartOptions = ref({
       <h1 class="page-title">Analytics Dashboard</h1>
       <p class="page-description">Track your carbon credit portfolio performance and impact.</p>
 
+      <!-- Loading State -->
+      <div v-if="loading" class="loading-state">
+        <div class="loading-spinner">⏳</div>
+        <p>Loading analytics data...</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-if="error" class="error-state">
+        <div class="error-icon">❌</div>
+        <p>{{ error }}</p>
+        <button class="btn btn-primary" @click="loadCarbonImpactData">Retry</button>
+      </div>
+
       <!-- Analytics Cards -->
-      <div class="analytics-grid">
+      <div v-else class="analytics-grid">
         <div class="analytics-card">
           <div class="card-header">
             <h3>Portfolio Value</h3>
             <span class="card-icon">💰</span>
           </div>
           <div class="card-content">
-            <div class="metric-value">$12,450</div>
-            <div class="metric-change positive">+12.5%</div>
+            <div class="metric-value">
+              ${{ carbonImpactData?.summary?.totalAmountSpent?.toLocaleString() || '0' }}
+            </div>
+            <div class="metric-change positive">
+              {{ carbonImpactData?.summary?.totalTransactions || 0 }} transactions
+            </div>
           </div>
         </div>
 
@@ -104,8 +167,12 @@ const categoryChartOptions = ref({
             <span class="card-icon">🌱</span>
           </div>
           <div class="card-content">
-            <div class="metric-value">1,250</div>
-            <div class="metric-change positive">+50 this month</div>
+            <div class="metric-value">
+              {{ carbonImpactData?.summary?.totalCreditsPurchased?.toLocaleString() || '0' }}
+            </div>
+            <div class="metric-change positive">
+              Avg: ${{ Math.round(carbonImpactData?.summary?.averagePricePerCredit || 0) }}/credit
+            </div>
           </div>
         </div>
 
@@ -115,8 +182,16 @@ const categoryChartOptions = ref({
             <span class="card-icon">🌍</span>
           </div>
           <div class="card-content">
-            <div class="metric-value">1,250 tons</div>
-            <div class="metric-change positive">Equivalent to 2,500 trees</div>
+            <div class="metric-value">
+              {{
+                carbonImpactData?.environmentalImpact?.co2OffsetTonnes?.toLocaleString() || '0'
+              }}
+              tons
+            </div>
+            <div class="metric-change positive">
+              Equivalent to
+              {{ carbonImpactData?.environmentalImpact?.equivalentTreesPlanted || 0 }} trees
+            </div>
           </div>
         </div>
 
@@ -126,8 +201,12 @@ const categoryChartOptions = ref({
             <span class="card-icon">🏗️</span>
           </div>
           <div class="card-content">
-            <div class="metric-value">8</div>
-            <div class="metric-change positive">Across 5 countries</div>
+            <div class="metric-value">
+              {{ Object.keys(carbonImpactData?.categoryBreakdown || {}).length || 0 }}
+            </div>
+            <div class="metric-change positive">
+              {{ carbonImpactData?.summary?.totalTransactions || 0 }} total purchases
+            </div>
           </div>
         </div>
       </div>
@@ -147,36 +226,27 @@ const categoryChartOptions = ref({
 
       <!-- Recent Activity -->
       <div class="activity-section">
-        <h3>Recent Activity</h3>
+        <h3>Recent Purchases</h3>
         <div class="activity-list">
-          <div class="activity-item">
+          <div v-if="carbonImpactData?.recentPurchases?.length === 0" class="empty-activity">
+            <p>No recent purchases found.</p>
+          </div>
+          <div
+            v-for="purchase in carbonImpactData?.recentPurchases || []"
+            :key="purchase.date"
+            class="activity-item"
+          >
             <div class="activity-icon">🛒</div>
             <div class="activity-content">
-              <div class="activity-title">Purchased 50 credits</div>
-              <div class="activity-description">Amazon Rainforest Protection Initiative</div>
-              <div class="activity-time">2 hours ago</div>
+              <div class="activity-title">Purchased {{ purchase.credits }} credits</div>
+              <div class="activity-description">
+                {{ purchase.project }} - {{ purchase.category }}
+              </div>
+              <div class="activity-time">{{ formatDate(purchase.date) }}</div>
             </div>
-            <div class="activity-value">$750</div>
-          </div>
-
-          <div class="activity-item">
-            <div class="activity-icon">📈</div>
-            <div class="activity-content">
-              <div class="activity-title">Portfolio value increased</div>
-              <div class="activity-description">Your portfolio gained 5.2% this week</div>
-              <div class="activity-time">1 day ago</div>
+            <div class="activity-value">
+              {{ purchase.currency }}{{ purchase.amount.toLocaleString() }}
             </div>
-            <div class="activity-value positive">+$650</div>
-          </div>
-
-          <div class="activity-item">
-            <div class="activity-icon">🌱</div>
-            <div class="activity-content">
-              <div class="activity-title">Credits retired</div>
-              <div class="activity-description">100 credits retired for carbon neutrality</div>
-              <div class="activity-time">3 days ago</div>
-            </div>
-            <div class="activity-value">-100 credits</div>
           </div>
         </div>
       </div>
@@ -366,6 +436,54 @@ const categoryChartOptions = ref({
 
 .activity-value.positive {
   color: #10b981;
+}
+
+.empty-activity {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted);
+}
+
+.loading-state,
+.error-state {
+  text-align: center;
+  padding: 4rem 2rem;
+  color: var(--text-muted);
+}
+
+.loading-spinner,
+.error-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+}
+
+.loading-state p,
+.error-state p {
+  margin-bottom: 2rem;
+  font-size: 1.1rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  text-decoration: none;
+}
+
+.btn-primary {
+  background: var(--primary-color, #069e2d);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: var(--primary-hover, #058e3f);
 }
 
 @media (max-width: 768px) {

@@ -1,263 +1,170 @@
-// Payment Service for GCash and Maya integration
 import { getSupabase } from '@/services/supabaseClient'
+import { logUserAction } from '@/services/auditService'
 
+/**
+ * Payment service for handling transactions
+ */
 export class PaymentService {
   constructor() {
     this.supabase = getSupabase()
   }
 
   /**
-   * Process GCash payment
-   * @param {Object} paymentData - Payment information
-   * @param {number} paymentData.amount - Amount to pay
-   * @param {number} paymentData.credits - Number of credits to purchase
-   * @param {string} paymentData.userId - User ID
-   * @returns {Promise<Object>} Payment result
-   */
-  async processGCashPayment(paymentData) {
-    try {
-      console.log('Processing GCash payment:', paymentData)
-
-      // TODO: Integrate with actual GCash API
-      // For now, simulate payment processing
-      const paymentResult = await this.simulatePayment({
-        ...paymentData,
-        provider: 'gcash',
-      })
-
-      if (paymentResult.success) {
-        // Record transaction in database
-        await this.recordTransaction({
-          ...paymentData,
-          transactionId: paymentResult.transactionId,
-          provider: 'gcash',
-          status: 'completed',
-        })
-      }
-
-      return paymentResult
-    } catch (error) {
-      console.error('GCash payment error:', error)
-      throw new Error('GCash payment failed: ' + error.message)
-    }
-  }
-
-  /**
-   * Process Maya payment
-   * @param {Object} paymentData - Payment information
-   * @returns {Promise<Object>} Payment result
-   */
-  async processMayaPayment(paymentData) {
-    try {
-      console.log('Processing Maya payment:', paymentData)
-
-      // TODO: Integrate with actual Maya API
-      // For now, simulate payment processing
-      const paymentResult = await this.simulatePayment({
-        ...paymentData,
-        provider: 'maya',
-      })
-
-      if (paymentResult.success) {
-        // Record transaction in database
-        await this.recordTransaction({
-          ...paymentData,
-          transactionId: paymentResult.transactionId,
-          provider: 'maya',
-          status: 'completed',
-        })
-      }
-
-      return paymentResult
-    } catch (error) {
-      console.error('Maya payment error:', error)
-      throw new Error('Maya payment failed: ' + error.message)
-    }
-  }
-
-  /**
-   * Simulate payment processing (for development/testing)
-   * @param {Object} paymentData - Payment data
-   * @returns {Promise<Object>} Simulated payment result
-   */
-  async simulatePayment(paymentData) {
-    // Simulate API call delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // Simulate 90% success rate
-    const success = Math.random() > 0.1
-
-    if (success) {
-      return {
-        success: true,
-        transactionId: `${paymentData.provider.toUpperCase()}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        amount: paymentData.amount,
-        credits: paymentData.credits,
-        provider: paymentData.provider,
-        timestamp: new Date().toISOString(),
-      }
-    } else {
-      throw new Error('Payment declined by provider')
-    }
-  }
-
-  /**
-   * Record transaction in database
-   * @param {Object} transactionData - Transaction data
+   * Record a payment transaction
    */
   async recordTransaction(transactionData) {
+    const supabase = getSupabase()
+
+    if (!supabase) {
+      console.warn('Supabase client not available')
+      return null
+    }
+
     try {
-      const { data, error } = await this.supabase
-        .from('transactions')
-        .insert([
-          {
-            user_id: transactionData.userId,
-            transaction_id: transactionData.transactionId,
-            amount: transactionData.amount,
-            credits_purchased: transactionData.credits,
-            payment_provider: transactionData.provider,
-            status: transactionData.status,
-            created_at: new Date().toISOString(),
-          },
-        ])
+      const { data: payment, error } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          user_id: transactionData.userId,
+          type: transactionData.type || 'purchase',
+          amount: transactionData.amount,
+          currency: transactionData.currency || 'USD',
+          description: transactionData.description,
+          reference_id: transactionData.transactionId,
+          status: transactionData.status || 'pending',
+        })
         .select()
         .single()
 
       if (error) {
-        console.error('Transaction recording error:', error)
-        throw error
+        console.error('Error recording payment:', error)
+        throw new Error('Failed to record payment')
       }
 
-      console.log('Transaction recorded:', data)
-      return data
+      // Log the action
+      await logUserAction('PAYMENT_RECORDED', 'payment', transactionData.userId, payment.id, {
+        amount: transactionData.amount,
+        type: transactionData.type,
+        status: transactionData.status,
+      })
+
+      return payment
     } catch (error) {
-      console.error('Failed to record transaction:', error)
-      // Don't throw here - payment was successful, just logging failed
+      console.error('Error in recordTransaction:', error)
+      throw error
     }
   }
 
   /**
-   * Verify payment status
-   * @param {string} transactionId - Transaction ID to verify
-   * @returns {Promise<Object>} Payment verification result
+   * Process payment
    */
-  async verifyPayment(transactionId) {
+  async processPayment(paymentData) {
     try {
-      // TODO: Implement actual payment verification with provider APIs
+      // Simulate payment processing
+      console.log('Processing payment:', paymentData)
 
-      // For now, check our database
-      const { data, error } = await this.supabase
-        .from('transactions')
-        .select('*')
-        .eq('transaction_id', transactionId)
-        .single()
+      // In a real implementation, this would integrate with payment providers
+      // like Stripe, PayPal, etc.
 
-      if (error) {
-        throw new Error('Transaction not found')
+      const paymentResult = {
+        success: true,
+        transactionId: `pay_${Date.now()}`,
+        amount: paymentData.amount,
+        currency: paymentData.currency,
+        status: 'completed',
       }
 
-      return {
-        verified: true,
-        transaction: data,
-        status: data.status,
-      }
+      return paymentResult
     } catch (error) {
-      console.error('Payment verification error:', error)
-      return {
-        verified: false,
-        error: error.message,
-      }
+      console.error('Error processing payment:', error)
+      throw error
     }
   }
 
   /**
-   * Get user transaction history
-   * @param {string} userId - User ID
-   * @returns {Promise<Array>} User transactions
+   * Get user's payment history
    */
-  async getUserTransactions(userId) {
+  async getUserPayments(userId) {
+    const supabase = getSupabase()
+
+    if (!supabase) {
+      console.warn('Supabase client not available')
+      return []
+    }
+
     try {
-      const { data, error } = await this.supabase
-        .from('transactions')
+      const { data: payments, error } = await supabase
+        .from('wallet_transactions')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
 
       if (error) {
-        throw error
+        console.error('Error fetching payments:', error)
+        return []
       }
 
-      return data || []
+      return payments || []
     } catch (error) {
-      console.error('Failed to fetch user transactions:', error)
-      throw new Error('Failed to fetch transaction history')
+      console.error('Error in getUserPayments:', error)
+      return []
     }
   }
 
   /**
-   * Get supported payment methods
-   * @returns {Array} Available payment methods
+   * Refund payment
    */
-  getSupportedPaymentMethods() {
-    return [
-      {
-        id: 'gcash',
-        name: 'GCash',
-        icon: '💳',
-        description: 'Pay with GCash mobile wallet',
-        enabled: true,
-      },
-      {
-        id: 'maya',
-        name: 'Maya',
-        icon: '📱',
-        description: 'Pay with Maya (formerly PayMaya)',
-        enabled: true,
-      },
-    ]
-  }
+  async refundPayment(transactionId, amount, reason) {
+    const supabase = getSupabase()
 
-  /**
-   * Calculate total amount including fees
-   * @param {number} credits - Number of credits
-   * @param {number} pricePerCredit - Price per credit
-   * @param {string} paymentMethod - Payment method
-   * @returns {Object} Pricing breakdown
-   */
-  calculateTotal(credits, pricePerCredit, paymentMethod) {
-    const subtotal = credits * pricePerCredit
-
-    // Different fees for different payment methods
-    const fees = {
-      gcash: 0.02, // 2% fee
-      maya: 0.025, // 2.5% fee
+    if (!supabase) {
+      throw new Error('Supabase client not available')
     }
 
-    const feeRate = fees[paymentMethod] || 0.02
-    const fee = subtotal * feeRate
-    const total = subtotal + fee
+    try {
+      // Get original transaction
+      const { data: originalTransaction, error: fetchError } = await supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('reference_id', transactionId)
+        .single()
 
-    return {
-      credits,
-      pricePerCredit,
-      subtotal: Math.round(subtotal * 100) / 100,
-      fee: Math.round(fee * 100) / 100,
-      feeRate: feeRate * 100, // Convert to percentage
-      total: Math.round(total * 100) / 100,
-      paymentMethod,
+      if (fetchError || !originalTransaction) {
+        throw new Error('Original transaction not found')
+      }
+
+      // Create refund transaction
+      const { data: refund, error: refundError } = await supabase
+        .from('wallet_transactions')
+        .insert({
+          user_id: originalTransaction.user_id,
+          type: 'refund',
+          amount: amount,
+          currency: originalTransaction.currency,
+          description: `Refund: ${reason}`,
+          reference_id: transactionId,
+          status: 'completed',
+        })
+        .select()
+        .single()
+
+      if (refundError) {
+        throw new Error('Failed to process refund')
+      }
+
+      // Log the action
+      await logUserAction('PAYMENT_REFUNDED', 'payment', originalTransaction.user_id, refund.id, {
+        original_transaction_id: transactionId,
+        refund_amount: amount,
+        reason: reason,
+      })
+
+      return refund
+    } catch (error) {
+      console.error('Error in refundPayment:', error)
+      throw error
     }
   }
 }
 
 // Export singleton instance
 export const paymentService = new PaymentService()
-
-// Export individual functions for easier importing
-export const {
-  processGCashPayment,
-  processMayaPayment,
-  verifyPayment,
-  getUserTransactions,
-  getSupportedPaymentMethods,
-  calculateTotal,
-} = paymentService

@@ -21,7 +21,20 @@
                 certificate.
               </p>
 
-              <form class="retire-form" @submit.prevent="handleRetire">
+              <!-- Error State -->
+              <div v-if="error" class="error-message">
+                {{ error }}
+              </div>
+
+              <!-- Loading State -->
+              <div v-if="loading" class="loading-message">Loading your credits...</div>
+
+              <!-- Empty State -->
+              <div v-if="!loading && availableProjects.length === 0" class="empty-state">
+                <p>No credits available for retirement. Purchase some credits first!</p>
+              </div>
+
+              <form v-else-if="!loading" class="retire-form" @submit.prevent="handleRetire">
                 <div class="form-group">
                   <label class="form-label">Select Project</label>
                   <select v-model="selectedProject" class="form-select" required>
@@ -88,8 +101,14 @@
                   </div>
                 </div>
 
-                <button type="submit" class="retire-button" :disabled="!canRetire">
-                  <svg class="button-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button type="submit" class="retire-button" :disabled="!canRetire || loading">
+                  <svg
+                    v-if="!loading"
+                    class="button-icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       stroke-linecap="round"
                       stroke-linejoin="round"
@@ -97,7 +116,7 @@
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
                     ></path>
                   </svg>
-                  Retire {{ creditsToRetire || 0 }} Credits
+                  {{ loading ? 'Retiring...' : `Retire ${creditsToRetire || 0} Credits` }}
                 </button>
               </form>
             </div>
@@ -149,110 +168,143 @@
   </div>
 </template>
 
-<script>
-export default {
-  name: 'RetireView',
-  data() {
-    return {
-      selectedProject: '',
-      creditsToRetire: 1,
-      retirementPurpose: '',
-      retirementStatement: '',
-      availableProjects: [
-        { id: 1, name: 'Amazon Rainforest Conservation', credits: 150 },
-        { id: 2, name: 'Solar Farm Development', credits: 200 },
-        { id: 3, name: 'Mangrove Restoration', credits: 75 },
-        { id: 4, name: 'Wind Energy Project', credits: 300 },
-        { id: 5, name: 'Forest Conservation', credits: 125 },
-      ],
-      retirementHistory: [
-        {
-          id: 1,
-          project: 'Amazon Rainforest Conservation',
-          credits: 50,
-          purpose: 'Corporate Carbon Neutrality',
-          date: '2024-01-15',
-          certificateUrl: '#',
-        },
-        {
-          id: 2,
-          project: 'Solar Farm Development',
-          credits: 25,
-          purpose: 'Event Offset',
-          date: '2024-01-10',
-          certificateUrl: '#',
-        },
-        {
-          id: 3,
-          project: 'Mangrove Restoration',
-          credits: 100,
-          purpose: 'Product Carbon Footprint',
-          date: '2023-12-20',
-          certificateUrl: '#',
-        },
-      ],
-    }
-  },
-  computed: {
-    selectedProjectCredits() {
-      const project = this.availableProjects.find((p) => p.id == this.selectedProject)
-      return project ? project.credits : 0
-    },
-    selectedProjectName() {
-      const project = this.availableProjects.find((p) => p.id == this.selectedProject)
-      return project ? project.name : ''
-    },
-    canRetire() {
-      return (
-        this.selectedProject &&
-        this.creditsToRetire > 0 &&
-        this.creditsToRetire <= this.selectedProjectCredits &&
-        this.retirementPurpose
-      )
-    },
-  },
-  methods: {
-    handleRetire() {
-      if (!this.canRetire) return
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useUserStore } from '@/store/userStore'
+import { getUserCreditPortfolio, retireCredits } from '@/services/marketplaceService'
 
-      // Simulate retirement process
-      const retirement = {
-        id: Date.now(),
-        project: this.selectedProjectName,
-        credits: this.creditsToRetire,
-        purpose: this.retirementPurpose,
-        date: new Date().toISOString().split('T')[0],
+const userStore = useUserStore()
+
+// Form data
+const selectedProject = ref('')
+const creditsToRetire = ref(1)
+const retirementPurpose = ref('')
+const retirementStatement = ref('')
+
+// Data
+const availableProjects = ref([])
+const retirementHistory = ref([])
+const loading = ref(false)
+const error = ref('')
+
+// Computed properties
+const selectedProjectCredits = computed(() => {
+  const project = availableProjects.value.find((p) => p.id == selectedProject.value)
+  return project ? project.quantity : 0
+})
+
+const selectedProjectName = computed(() => {
+  const project = availableProjects.value.find((p) => p.id == selectedProject.value)
+  return project ? project.project_title : ''
+})
+
+const canRetire = computed(() => {
+  return (
+    selectedProject.value &&
+    creditsToRetire.value > 0 &&
+    creditsToRetire.value <= selectedProjectCredits.value &&
+    retirementPurpose.value
+  )
+})
+
+// Methods
+const loadUserCredits = async () => {
+  if (!userStore.user?.id) return
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const credits = await getUserCreditPortfolio(userStore.user.id)
+
+    // Transform the data to include project details
+    availableProjects.value = credits
+      .filter((credit) => credit.ownership_status === 'owned')
+      .map((credit) => ({
+        id: credit.id,
+        name: credit.project_credits?.projects?.title || 'Unknown Project',
+        project_title: credit.project_credits?.projects?.title || 'Unknown Project',
+        credits: credit.quantity,
+        quantity: credit.quantity,
+        category: credit.project_credits?.projects?.category || 'Unknown',
+        location: credit.project_credits?.projects?.location || 'Unknown',
+      }))
+
+    // Load retirement history
+    retirementHistory.value = credits
+      .filter((credit) => credit.ownership_status === 'retired')
+      .map((credit) => ({
+        id: credit.id,
+        project: credit.project_credits?.projects?.title || 'Unknown Project',
+        credits: credit.quantity,
+        purpose: credit.retirement_reason || 'Carbon Offset',
+        date: credit.retired_at || credit.created_at,
         certificateUrl: '#',
-      }
-
-      // Add to history
-      this.retirementHistory.unshift(retirement)
-
-      // Update available credits
-      const project = this.availableProjects.find((p) => p.id == this.selectedProject)
-      if (project) {
-        project.credits -= this.creditsToRetire
-      }
-
-      // Reset form
-      this.selectedProject = ''
-      this.creditsToRetire = 1
-      this.retirementPurpose = ''
-      this.retirementStatement = ''
-
-      // Show success message
-      alert(`Successfully retired ${retirement.credits} credits from ${retirement.project}!`)
-    },
-    formatDate(dateString) {
-      const date = new Date(dateString)
-      return date.toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-      })
-    },
-  },
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date))
+  } catch (err) {
+    console.error('Error loading user credits:', err)
+    error.value = 'Failed to load your credits. Please try again.'
+  } finally {
+    loading.value = false
+  }
 }
+
+const handleRetire = async () => {
+  if (!canRetire.value) return
+
+  loading.value = true
+  error.value = ''
+
+  try {
+    const selectedCredit = availableProjects.value.find((p) => p.id == selectedProject.value)
+
+    if (!selectedCredit) {
+      throw new Error('Selected project not found')
+    }
+
+    const creditsToRetireValue = creditsToRetire.value
+    const projectName = selectedProjectName.value
+
+    // Call the retire service
+    await retireCredits(selectedCredit.id, {
+      reason: retirementPurpose.value,
+      statement: retirementStatement.value,
+      quantity: creditsToRetireValue,
+    })
+
+    // Reset form
+    selectedProject.value = ''
+    creditsToRetire.value = 1
+    retirementPurpose.value = ''
+    retirementStatement.value = ''
+
+    // Reload data
+    await loadUserCredits()
+
+    // Show success message
+    alert(`Successfully retired ${creditsToRetireValue} credits from ${projectName}!`)
+  } catch (err) {
+    console.error('Error retiring credits:', err)
+    error.value = err.message || 'Failed to retire credits. Please try again.'
+  } finally {
+    loading.value = false
+  }
+}
+
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+// Lifecycle
+onMounted(() => {
+  loadUserCredits()
+})
 </script>
 
 <style scoped>
@@ -538,5 +590,36 @@ export default {
     gap: 0.25rem;
   }
 }
-</style>
 
+/* Error and Loading States */
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  font-weight: 500;
+}
+
+.loading-message {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  color: #0284c7;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  font-weight: 500;
+}
+
+.empty-state {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  color: #64748b;
+  padding: 2rem;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+</style>

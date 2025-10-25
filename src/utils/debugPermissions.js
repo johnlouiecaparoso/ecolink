@@ -1,5 +1,6 @@
 // Debug utility to check user permissions
-import { ROLES, PERMISSIONS, hasPermission } from '@/constants/roles'
+import { ROLES, PERMISSIONS } from '@/constants/roles'
+import { hasPermission } from '@/services/roleService'
 
 export function debugUserPermissions(userRole) {
   console.log('🔍 DEBUG: User Role Permissions')

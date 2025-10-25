@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getWalletBalance, getTransactions } from '@/services/walletService'
+import { creditOwnershipService } from '@/services/creditOwnershipService'
 import TopUp from '@/components/wallet/TopUp.vue'
 import Withdraw from '@/components/wallet/Withdraw.vue'
 
@@ -11,6 +12,8 @@ const store = useUserStore()
 
 const walletBalance = ref({ current_balance: 0, currency: 'PHP' })
 const transactions = ref([])
+const creditPortfolio = ref([])
+const creditStats = ref({ total_owned: 0, total_retired: 0, total_credits: 0, projects_count: 0 })
 const loading = ref(false)
 const showTopUp = ref(false)
 const showWithdraw = ref(false)
@@ -31,16 +34,20 @@ async function loadWalletData() {
       setTimeout(() => reject(new Error('Wallet data load timeout')), 10000),
     )
 
-    const [balance, transactionHistory] = await Promise.race([
+    const [balance, transactionHistory, portfolio, stats] = await Promise.race([
       Promise.all([
         getWalletBalance(store.session.user.id),
         getTransactions(store.session.user.id),
+        creditOwnershipService.getUserCreditPortfolio(store.session.user.id),
+        creditOwnershipService.getUserCreditStats(store.session.user.id),
       ]),
       timeoutPromise,
     ])
 
     walletBalance.value = balance
     transactions.value = transactionHistory
+    creditPortfolio.value = portfolio
+    creditStats.value = stats
     console.log('Wallet data loaded successfully')
   } catch (err) {
     console.error('Error loading wallet data:', err)
@@ -149,6 +156,64 @@ onMounted(() => {
           >
             - Withdraw
           </button>
+        </div>
+      </div>
+
+      <!-- Credit Portfolio Section -->
+      <div class="credit-portfolio-section">
+        <div class="section-header">
+          <h2 class="section-title">Credit Portfolio</h2>
+          <div class="credit-stats">
+            <span class="stat-item">
+              <span class="stat-label">Total Credits:</span>
+              <span class="stat-value">{{ creditStats.total_owned }}</span>
+            </span>
+            <span class="stat-item">
+              <span class="stat-label">Retired:</span>
+              <span class="stat-value">{{ creditStats.total_retired }}</span>
+            </span>
+            <span class="stat-item">
+              <span class="stat-label">Projects:</span>
+              <span class="stat-value">{{ creditStats.projects_count }}</span>
+            </span>
+          </div>
+        </div>
+
+        <div v-if="creditPortfolio.length === 0" class="empty-portfolio">
+          <div class="empty-icon">🌱</div>
+          <h3>No credits yet</h3>
+          <p>Purchase credits from the marketplace to build your portfolio</p>
+          <button class="btn btn-primary" @click="router.push('/marketplace')">
+            Browse Marketplace
+          </button>
+        </div>
+
+        <div v-else class="portfolio-grid">
+          <div v-for="credit in creditPortfolio" :key="credit.id" class="portfolio-card">
+            <div class="portfolio-header">
+              <h4 class="portfolio-title">{{ credit.project_title }}</h4>
+              <span class="portfolio-quantity">{{ credit.quantity }} credits</span>
+            </div>
+            <div class="portfolio-body">
+              <p class="portfolio-description">{{ credit.project_description }}</p>
+              <div class="portfolio-meta">
+                <span class="portfolio-category">{{ credit.project_category }}</span>
+                <span class="portfolio-location">{{ credit.project_location }}</span>
+              </div>
+              <div class="portfolio-ownership">
+                <span class="ownership-type">{{ credit.ownership_type }}</span>
+                <span class="owned-since">Since {{ formatDate(credit.owned_since) }}</span>
+              </div>
+            </div>
+            <div class="portfolio-actions">
+              <button
+                class="btn btn-sm btn-ghost"
+                @click="router.push(`/retire?project=${credit.project_id}`)"
+              >
+                Retire Credits
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -464,7 +529,7 @@ onMounted(() => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -473,14 +538,19 @@ onMounted(() => {
 }
 
 .modal-content {
-  background: var(--ecolink-surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-lg);
+  background: #ffffff;
+  border: 2px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow:
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04);
   max-width: 600px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  padding: 24px;
+  padding: 0;
+  position: relative;
+  z-index: 1001;
 }
 
 /* Responsive Design */
@@ -539,6 +609,186 @@ onMounted(() => {
 
   .modal-content {
     padding: 20px;
+  }
+}
+
+/* Credit Portfolio Styles */
+.credit-portfolio-section {
+  background: var(--bg-primary, #ffffff);
+  border-radius: var(--radius-lg, 0.75rem);
+  padding: 24px;
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
+}
+
+.credit-stats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-label {
+  font-size: 12px;
+  color: var(--text-secondary, #4a5568);
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--primary-color, #069e2d);
+}
+
+.empty-portfolio {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.empty-portfolio .empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.empty-portfolio h3 {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.empty-portfolio p {
+  margin: 0 0 24px 0;
+  color: var(--text-secondary, #4a5568);
+}
+
+.portfolio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.portfolio-card {
+  background: var(--bg-secondary, #f8fdf8);
+  border: 1px solid var(--border-color, #d1e7dd);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 20px;
+  transition: all 0.2s ease;
+}
+
+.portfolio-card:hover {
+  box-shadow: var(--shadow-md, 0 4px 8px rgba(0, 0, 0, 0.1));
+  transform: translateY(-2px);
+}
+
+.portfolio-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.portfolio-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+  flex: 1;
+}
+
+.portfolio-quantity {
+  background: var(--primary-color, #069e2d);
+  color: white;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm, 0.25rem);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: 12px;
+}
+
+.portfolio-body {
+  margin-bottom: 16px;
+}
+
+.portfolio-description {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--text-secondary, #4a5568);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.portfolio-meta {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.portfolio-category,
+.portfolio-location {
+  font-size: 12px;
+  color: var(--text-secondary, #4a5568);
+  background: var(--bg-primary, #ffffff);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm, 0.25rem);
+  border: 1px solid var(--border-color, #d1e7dd);
+}
+
+.portfolio-ownership {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary, #4a5568);
+}
+
+.ownership-type {
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.owned-since {
+  font-style: italic;
+}
+
+.portfolio-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Responsive Portfolio */
+@media (max-width: 768px) {
+  .credit-stats {
+    gap: 16px;
+  }
+
+  .portfolio-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .portfolio-card {
+    padding: 16px;
+  }
+
+  .portfolio-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .portfolio-quantity {
+    margin-left: 0;
+    align-self: flex-start;
   }
 }
 

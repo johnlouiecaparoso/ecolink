@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { getSession, signOut } from '@/services/authService'
 import { getProfile, updateProfile } from '@/services/profileService'
 import { roleService } from '@/services/roleService'
+import { logUserAction } from '@/services/auditService'
 import { ROLES } from '@/constants/roles'
 
 export const useUserStore = defineStore('user', {
@@ -175,7 +176,16 @@ export const useUserStore = defineStore('user', {
       }
     },
     async logout() {
+      const userId = this.session?.user?.id
+
       try {
+        // Log logout action before clearing data
+        if (userId) {
+          await logUserAction('LOGOUT_SUCCESS', 'user', userId, null, {
+            timestamp: new Date().toISOString(),
+          })
+        }
+
         // Sign out from Supabase
         await signOut()
 

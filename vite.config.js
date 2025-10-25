@@ -20,6 +20,15 @@ export default defineConfig({
     watch: {
       usePolling: true,
     },
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate, max-age=0, private',
+      Pragma: 'no-cache',
+      Expires: '0',
+      'Last-Modified': new Date().toUTCString(),
+      ETag: `"${Date.now()}"`,
+      Vary: '*',
+      Age: '0',
+    },
   },
   build: {
     target: 'esnext',
@@ -39,18 +48,7 @@ export default defineConfig({
             './src/views/MarketplaceViewEnhanced.vue',
             './src/components/search/AdvancedSearch.vue',
           ],
-          admin: [
-            './src/_hidden/views/AdminView.vue',
-            './src/_hidden/views/UsersView.vue',
-            './src/_hidden/views/DatabaseManagementView.vue',
-            './src/_hidden/views/TableManagementView.vue',
-            './src/_hidden/views/AuditLogsView.vue',
-          ],
-          analytics: [
-            './src/views/AnalyticsView.vue',
-            './src/_hidden/views/AnalyticsView.vue',
-            './src/utils/analytics.js',
-          ],
+          analytics: ['./src/views/AnalyticsView.vue', './src/utils/analytics.js'],
         },
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.')

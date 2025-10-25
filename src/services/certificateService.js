@@ -1,76 +1,16 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { logUserAction } from '@/services/auditService'
-import { USE_DATABASE } from '@/config/database'
 
 /**
- * Generate a project certificate after verification
- */
-export async function generateProjectCertificate(projectId, verificationData) {
-  const supabase = getSupabase()
-
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (!user) {
-      throw new Error('User not authenticated')
-    }
-
-    // Get project details
-    const { data: project, error: projectError } = await supabase
-      .from('projects')
-      .select('*')
-      .eq('id', projectId)
-      .single()
-
-    if (projectError || !project) {
-      throw new Error('Project not found')
-    }
-
-    // Generate certificate
-    const certificateData = {
-      project_id: projectId,
-      project_title: project.title,
-      project_category: project.category,
-      project_location: project.location,
-      verification_standard: verificationData.standard || 'EcoLink Standard',
-      verifier_id: verificationData.verifier_id,
-      verification_date: verificationData.verification_date,
-      verifier_notes: verificationData.verifier_notes,
-      certificate_number: generateCertificateNumber(),
-      status: 'issued',
-      issued_at: new Date().toISOString(),
-    }
-
-    const { data: certificate, error: certError } = await supabase
-      .from('project_certificates')
-      .insert(certificateData)
-      .select()
-      .single()
-
-    if (certError) {
-      console.error('Error creating project certificate:', certError)
-      throw new Error('Failed to create project certificate')
-    }
-
-    // Log the action
-    await logUserAction('CERTIFICATE_GENERATED', 'project_certificate', user.id, certificate.id, {
-      project_id: projectId,
-      certificate_number: certificate.certificate_number,
-    })
-
-    return certificate
-  } catch (error) {
-    console.error('Error in generateProjectCertificate:', error)
-    throw error
-  }
-}
-
-/**
- * Generate a credit certificate after purchase
+ * Generate a credit certificate for a transaction
  */
 export async function generateCreditCertificate(transactionId, type = 'purchase') {
   const supabase = getSupabase()
+
+  if (!supabase) {
+    console.warn('Supabase client not available, skipping certificate generation')
+    return null
+  }
 
   try {
     // Get transaction details
@@ -81,7 +21,7 @@ export async function generateCreditCertificate(transactionId, type = 'purchase'
         *,
         project_credits!inner(
           *,
-          projects!inner(*)
+          projects!inner(title, category, location)
         )
       `,
       )
@@ -92,150 +32,148 @@ export async function generateCreditCertificate(transactionId, type = 'purchase'
       throw new Error('Transaction not found')
     }
 
-    // Generate certificate
-    const certificateData = {
-      transaction_id: transactionId,
-      buyer_id: transaction.buyer_id,
-      project_id: transaction.project_credits.project_id,
-      project_title: transaction.project_credits.projects.title,
-      project_category: transaction.project_credits.projects.category,
-      project_location: transaction.project_credits.projects.location,
-      credits_purchased: transaction.quantity,
-      price_per_credit: transaction.price_per_credit,
-      total_amount: transaction.total_amount,
-      currency: transaction.currency,
-      certificate_type: type,
-      certificate_number: generateCertificateNumber(),
-      status: 'issued',
-      issued_at: new Date().toISOString(),
-    }
+    // Generate certificate number
+    const certificateNumber = `CERT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
 
-    const { data: certificate, error: certError } = await supabase
-      .from('credit_certificates')
-      .insert(certificateData)
+    // Create certificate record
+    const { data: certificate, error: certificateError } = await supabase
+      .from('certificates')
+      .insert({
+        user_id: transaction.buyer_id,
+        transaction_id: transactionId,
+        certificate_number: certificateNumber,
+        project_title: transaction.project_credits.projects.title,
+        project_category: transaction.project_credits.projects.category,
+        project_location: transaction.project_credits.projects.location,
+        credits_quantity: transaction.quantity,
+        vintage_year: transaction.project_credits.vintage_year,
+        verification_standard: transaction.project_credits.verification_standard,
+        issued_at: new Date().toISOString(),
+        status: 'active',
+      })
       .select()
       .single()
 
-    if (certError) {
-      console.error('Error creating credit certificate:', certError)
-      throw new Error('Failed to create credit certificate')
+    if (certificateError) {
+      console.error('Error creating certificate:', certificateError)
+      throw new Error('Failed to create certificate')
     }
 
     // Log the action
     await logUserAction(
-      'CREDIT_CERTIFICATE_GENERATED',
-      'credit_certificate',
+      'CERTIFICATE_GENERATED',
+      'certificate',
       transaction.buyer_id,
       certificate.id,
       {
         transaction_id: transactionId,
-        certificate_number: certificate.certificate_number,
+        certificate_number: certificateNumber,
+        type: type,
       },
     )
 
+    console.log('Certificate generated successfully:', certificateNumber)
     return certificate
   } catch (error) {
-    console.error('Error in generateCreditCertificate:', error)
+    console.error('Error generating certificate:', error)
     throw error
   }
 }
 
 /**
- * Get certificates for a user
+ * Get user's certificates
  */
 export async function getUserCertificates(userId) {
-  // Skip database calls if disabled
-  if (!USE_DATABASE) {
-    console.log('Database disabled, using sample data for certificates')
-    return [
-      {
-        id: 'demo-cert-1',
-        type: 'project_verification',
-        title: 'Amazon Rainforest Protection',
-        issued_at: new Date().toISOString(),
-        status: 'active',
-        credits: 1000,
-        project_name: 'Amazon Rainforest Protection Initiative',
-        verification_standard: 'VCS',
-        vintage_year: 2024,
-      },
-      {
-        id: 'demo-cert-2',
-        type: 'credit_purchase',
-        title: 'Solar Energy Credits',
-        issued_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-        status: 'active',
-        credits: 500,
-        project_name: 'Solar Energy Initiative',
-        verification_standard: 'Gold Standard',
-        vintage_year: 2024,
-      },
-    ]
-  }
-
   const supabase = getSupabase()
 
+  if (!supabase) {
+    console.warn('Supabase client not available')
+    return []
+  }
+
   try {
-    const { data, error } = await supabase
-      .from('credit_certificates')
+    const { data: certificates, error } = await supabase
+      .from('certificates')
       .select('*')
-      .eq('buyer_id', userId)
+      .eq('user_id', userId)
       .order('issued_at', { ascending: false })
 
     if (error) {
-      console.error('Error fetching user certificates:', error)
-      throw new Error('Failed to fetch certificates')
+      console.error('Error fetching certificates:', error)
+      return []
     }
 
-    return data || []
+    return certificates || []
   } catch (error) {
     console.error('Error in getUserCertificates:', error)
-    throw error
+    return []
   }
 }
 
 /**
- * Download certificate as PDF (placeholder - would integrate with PDF generation service)
+ * Get certificate by ID
  */
-export async function downloadCertificate(certificateId) {
+export async function getCertificate(certificateId) {
   const supabase = getSupabase()
+
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
 
   try {
     const { data: certificate, error } = await supabase
-      .from('credit_certificates')
+      .from('certificates')
       .select('*')
       .eq('id', certificateId)
       .single()
 
-    if (error || !certificate) {
+    if (error) {
       throw new Error('Certificate not found')
     }
 
-    // In a real implementation, this would generate a PDF
-    // For now, we'll return the certificate data
-    console.log('Generating PDF for certificate:', certificate.certificate_number)
-
-    // Simulate PDF generation
-    const pdfData = {
-      certificateNumber: certificate.certificate_number,
-      projectTitle: certificate.project_title,
-      creditsPurchased: certificate.credits_purchased,
-      issuedDate: certificate.issued_at,
-      // ... other certificate details
-    }
-
-    return pdfData
+    return certificate
   } catch (error) {
-    console.error('Error in downloadCertificate:', error)
+    console.error('Error fetching certificate:', error)
     throw error
   }
 }
 
 /**
- * Generate a unique certificate number
+ * Verify certificate
  */
-function generateCertificateNumber() {
-  const timestamp = Date.now().toString(36)
-  const random = Math.random().toString(36).substr(2, 5)
-  return `ECL-${timestamp}-${random}`.toUpperCase()
+export async function verifyCertificate(certificateNumber) {
+  const supabase = getSupabase()
+
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  try {
+    const { data: certificate, error } = await supabase
+      .from('certificates')
+      .select(
+        `
+        *,
+        credit_transactions!inner(
+          *,
+          project_credits!inner(
+            *,
+            projects!inner(title, category, location)
+          )
+        )
+      `,
+      )
+      .eq('certificate_number', certificateNumber)
+      .eq('status', 'active')
+      .single()
+
+    if (error || !certificate) {
+      throw new Error('Certificate not found or invalid')
+    }
+
+    return certificate
+  } catch (error) {
+    console.error('Error verifying certificate:', error)
+    throw error
+  }
 }

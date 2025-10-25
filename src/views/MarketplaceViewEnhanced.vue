@@ -120,7 +120,16 @@
                   @click="viewProject(listing)"
                 >
                   <div class="project-image">
-                    <img :src="listing.project_image" :alt="listing.project_title" />
+                    <img
+                      v-if="listing.project_image"
+                      :src="listing.project_image"
+                      :alt="listing.project_title"
+                    />
+                    <img
+                      v-else
+                      :src="`https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=250&fit=crop&${listing.listing_id}`"
+                      :alt="listing.project_title"
+                    />
                   </div>
                   <div class="project-info">
                     <h3 class="project-title">{{ listing.project_title }}</h3>

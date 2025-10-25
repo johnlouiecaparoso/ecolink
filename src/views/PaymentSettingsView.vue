@@ -1,7 +1,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/store/userStore'
-import { paymentService } from '@/services/paymentService'
+// import { paymentService } from '@/services/paymentService'
+// Mock payment service for development
+const paymentService = {
+  getUserTransactions: async (userId) => {
+    console.log('Mock getUserTransactions called for user:', userId)
+    return []
+  },
+}
 import PageLayout from '@/components/layout/PageLayout.vue'
 import UiButton from '@/components/ui/Button.vue'
 
