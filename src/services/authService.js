@@ -65,18 +65,32 @@ async function createUserProfile(userId, profileData) {
   const supabase = getSupabase()
   if (!supabase) return
 
-  const profileRecord = {
-    id: userId,
-    full_name: profileData.full_name,
-    role: profileData.role || 'user',
-    kyc_level: 0,
-  }
+  try {
+    // Import and use the proper createProfile function to ensure all fields are included
+    const { createProfile } = await import('@/services/profileService')
 
-  const { error } = await supabase.from('profiles').insert([profileRecord])
+    // Get user email from auth
+    const { data: authUser } = await supabase.auth.getUser()
+    const userEmail = authUser?.user?.email || ''
 
-  if (error) {
-    console.error('Profile creation error:', error)
-  } else {
+    // Create complete profile with all fields using the proper service
+    const profile = await createProfile({
+      id: userId,
+      full_name:
+        profileData.full_name ||
+        authUser?.user?.user_metadata?.name ||
+        userEmail?.split('@')[0] ||
+        'User',
+      email: userEmail,
+      role: profileData.role || 'general_user',
+      kyc_level: 0,
+      company: '',
+      location: '',
+      bio: '',
+    })
+
+    console.log('Profile created successfully during registration:', profile)
+
     // Send welcome email to new user
     try {
       await sendWelcomeEmail(userId)
@@ -85,6 +99,11 @@ async function createUserProfile(userId, profileData) {
       console.error('Error sending welcome email:', emailError)
       // Don't fail the registration if email sending fails
     }
+
+    return profile
+  } catch (error) {
+    console.error('Profile creation error during registration:', error)
+    throw error
   }
 }
 
@@ -95,8 +114,18 @@ export async function getSession() {
       console.warn('Supabase client not available')
       return null
     }
-    const { data } = await supabase.auth.getSession()
-    return data.session || null
+
+    // Use getSession() which automatically handles localStorage restoration
+    // Supabase's getSession() is synchronous for the stored session,
+    // but we need to ensure the client is fully initialized
+    const { data, error } = await supabase.auth.getSession()
+
+    if (error) {
+      console.error('Error getting session from Supabase:', error)
+      return null
+    }
+
+    return data?.session || null
   } catch (error) {
     console.error('Error getting session:', error)
     return null

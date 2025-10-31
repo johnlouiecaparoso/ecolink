@@ -231,45 +231,24 @@ const loadCredits = async () => {
   error.value = ''
 
   try {
-    // Simulate API call - replace with actual service call
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    // Import real marketplace service
+    const { getMarketplaceListings } = await import('@/services/marketplaceService')
 
-    // Mock data - replace with actual data from your service
-    credits.value = [
-      {
-        id: 1,
-        title: 'Amazon Rainforest Protection',
-        location: 'Brazil',
-        description: 'Protecting 10,000 hectares of pristine Amazon rainforest from deforestation.',
-        category: 'Forestry',
-        pricePerCredit: 25,
-        availableCredits: 5000,
-        createdAt: new Date().toISOString(),
-        purchases: 150,
-      },
-      {
-        id: 2,
-        title: 'Solar Farm Development',
-        location: 'India',
-        description: 'Building a 50MW solar farm to replace coal-fired power generation.',
-        category: 'Renewable',
-        pricePerCredit: 18,
-        availableCredits: 3000,
-        createdAt: new Date().toISOString(),
-        purchases: 89,
-      },
-      {
-        id: 3,
-        title: 'Mangrove Restoration',
-        location: 'Indonesia',
-        description: 'Restoring coastal mangroves to sequester carbon and protect communities.',
-        category: 'Blue Carbon',
-        pricePerCredit: 32,
-        availableCredits: 2000,
-        createdAt: new Date().toISOString(),
-        purchases: 67,
-      },
-    ]
+    // Fetch real data from Supabase
+    const listings = await getMarketplaceListings()
+
+    // Transform data for UI
+    credits.value = listings.map((listing) => ({
+      id: listing.id,
+      title: listing.project_title,
+      location: listing.location,
+      description: listing.project_description,
+      category: listing.category,
+      pricePerCredit: listing.price_per_credit,
+      availableCredits: listing.quantity,
+      createdAt: listing.created_at,
+      purchases: 0, // This would come from analytics
+    }))
   } catch (err) {
     error.value = 'Failed to load credits. Please try again.'
     console.error('Error loading credits:', err)
@@ -296,30 +275,85 @@ const processPurchase = async () => {
   }
 
   try {
-    // Simulate purchase process
-    console.log('Processing purchase:', {
-      credit: selectedCredit.value,
+    // Import real purchase service
+    const { purchaseCredits } = await import('@/services/marketplaceService')
+
+    // Create purchase data
+    const purchaseData = {
       quantity: purchaseQuantity.value,
-      total: totalPrice.value,
-    })
+      paymentMethod: 'gcash', // Default to GCash
+      paymentData: {
+        userId: userStore.session.user.id,
+        amount: totalPrice.value,
+        currency: 'PHP',
+        description: `Purchase of ${purchaseQuantity.value} credits for ${selectedCredit.value.title}`,
+        gcashNumber: '09171234567', // This would come from user input
+      },
+    }
 
-    // Here you would integrate with your actual purchase service
-    alert(
-      `Purchase successful! You bought ${purchaseQuantity.value} credits for $${totalPrice.value.toFixed(2)}`,
-    )
+    // Process real purchase
+    const result = await purchaseCredits(selectedCredit.value.id, purchaseData)
 
-    // Reset selection
-    selectedCredit.value = null
-    purchaseQuantity.value = 1
+    if (result.success) {
+      alert(
+        `🎉 Purchase Successful!\n\n` +
+          `Credits: ${purchaseQuantity.value}\n` +
+          `Project: ${selectedCredit.value.title}\n` +
+          `Total: $${totalPrice.value.toFixed(2)}\n\n` +
+          `Your carbon credits have been added to your portfolio!`,
+      )
+
+      // Reset selection
+      selectedCredit.value = null
+      purchaseQuantity.value = 1
+
+      // Reload credits to update availability
+      await loadCredits()
+    } else {
+      throw new Error(result.error || 'Purchase failed')
+    }
   } catch (err) {
     console.error('Purchase error:', err)
-    alert('Purchase failed. Please try again.')
+    alert(`Purchase failed: ${err.message || 'Please try again.'}`)
   }
 }
 
 // Lifecycle
 onMounted(() => {
   loadCredits()
+
+  // Check if we came from marketplace with a pre-selected project
+  const urlParams = new URLSearchParams(window.location.search)
+  const projectId = urlParams.get('project')
+  const listingId = urlParams.get('listing')
+  const title = urlParams.get('title')
+  const price = urlParams.get('price')
+  const currency = urlParams.get('currency')
+
+  if (projectId && title && price) {
+    // Pre-select the project from marketplace
+    const preSelectedCredit = {
+      id: listingId || projectId,
+      title: title,
+      pricePerCredit: parseFloat(price),
+      currency: currency || 'USD',
+      availableCredits: 1000, // Default value
+      category: 'Pre-selected',
+      location: 'From Marketplace',
+      description: `Pre-selected project: ${title}`,
+      createdAt: new Date().toISOString(),
+      purchases: 0,
+    }
+
+    // Add to credits list and select it
+    credits.value.unshift(preSelectedCredit)
+    selectCredit(preSelectedCredit)
+
+    // Scroll to summary section
+    setTimeout(() => {
+      document.querySelector('.summary-sidebar')?.scrollIntoView({ behavior: 'smooth' })
+    }, 500)
+  }
 })
 </script>
 
@@ -338,20 +372,20 @@ onMounted(() => {
 /* Page Header */
 .page-header {
   padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  background: var(--bg-secondary, #f8fdf8);
+  border-bottom: none;
+  background: var(--primary-color, #10b981);
 }
 
 .page-title {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--text-primary, #1a202c);
+  color: #fff;
   margin-bottom: 0.5rem;
 }
 
 .page-description {
   font-size: 1.125rem;
-  color: var(--text-muted, #718096);
+  color: #fff;
   line-height: 1.6;
 }
 
@@ -802,4 +836,3 @@ onMounted(() => {
   }
 }
 </style>
-

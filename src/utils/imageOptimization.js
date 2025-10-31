@@ -94,10 +94,22 @@ export function preloadCriticalImages(imageUrls) {
   if (typeof window === 'undefined') return
 
   imageUrls.forEach((url) => {
+    // Skip if already preloaded
+    const existingPreload = document.querySelector(`link[rel="preload"][href="${url}"]`)
+    if (existingPreload) return
+
     const link = document.createElement('link')
     link.rel = 'preload'
     link.as = 'image'
     link.href = url
+    link.crossOrigin = 'anonymous' // For external images
+
+    // Add error handling
+    link.onerror = () => {
+      console.warn(`Failed to preload image: ${url}`)
+      link.remove()
+    }
+
     document.head.appendChild(link)
   })
 }
@@ -151,14 +163,34 @@ export function optimizeImageLoading() {
   // Setup lazy loading
   setupLazyLoading()
 
-  // Only preload images if they're likely to be used soon
-  // (e.g., on homepage or marketplace)
-  if (window.location.pathname === '/' || window.location.pathname === '/marketplace') {
-    const criticalImages = [
-      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=300&fit=crop&auto=format',
-      'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=400&h=300&fit=crop&auto=format',
-    ]
+  // Only preload images if they're actually used on the current page
+  // Check if there are any img elements that reference these Unsplash images
+  const checkForUnsplashImages = () => {
+    const images = document.querySelectorAll('img')
+    const unsplashImages = []
 
-    preloadCriticalImages(criticalImages)
+    images.forEach((img) => {
+      const src = img.src || img.dataset.src || ''
+      if (src.includes('unsplash.com')) {
+        unsplashImages.push(src)
+      }
+    })
+
+    return unsplashImages
+  }
+
+  // Wait for DOM to be ready, then check for actual image usage
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      const usedImages = checkForUnsplashImages()
+      if (usedImages.length > 0) {
+        preloadCriticalImages(usedImages)
+      }
+    })
+  } else {
+    const usedImages = checkForUnsplashImages()
+    if (usedImages.length > 0) {
+      preloadCriticalImages(usedImages)
+    }
   }
 }

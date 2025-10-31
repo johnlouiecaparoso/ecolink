@@ -6,14 +6,45 @@ import { getSupabase } from '@/services/supabaseClient'
 export async function getPlatformOverview() {
   const supabase = getSupabase()
 
+  if (!supabase) {
+    console.error('Supabase client not initialized')
+    return {
+      totalProjects: 0,
+      activeProjects: 0,
+      totalUsers: 0,
+      totalTransactions: 0,
+      totalCreditsSold: 0,
+      totalRevenue: 0,
+      currency: 'PHP',
+    }
+  }
+
   try {
-    // Get counts for different entities
+    // First, check current user and their role for debugging
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+    console.log('🔍 [Analytics] Current user:', user?.email || 'Not authenticated', userError)
+
+    if (user) {
+      // Get user's profile to check role
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, role, full_name')
+        .eq('id', user.id)
+        .single()
+      console.log('🔍 [Analytics] User profile:', profile, profileError)
+    }
+
+    // Get counts for different entities - properly handle errors
+    console.log('🔍 [Analytics] Starting queries...')
     const [
-      { count: totalProjects },
-      { count: activeProjects },
-      { count: totalUsers },
-      { count: totalTransactions },
-      { count: totalCreditsSold },
+      projectsResult,
+      activeProjectsResult,
+      usersResult,
+      transactionsResult,
+      creditsSoldResult,
     ] = await Promise.all([
       supabase.from('projects').select('*', { count: 'exact', head: true }),
       supabase
@@ -28,11 +59,162 @@ export async function getPlatformOverview() {
       supabase.from('credit_ownership').select('*', { count: 'exact', head: true }),
     ])
 
+    // Detailed error logging
+    console.log('🔍 [Analytics] Query results received')
+    console.log('📊 [Analytics] Projects result:', {
+      count: projectsResult.count,
+      error: projectsResult.error?.message || null,
+    })
+    console.log('📊 [Analytics] Active projects result:', {
+      count: activeProjectsResult.count,
+      error: activeProjectsResult.error?.message || null,
+    })
+    console.log('📊 [Analytics] Users result:', {
+      count: usersResult.count,
+      error: usersResult.error?.message || null,
+      errorDetails: usersResult.error || null,
+    })
+    console.log('📊 [Analytics] Transactions result:', {
+      count: transactionsResult.count,
+      error: transactionsResult.error?.message || null,
+    })
+    console.log('📊 [Analytics] Credits sold result:', {
+      count: creditsSoldResult.count,
+      error: creditsSoldResult.error?.message || null,
+    })
+
+    // Check for errors in each query
+    if (projectsResult.error) {
+      console.error('❌ Error fetching total projects:', projectsResult.error)
+    }
+    if (activeProjectsResult.error) {
+      console.error('❌ Error fetching active projects:', activeProjectsResult.error)
+    }
+    if (usersResult.error) {
+      console.error('❌ Error fetching total users:', usersResult.error)
+      console.error('❌ Users error code:', usersResult.error.code)
+      console.error('❌ Users error details:', usersResult.error.details)
+      console.error('❌ Users error hint:', usersResult.error.hint)
+    }
+    if (transactionsResult.error) {
+      console.error('❌ Error fetching transactions:', transactionsResult.error)
+    }
+    if (creditsSoldResult.error) {
+      console.error('❌ Error fetching credits sold:', creditsSoldResult.error)
+    }
+
+    // Try alternative query for users if first one fails
+    let totalUsers = usersResult.error ? 0 : usersResult.count || 0
+
+    // Check if RLS is silently filtering (0 count with no error)
+    if (usersResult.count === 0 && !usersResult.error && user) {
+      console.warn('⚠️ CRITICAL: Count query returned 0 with NO error!')
+      console.warn('⚠️ This means RLS policies are silently filtering all profiles')
+      console.warn('⚠️ Checking if we can query own profile...')
+
+      // Check if we can at least query our own profile
+      const { data: ownProfile, error: ownProfileError } = await supabase
+        .from('profiles')
+        .select('id, role')
+        .eq('id', user.id)
+        .single()
+
+      if (!ownProfileError && ownProfile) {
+        console.log('✅ Can query own profile. Role:', ownProfile.role)
+        console.error('❌ PROBLEM: RLS is filtering out all OTHER profiles')
+        console.error('❌ The is_admin() function might not recognize you as admin')
+        console.error('❌ Your role in database:', ownProfile.role)
+        console.error('❌ Expected roles: admin, super_admin, Administrator, Admin')
+
+        // This is definitely an RLS issue - try to get count via select
+        const { data: allProfiles, error: selectError } = await supabase
+          .from('profiles')
+          .select('id')
+
+        if (!selectError && allProfiles && allProfiles.length > 0) {
+          totalUsers = allProfiles.length
+          console.log('✅ Got count via select query:', totalUsers)
+        } else {
+          console.error('❌ Cannot query any profiles - RLS is blocking')
+        }
+      }
+    }
+
+    // If count query failed (any error), try alternative methods
+    if (usersResult.error) {
+      console.warn('⚠️ Profiles count query failed, trying alternative methods...')
+      console.warn('⚠️ Error code:', usersResult.error.code)
+      console.warn('⚠️ Error message:', usersResult.error.message)
+
+      // Method 1: Try selecting all and counting manually
+      console.log('📝 Trying Method 1: Select all profiles and count...')
+      const { data: allProfiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id')
+
+      if (!profilesError && allProfiles) {
+        totalUsers = allProfiles.length
+        console.log('✅ Method 1 succeeded, user count:', totalUsers)
+      } else {
+        console.error('❌ Method 1 failed:', profilesError?.message || profilesError)
+
+        // Method 2: Try selecting with specific columns (sometimes works when * doesn't)
+        console.log('📝 Trying Method 2: Select specific columns...')
+        const { data: profilesById, error: profilesByIdError } = await supabase
+          .from('profiles')
+          .select('id, role')
+
+        if (!profilesByIdError && profilesById) {
+          totalUsers = profilesById.length
+          console.log('✅ Method 2 succeeded, user count:', totalUsers)
+        } else {
+          console.error('❌ Method 2 failed:', profilesByIdError?.message || profilesByIdError)
+
+          // Method 3: Check if we can query own profile first (verify connection)
+          console.log('📝 Trying Method 3: Verify connection with own profile...')
+          if (user) {
+            const { data: ownProfile, error: ownProfileError } = await supabase
+              .from('profiles')
+              .select('id, role')
+              .eq('id', user.id)
+              .single()
+
+            if (ownProfileError) {
+              console.error('❌ Cannot even query own profile:', ownProfileError.message)
+              console.error('❌ This suggests RLS policies are blocking ALL access')
+              console.error('❌ Please run fix-admin-rls-policies.sql in Supabase')
+            } else {
+              console.log('✅ Can query own profile. Role:', ownProfile.role)
+              console.warn('⚠️ Cannot query all profiles. Likely RLS policy issue.')
+              console.warn('⚠️ Your role might not be recognized as admin by RLS policies.')
+            }
+          }
+        }
+      }
+    }
+
+    const totalProjects = projectsResult.error ? 0 : projectsResult.count || 0
+    const activeProjects = activeProjectsResult.error ? 0 : activeProjectsResult.count || 0
+    const totalTransactions = transactionsResult.error ? 0 : transactionsResult.count || 0
+    const totalCreditsSold = creditsSoldResult.error ? 0 : creditsSoldResult.count || 0
+
+    console.log('✅ [Analytics] Final counts:', {
+      totalUsers,
+      totalProjects,
+      activeProjects,
+      totalTransactions,
+      totalCreditsSold,
+    })
+
     // Get revenue data
-    const { data: revenueData } = await supabase
+    const { data: revenueData, error: revenueError } = await supabase
       .from('credit_transactions')
       .select('total_amount, currency')
       .eq('status', 'completed')
+
+    if (revenueError) {
+      console.error('Error fetching revenue data:', revenueError)
+    }
 
     const totalRevenue =
       revenueData?.reduce((sum, transaction) => {
@@ -43,17 +225,25 @@ export async function getPlatformOverview() {
       }, 0) || 0
 
     return {
-      totalProjects: totalProjects || 0,
-      activeProjects: activeProjects || 0,
-      totalUsers: totalUsers || 0,
-      totalTransactions: totalTransactions || 0,
-      totalCreditsSold: totalCreditsSold || 0,
+      totalProjects,
+      activeProjects,
+      totalUsers,
+      totalTransactions,
+      totalCreditsSold,
       totalRevenue: Math.round(totalRevenue),
       currency: 'PHP',
     }
   } catch (error) {
     console.error('Error fetching platform overview:', error)
-    throw new Error('Failed to fetch platform overview')
+    return {
+      totalProjects: 0,
+      activeProjects: 0,
+      totalUsers: 0,
+      totalTransactions: 0,
+      totalCreditsSold: 0,
+      totalRevenue: 0,
+      currency: 'PHP',
+    }
   }
 }
 
@@ -454,12 +644,3 @@ export async function generateAnalyticsReport() {
     throw new Error('Failed to generate analytics report')
   }
 }
-
-
-
-
-
-
-
-
-

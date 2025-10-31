@@ -21,12 +21,12 @@
     "test:all": "npm run test:run && npm run test:e2e",
     "lighthouse": "lighthouse http://localhost:5173 --output html --output-path ./lighthouse-report.html",
     "lighthouse:ci": "lhci autorun",
-    "setup:supabase": "node setup-supabase.js",
-    "setup:accounts": "node setup-test-accounts.js",
-    "test:supabase": "node test-supabase-integration.js",
-    "test:integration": "node test-complete-integration.js",
-    "test:integration:fixed": "node test-integration-fixed.js",
-    "test:simple": "node simple-integration-test.js"
+    "setup:supabase": "node scripts/setup/setup-supabase.js",
+    "setup:accounts": "node scripts/setup/setup-test-accounts.js",
+    "test:supabase": "node scripts/test/integration/test-supabase-integration.js",
+    "test:integration": "node scripts/test/integration/test-complete-integration.js",
+    "test:integration:fixed": "node scripts/test/integration/test-integration-fixed.js",
+    "test:simple": "node scripts/test/integration/simple-integration-test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

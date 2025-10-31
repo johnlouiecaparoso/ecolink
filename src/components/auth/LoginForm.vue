@@ -1,13 +1,15 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
+import { ROLES } from '@/constants/roles'
 import { loginWithEmail } from '@/services/authService'
 import { getTestAccountByEmail } from '@/utils/testAccounts'
 import UiInput from '@/components/ui/Input.vue'
 import UiButton from '@/components/ui/Button.vue'
 
 const router = useRouter()
+const route = useRoute()
 const store = useUserStore()
 const email = ref('')
 const password = ref('')
@@ -58,29 +60,53 @@ async function handleSubmit() {
   try {
     let session
 
-    // Check if this is a test account
-    const testAccount = getTestAccountByEmail(email.value)
-    if (testAccount && password.value === testAccount.password) {
-      // Use test account mock session
-      store.session = testAccount.mockSession
-      store.role = testAccount.role
-      console.log(`Logged in as test ${testAccount.role}:`, testAccount.name)
-      router.replace('/')
-      return
+    // TEST ACCOUNTS DISABLED IN PRODUCTION
+    // Only enable test accounts in development mode
+    const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development'
+
+    if (isDevelopment) {
+      // Check if this is a test account (development only)
+      const testAccount = getTestAccountByEmail(email.value)
+      if (testAccount && password.value === testAccount.password) {
+        // Use test account mock session (development only)
+        store.session = testAccount.mockSession
+        store.role = testAccount.role
+        console.log(`[DEV] Logged in as test ${testAccount.role}:`, testAccount.name)
+
+        // Redirect based on priority: returnTo or Home
+        const returnTo = route.query.returnTo
+        if (returnTo) {
+          router.replace(decodeURIComponent(returnTo))
+        } else {
+          console.log(`[DEV] Test login as ${testAccount.role}, redirecting to Home`)
+          router.replace({ name: 'home' })
+        }
+        return
+      }
     }
 
-    // Try real email authentication
+    // Try real email authentication (production)
     const result = await loginWithEmail({ email: email.value, password: password.value })
     session = result.session
 
     // Set session immediately to avoid guard race conditions
     if (session) {
       store.session = session
+      // Fetch user profile to get role for redirect
+      // Wait for profile to be fully loaded before redirecting
+      await store.fetchUserProfile()
+
+      // Give store time to update role (if needed)
+      if (!store.role || store.role === ROLES.GENERAL_USER) {
+        // Wait a bit more if role isn't set yet
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
     } else {
       await store.fetchSession()
     }
-    // Redirect to homepage after successful login
-    router.replace('/')
+
+    // Redirect to Home
+    router.replace({ name: 'home' })
   } catch (err) {
     const msg = String(err?.message || '')
     if (/email_not_confirmed|confirm your email/i.test(msg)) {
@@ -139,8 +165,8 @@ async function handleSubmit() {
 /* Enhanced Login Form - Properly centered and sized */
 .login-form-container {
   width: 100%;
-  max-width: 100%;
-  margin: 0;
+  max-width: 480px;
+  margin: 0 auto;
   padding: 1.5rem 1rem;
   background: transparent;
   border-radius: 0;
@@ -183,9 +209,9 @@ async function handleSubmit() {
   display: grid;
   gap: 1.25rem;
   width: 100%;
-  max-width: 100%;
+  max-width: 420px;
   padding: 0;
-  margin: 0;
+  margin: 0 auto;
   box-sizing: border-box;
 }
 

@@ -8,12 +8,16 @@ export async function getSimpleMarketplaceListings(filters = {}) {
   const supabase = getSupabase()
 
   if (!supabase) {
-    console.warn('Supabase client not initialized')
+    if (import.meta.env.DEV) {
+      console.warn('[DEV] Supabase client not initialized')
+    }
     return []
   }
 
   try {
-    console.log('🔍 Using simple marketplace approach...')
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Using simple marketplace approach...')
+    }
 
     // Step 1: Get credit listings (this works in debug)
     const { data: listings, error: listingsError } = await supabase
@@ -22,11 +26,13 @@ export async function getSimpleMarketplaceListings(filters = {}) {
       .eq('status', 'active')
 
     if (listingsError) {
-      console.error('❌ Error fetching credit listings:', listingsError)
+      console.error('[ERROR] Error fetching credit listings:', listingsError)
       throw listingsError
     }
 
-    console.log('✅ Found', listings?.length || 0, 'credit listings')
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Found', listings?.length || 0, 'credit listings')
+    }
 
     if (!listings || listings.length === 0) {
       return []
@@ -40,11 +46,13 @@ export async function getSimpleMarketplaceListings(filters = {}) {
       .in('id', listingIds)
 
     if (creditsError) {
-      console.error('❌ Error fetching project credits:', creditsError)
+      console.error('[ERROR] Error fetching project credits:', creditsError)
       throw creditsError
     }
 
-    console.log('✅ Found', credits?.length || 0, 'project credits')
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Found', credits?.length || 0, 'project credits')
+    }
 
     // Step 3: Get projects for these credits
     const projectIds = credits?.map((c) => c.project_id).filter(Boolean) || []
@@ -55,11 +63,13 @@ export async function getSimpleMarketplaceListings(filters = {}) {
       .eq('status', 'approved') // Only approved projects
 
     if (projectsError) {
-      console.error('❌ Error fetching projects:', projectsError)
+      console.error('[ERROR] Error fetching projects:', projectsError)
       throw projectsError
     }
 
-    console.log('✅ Found', projects?.length || 0, 'approved projects')
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Found', projects?.length || 0, 'approved projects')
+    }
 
     // Step 4: Get seller names
     const sellerIds = [...new Set(listings.map((l) => l.seller_id).filter(Boolean))]
@@ -103,11 +113,13 @@ export async function getSimpleMarketplaceListings(filters = {}) {
       })
       .filter(Boolean) // Remove null entries
 
-    console.log('✅ Transformed', transformedListings.length, 'listings for marketplace')
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Transformed', transformedListings.length, 'listings for marketplace')
+    }
 
     return transformedListings
   } catch (error) {
-    console.error('❌ Error in simple marketplace service:', error)
+    console.error('[ERROR] Error in simple marketplace service:', error)
     return []
   }
 }

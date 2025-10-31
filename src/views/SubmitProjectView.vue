@@ -83,8 +83,31 @@ const router = useRouter()
 
 const handleProjectSuccess = (projectData) => {
   console.log('Project submitted successfully:', projectData)
-  // You can add success notification here
-  // For now, we'll just log it
+
+  // Show success message with navigation options
+  const successMessage = `
+🎉 Project Submitted Successfully!
+
+Your project "${projectData.title}" has been submitted for verification.
+
+Next Steps:
+1. Your project will be reviewed by our verifiers
+2. Once approved, it will appear in the marketplace
+3. You can track your project status in your dashboard
+
+Would you like to:
+• Browse the marketplace to see other projects
+• Return to your dashboard
+• Submit another project
+  `
+
+  if (
+    confirm(successMessage + '\n\nClick OK to go to marketplace, Cancel to return to dashboard.')
+  ) {
+    router.push('/marketplace')
+  } else {
+    router.push('/')
+  }
 }
 
 const handleProjectCancel = () => {
@@ -109,20 +132,20 @@ const handleProjectCancel = () => {
 /* Page Header */
 .page-header {
   padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  background: var(--bg-secondary, #f8fdf8);
+  border-bottom: none;
+  background: var(--primary-color, #10b981);
 }
 
 .page-title {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--text-primary, #1a202c);
+  color: #fff;
   margin-bottom: 0.5rem;
 }
 
 .page-description {
   font-size: 1.125rem;
-  color: var(--text-muted, #718096);
+  color: #fff;
   line-height: 1.6;
 }
 
@@ -277,4 +300,3 @@ const handleProjectCancel = () => {
   }
 }
 </style>
-

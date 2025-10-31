@@ -274,7 +274,7 @@
                 Wallet
               </router-link>
               <router-link
-                v-if="userStore.isAuthenticated"
+                v-if="userStore.isAuthenticated && userStore.isProjectDeveloper"
                 to="/submit-project"
                 @click="mobileMenuOpen = false"
                 style="
@@ -331,12 +331,13 @@
                 style="
                   display: block !important;
                   padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
+                  background: var(--primary-color, #10b981) !important;
+                  border: none !important;
                   border-radius: 6px !important;
                   text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
+                  color: #fff !important;
+                  font-weight: 600 !important;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                 "
               >
                 Certificates
@@ -348,28 +349,31 @@
                 style="
                   display: block !important;
                   padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
+                  background: var(--primary-color, #10b981) !important;
+                  border: none !important;
                   border-radius: 6px !important;
                   text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
+                  color: #fff !important;
+                  font-weight: 600 !important;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                 "
               >
                 Receipts
               </router-link>
               <router-link
+                v-if="userStore.isAuthenticated"
                 to="/retire"
                 @click="mobileMenuOpen = false"
                 style="
                   display: block !important;
                   padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
+                  background: var(--primary-color, #10b981) !important;
+                  border: none !important;
                   border-radius: 6px !important;
                   text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
+                  color: #fff !important;
+                  font-weight: 600 !important;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                 "
               >
                 Retire Credits
@@ -382,12 +386,13 @@
                 style="
                   display: block !important;
                   padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
+                  background: var(--primary-color, #10b981) !important;
+                  border: none !important;
                   border-radius: 6px !important;
                   text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
+                  color: #fff !important;
+                  font-weight: 600 !important;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                 "
               >
                 Verifier Panel
@@ -401,12 +406,13 @@
                 style="
                   display: block !important;
                   padding: 0.75rem !important;
-                  background: #fff3cd !important;
-                  border: 1px solid #ffc107 !important;
+                  background: var(--primary-color, #10b981) !important;
+                  border: none !important;
                   border-radius: 6px !important;
                   text-decoration: none !important;
-                  color: #856404 !important;
-                  font-weight: 500 !important;
+                  color: #fff !important;
+                  font-weight: 600 !important;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
                 "
               >
                 Admin Dashboard
@@ -555,30 +561,59 @@ const navItems = computed(() => {
     return baseItems
   }
 
+  // IMPORTANT: Debug role checking
+  if (import.meta.env.DEV) {
+    console.log('[Header] navItems computed - Role check:', {
+      role: userStore.role,
+      profile: userStore.profile,
+      isAdmin: userStore.isAdmin,
+      isVerifier: userStore.isVerifier,
+      isProjectDeveloper: userStore.isProjectDeveloper,
+      authenticated: userStore.isAuthenticated,
+    })
+  }
+
   // If user is authenticated, show main functionality items only
   const authenticatedItems = [
     ...baseItems, // Home, Marketplace
-    { path: '/projects', label: 'Submit Project' },
     { path: '/retire', label: 'Retire' },
     { path: '/buy-credits', label: 'Buy Credits' },
   ]
 
+  // Only show Submit Project for Project Developers
+  if (userStore.isProjectDeveloper) {
+    if (import.meta.env.DEV) console.log('[Header] Adding Submit Project link')
+    authenticatedItems.splice(2, 0, { path: '/submit-project', label: 'Submit Project' })
+  }
+
   // Add verifier-specific navigation for verifiers only
-  if (userStore.isVerifier && !userStore.isAdmin) {
+  // NOTE: Admin can also be verifier, so check verifier role regardless of admin status
+  if (userStore.isVerifier) {
+    if (import.meta.env.DEV) console.log('[Header] Adding Verifier Panel link')
     authenticatedItems.splice(3, 0, { path: '/verifier', label: 'Verifier Panel' })
   }
 
   // Add admin-specific navigation for admins
   if (userStore.isAdmin) {
+    if (import.meta.env.DEV) console.log('[Header] Adding Admin Dashboard link')
     authenticatedItems.splice(3, 0, { path: '/admin', label: 'Admin Dashboard' })
   }
 
   // Admin Dashboard is now in main navigation, other admin features remain in profile dropdown
 
   // EXPLICITLY exclude certificates and receipts from main nav (they're in profile dropdown)
-  return authenticatedItems.filter(
+  const finalItems = authenticatedItems.filter(
     (item) => !item.path.includes('/certificates') && !item.path.includes('/receipts'),
   )
+
+  if (import.meta.env.DEV) {
+    console.log(
+      '[Header] Final navItems:',
+      finalItems.map((i) => i.label),
+    )
+  }
+
+  return finalItems
 })
 
 function isActive(path) {
@@ -837,7 +872,7 @@ function handleLogout() {
   position: relative;
 }
 
-.nav-link:hover {
+.nav-link:hover:not(.active) {
   color: var(--primary-color);
   background: var(--bg-green-light);
   transform: translateY(-1px);

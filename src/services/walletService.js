@@ -3,14 +3,22 @@ import { USE_DATABASE } from '@/config/database'
 import { createGCashPayment, createMayaPayment, checkPaymentStatus } from './paymentGatewayService'
 
 export async function getWalletBalance(userId = null) {
-  // Skip database calls if disabled
-  if (!USE_DATABASE) {
-    console.log('Database disabled, using sample data for wallet balance')
+  // In production, always use database (USE_DATABASE should be true)
+  // Sample data only for development/testing
+  const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development'
+
+  if (!USE_DATABASE && isDevelopment) {
+    console.warn('[DEV] Database disabled, using sample data for wallet balance')
     return {
       current_balance: 1250.5,
       currency: 'USD',
       last_updated: new Date().toISOString(),
     }
+  }
+
+  // Production: Must use database
+  if (!USE_DATABASE) {
+    throw new Error('Database must be enabled in production')
   }
 
   const supabase = getSupabase()

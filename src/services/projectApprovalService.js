@@ -1,4 +1,4 @@
-import { getSupabase } from '@/services/supabaseClient'
+import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 
 /**
@@ -7,7 +7,11 @@ import { getCurrentUserId } from '@/utils/authHelper'
  */
 export class ProjectApprovalService {
   constructor() {
-    this.supabase = getSupabase()
+    // Don't initialize here - get dynamically to avoid timing issues
+  }
+
+  get supabase() {
+    return getSupabase()
   }
 
   /**
@@ -286,17 +290,25 @@ export class ProjectApprovalService {
    * @returns {Promise<Array>} All projects
    */
   async getAllProjects() {
-    if (!this.supabase) {
+    let supabase = this.supabase
+    if (!supabase) {
+      // Try to initialize if not ready
+      supabase = await getSupabaseAsync()
+    }
+
+    if (!supabase) {
+      console.error('Supabase client not available in getAllProjects')
       throw new Error('Supabase client not available')
     }
 
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await supabase
         .from('projects')
         .select('*')
         .order('created_at', { ascending: false })
 
       if (error) {
+        console.error('Error fetching projects:', error)
         throw new Error(error.message || 'Failed to fetch projects')
       }
 

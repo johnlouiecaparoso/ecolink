@@ -322,19 +322,20 @@ onMounted(() => {
 /* Page Header */
 .page-header {
   padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color);
+  background: var(--primary-color, #10b981);
+  border-bottom: none;
 }
 
 .page-title {
   font-size: var(--font-size-4xl);
   font-weight: 700;
-  color: var(--text-primary);
+  color: #fff;
   margin-bottom: 0.5rem;
 }
 
 .page-description {
   font-size: var(--font-size-lg);
-  color: var(--text-muted);
+  color: #fff;
 }
 
 /* Main Content */

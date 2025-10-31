@@ -1,13 +1,22 @@
 import { getSupabase } from '@/services/supabaseClient'
 
+// Sample data service - DEVELOPMENT ONLY
+const isDevelopment = import.meta.env.DEV || import.meta.env.MODE === 'development'
+
 /**
  * Create sample marketplace data for testing
+ * DEVELOPMENT ONLY - This function should not be called in production
  */
 export async function createSampleMarketplaceData() {
+  if (!isDevelopment) {
+    console.error('[PROD] Sample data creation is disabled in production')
+    throw new Error('Sample data creation is not allowed in production')
+  }
+
   const supabase = getSupabase()
 
   try {
-    console.log('Creating sample marketplace data...')
+    console.log('[DEV] Creating sample marketplace data...')
 
     // First, create some sample projects
     const sampleProjects = [
@@ -138,12 +147,17 @@ export async function createSampleMarketplaceData() {
 
 /**
  * Create sample user data for testing
+ * DEVELOPMENT ONLY
  */
 export async function createSampleUsers() {
+  if (!isDevelopment) {
+    throw new Error('Sample user creation is not allowed in production')
+  }
+
   const supabase = getSupabase()
 
   try {
-    console.log('Creating sample users...')
+    console.log('[DEV] Creating sample users...')
 
     const sampleUsers = [
       {
@@ -179,10 +193,15 @@ export async function createSampleUsers() {
 
 /**
  * Initialize sample data for the application
+ * DEVELOPMENT ONLY
  */
 export async function initializeSampleData() {
+  if (!isDevelopment) {
+    throw new Error('Sample data initialization is not allowed in production')
+  }
+
   try {
-    console.log('Initializing sample data...')
+    console.log('[DEV] Initializing sample data...')
 
     const results = await createSampleMarketplaceData()
     const users = await createSampleUsers()
@@ -207,5 +226,3 @@ export async function initializeSampleData() {
     }
   }
 }
-
-

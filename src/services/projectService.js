@@ -88,9 +88,16 @@ export class ProjectService {
    */
   async getUserProjects() {
     try {
+      // SECURITY FIX: Get current user ID and filter by user_id
+      const userId = await getCurrentUserId()
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+
       const { data, error } = await this.supabase
         .from('projects')
         .select('*')
+        .eq('user_id', userId) // CRITICAL: Filter by user_id to show only user's projects
         .order('created_at', { ascending: false })
 
       if (error) {

@@ -3,9 +3,10 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
+import ConnectionIndicator from '@/components/ui/ConnectionIndicator.vue'
 import { usePreferencesStore } from '@/store/preferencesStore'
 import { useUserStore } from '@/store/userStore'
-import { useErrorStore } from '@/store/errorStore'
+// import { useErrorStore } from '@/store/errorStore' // Temporarily disabled
 import { getSupabase } from '@/services/supabaseClient'
 
 const route = useRoute()
@@ -13,6 +14,11 @@ const route = useRoute()
 const showHeader = computed(() => {
   // Don't show header on auth pages
   return !['login', 'register'].includes(route.name)
+})
+
+const isAppReady = computed(() => {
+  const userStore = useUserStore()
+  return !userStore.loading
 })
 
 // Initialize stores and auth inside onMounted to avoid Pinia issues
@@ -23,7 +29,7 @@ onMounted(async () => {
     // Initialize stores after component is mounted
     const preferencesStore = usePreferencesStore()
     const userStore = useUserStore()
-    const errorStore = useErrorStore()
+    // const errorStore = useErrorStore() // Temporarily disabled
 
     // Apply initial theme
     preferencesStore.applyTheme()
@@ -37,7 +43,7 @@ onMounted(async () => {
       // Keep session in sync with auth state changes (email confirm, sign in/out in other tabs)
       supabase.auth.onAuthStateChange(async (event, session) => {
         try {
-          console.log('Auth state change:', event, session ? 'has session' : 'no session')
+          console.log('🔄 Auth state change:', event, session ? 'has session' : 'no session')
 
           // Add timeout to prevent hanging
           const timeoutPromise = new Promise((_, reject) =>
@@ -53,19 +59,40 @@ onMounted(async () => {
         }
       })
 
-      // Initial session fetch with timeout
-      try {
-        console.log('📡 Fetching initial session...')
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Initial session fetch timeout')), 5000),
-        )
+      // Initial session fetch with timeout - only if session not already loaded
+      // Router guard may have already fetched it, so check first
+      if (!userStore.session && !userStore.loading) {
+        try {
+          console.log('📡 Fetching initial session in App.vue...')
+          const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Initial session fetch timeout')), 10000),
+          )
 
-        await Promise.race([userStore.fetchSession(), timeoutPromise])
-        console.log('✅ Initial session fetch completed')
-      } catch (error) {
-        console.error('Initial session fetch failed:', error)
-        // Continue without session - app should still work
-        userStore.loading = false
+          await Promise.race([userStore.fetchSession(), timeoutPromise])
+          console.log('✅ Initial session fetch completed')
+
+          // If we have a valid session, log it for debugging
+          if (userStore.isAuthenticated) {
+            console.log('✅ User is authenticated:', userStore.session.user.email)
+            console.log(
+              '✅ Session expires at:',
+              new Date(userStore.session.expires_at * 1000).toLocaleString(),
+            )
+          } else {
+            console.log('ℹ️ No active session found')
+          }
+        } catch (error) {
+          console.error('Initial session fetch failed:', error)
+          // Continue without session - app should still work
+          userStore.loading = false
+        }
+      } else {
+        // Session already loaded (by router guard) or currently loading
+        console.log(
+          userStore.session
+            ? '✅ Session already loaded from router guard'
+            : '⏳ Session fetch already in progress',
+        )
       }
     } else {
       console.warn('⚠️ Supabase client not available')
@@ -84,9 +111,23 @@ onMounted(async () => {
 
 <template>
   <ErrorBoundary>
-    <div>
+    <!-- Loading Screen -->
+    <div v-if="!isAppReady" class="loading-screen">
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <h2>Loading EcoLink...</h2>
+        <p>Please wait while we initialize your session</p>
+      </div>
+    </div>
+
+    <!-- Main App -->
+    <div v-else>
       <Header v-if="showHeader" />
       <router-view />
+
+      <!-- Connection Status Indicator -->
+      <ConnectionIndicator />
+
       <!-- Global Toast Notifications -->
       <div id="toast-container" class="toast-container"></div>
 
@@ -97,6 +138,57 @@ onMounted(async () => {
 </template>
 
 <style>
+/* Loading Screen Styles */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #f0f9f0 0%, #e8f5e8 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-content {
+  text-align: center;
+  color: #374151;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #e5e7eb;
+  border-top: 4px solid #10b981;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+.loading-content h2 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.loading-content p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 :root {
   /* Core Green Colors */
   --primary-color: #069e2d;

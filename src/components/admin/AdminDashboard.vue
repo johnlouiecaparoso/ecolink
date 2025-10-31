@@ -1,21 +1,28 @@
 <template>
   <div class="admin-dashboard">
+    <!-- Page Header -->
+    <div class="page-header">
+      <div class="container">
+        <h1 class="page-title">Admin Dashboard</h1>
+        <p class="page-description">Manage users, projects, and system settings</p>
+      </div>
+    </div>
     <div class="admin-stats">
       <div class="stat-card">
         <h3>Total Users</h3>
-        <p class="stat-number">{{ stats.totalUsers }}</p>
+        <p class="stat-number">{{ loading ? '...' : stats.totalUsers }}</p>
       </div>
       <div class="stat-card">
         <h3>Active Projects</h3>
-        <p class="stat-number">{{ stats.activeProjects }}</p>
+        <p class="stat-number">{{ loading ? '...' : stats.activeProjects }}</p>
       </div>
       <div class="stat-card">
         <h3>Pending Projects</h3>
-        <p class="stat-number">{{ stats.pendingProjects }}</p>
+        <p class="stat-number">{{ loading ? '...' : stats.pendingProjects }}</p>
       </div>
       <div class="stat-card">
         <h3>Total Credits</h3>
-        <p class="stat-number">{{ stats.totalCredits.toLocaleString() }}</p>
+        <p class="stat-number">{{ loading ? '...' : stats.totalCredits.toLocaleString() }}</p>
       </div>
     </div>
 
@@ -59,6 +66,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { projectApprovalService } from '@/services/projectApprovalService'
+import { getPlatformOverview, getCreditStats } from '@/services/analyticsService'
+import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
+import { diagnoseAdminDashboard } from '@/utils/diagnoseAdminDashboard'
+import { debugAdminQueries } from '@/utils/debugAdminQueries'
 import ProjectApprovalPanel from './ProjectApprovalPanel.vue'
 
 const stats = ref({
@@ -68,30 +79,203 @@ const stats = ref({
   totalCredits: 0,
 })
 
+const loading = ref(true)
+
 onMounted(async () => {
   await loadStats()
+
+  // If stats are all zero, run diagnostics
+  if (stats.value.totalUsers === 0 && stats.value.activeProjects === 0) {
+    console.warn('⚠️ All stats are zero, running diagnostics...')
+    console.log(
+      '💡 You can also run debugAdminQueries() or diagnoseAdminDashboard() in console manually',
+    )
+    setTimeout(async () => {
+      try {
+        // Run enhanced debug queries first
+        const debugResult = await debugAdminQueries()
+        console.log('📊 Debug result:', debugResult)
+
+        // Also run full diagnostics
+        const result = await diagnoseAdminDashboard()
+        if (!result.success || stats.value.totalUsers === 0) {
+          console.error('❌ Diagnostics found issues. Check logs above for details.')
+          console.log('💡 To debug queries: await debugAdminQueries()')
+          console.log('💡 To full diagnose: await diagnoseAdminDashboard()')
+        }
+      } catch (err) {
+        console.error('❌ Diagnostic function error:', err)
+      }
+    }, 2000) // Wait 2 seconds to let stats finish loading
+  }
 })
 
 async function loadStats() {
   try {
-    // Get all projects to calculate stats
-    const allProjects = await projectApprovalService.getAllProjects()
+    loading.value = true
 
+    // Ensure Supabase is initialized before proceeding
+    let supabase = getSupabase()
+    if (!supabase) {
+      console.log('Supabase not ready, initializing...')
+      supabase = await getSupabaseAsync()
+    }
+
+    if (!supabase) {
+      console.error('Supabase client not initialized in AdminDashboard')
+      stats.value = {
+        totalUsers: 0,
+        activeProjects: 0,
+        pendingProjects: 0,
+        totalCredits: 0,
+      }
+      return
+    }
+
+    // Fetch real-time data from multiple sources in parallel
+    const [platformOverview, creditStatsData, projectsResult, creditsResult] = await Promise.all([
+      getPlatformOverview().catch((error) => {
+        console.error('Error fetching platform overview:', error)
+        return {
+          totalUsers: 0,
+          activeProjects: 0,
+          totalTransactions: 0,
+          totalCreditsSold: 0,
+        }
+      }),
+      getCreditStats().catch((error) => {
+        console.error('Error fetching credit stats:', error)
+        return { totalCreditsSold: 0 }
+      }),
+      projectApprovalService.getAllProjects().catch((error) => {
+        console.error('Error fetching all projects:', error)
+        return []
+      }),
+      supabase
+        .from('project_credits')
+        .select('total_credits')
+        .then((result) => {
+          if (result.error) {
+            console.error('Error fetching project credits:', result.error)
+            return { data: null, error: result.error }
+          }
+          return result
+        })
+        .catch((error) => {
+          console.error('Error in project_credits query:', error)
+          return { data: null, error }
+        }),
+    ])
+
+    // Calculate total users from profiles - try multiple sources
+    stats.value.totalUsers = platformOverview.totalUsers || 0
+    console.log('Total users from platform overview:', stats.value.totalUsers)
+
+    // If platform overview returned 0, try direct query as fallback
+    if (stats.value.totalUsers === 0) {
+      console.log('⚠️ Platform overview returned 0 users, trying direct query...')
+      try {
+        // Direct query to profiles table
+        const { count: directCount, error: directError } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true })
+
+        if (!directError && directCount !== null) {
+          stats.value.totalUsers = directCount
+          console.log('✅ Direct query succeeded, user count:', directCount)
+        } else if (directError) {
+          console.error('❌ Direct query failed:', directError)
+          // Try selecting data and counting
+          const { data: profilesData, error: profilesError } = await supabase
+            .from('profiles')
+            .select('id')
+
+          if (!profilesError && profilesData) {
+            stats.value.totalUsers = profilesData.length
+            console.log('✅ Data select succeeded, user count:', profilesData.length)
+          } else {
+            console.error('❌ Data select also failed:', profilesError)
+          }
+        }
+      } catch (fallbackError) {
+        console.error('❌ Fallback query exception:', fallbackError)
+      }
+    }
+
+    // Get project counts from real data
+    const allProjects = Array.isArray(projectsResult) ? projectsResult : []
     stats.value.activeProjects = allProjects.filter((p) => p.status === 'approved').length
     stats.value.pendingProjects = allProjects.filter((p) => p.status === 'pending').length
-    stats.value.totalCredits = allProjects.filter((p) => p.status === 'approved').length * 500 // Rough estimate
+    console.log('Projects loaded:', {
+      total: allProjects.length,
+      active: stats.value.activeProjects,
+      pending: stats.value.pendingProjects,
+    })
 
-    // TODO: Add user count from user service when available
-    stats.value.totalUsers = 3 // Test accounts for now
+    // Calculate total credits from project_credits table (sum of all credits)
+    if (creditsResult.data && !creditsResult.error) {
+      stats.value.totalCredits = creditsResult.data.reduce(
+        (sum, credit) => sum + (parseInt(credit.total_credits) || 0),
+        0,
+      )
+      console.log('Total credits from project_credits:', stats.value.totalCredits)
+    } else {
+      // Fallback to total credits sold if project_credits unavailable
+      stats.value.totalCredits =
+        creditStatsData.totalCreditsSold || platformOverview.totalCreditsSold || 0
+      console.log('Total credits from fallback:', stats.value.totalCredits)
+    }
   } catch (error) {
     console.error('Error loading admin stats:', error)
+    // Set defaults on error
+    stats.value = {
+      totalUsers: 0,
+      activeProjects: 0,
+      pendingProjects: 0,
+      totalCredits: 0,
+    }
+  } finally {
+    loading.value = false
   }
 }
 </script>
 
 <style scoped>
 .admin-dashboard {
-  padding: 2rem;
+  min-height: 100vh;
+  background: var(--bg-secondary, #f8fdf8);
+}
+
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+/* Page Header */
+.page-header {
+  padding: 2rem 0;
+  border-bottom: none;
+  background: var(--primary-color, #10b981);
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.page-description {
+  font-size: 1.1rem;
+  color: #fff;
+}
+
+.admin-dashboard .admin-stats,
+.admin-dashboard .admin-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 2rem;
 }
 
 .admin-stats {

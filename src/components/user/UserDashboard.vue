@@ -5,6 +5,7 @@ import { ROLES, PERMISSIONS } from '@/constants/roles'
 import { projectService } from '@/services/projectService'
 import { getWalletBalance } from '@/services/walletService'
 import UserProfile from './UserProfile.vue'
+import ConnectionStatus from '@/components/dashboard/ConnectionStatus.vue'
 
 const userStore = useUserStore()
 
@@ -29,8 +30,8 @@ const tabs = computed(() => {
     { id: 'profile', label: 'Profile', icon: '👤' },
   ]
 
-  // Add role-specific tabs
-  if (userStore.hasPermission(PERMISSIONS.MANAGE_PROJECTS)) {
+  // Add role-specific tabs - only show for Project Developers
+  if (userStore.isProjectDeveloper) {
     baseTabs.push({ id: 'projects', label: 'My Projects', icon: '📁' })
   }
 
@@ -61,7 +62,8 @@ const roleDisplayName = computed(() => {
 const quickActions = computed(() => {
   const actions = []
 
-  if (userStore.hasPermission(PERMISSIONS.MANAGE_PROJECTS)) {
+  // Only allow Project Developers to create projects
+  if (userStore.isProjectDeveloper) {
     actions.push({
       id: 'create-project',
       label: 'Create Project',
@@ -156,6 +158,9 @@ onMounted(() => {
       <h1>Welcome back, {{ userProfile?.full_name || 'User' }}!</h1>
       <p>You're logged in as a {{ roleDisplayName.toLowerCase() }}</p>
     </div>
+
+    <!-- Connection Status Component -->
+    <ConnectionStatus />
 
     <div class="tabs">
       <button
@@ -411,12 +416,15 @@ onMounted(() => {
   color: #1e293b;
   cursor: pointer;
   transition: all 0.2s;
+  font-weight: 500;
 }
 
 .action-btn:hover {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  background: var(--primary-color, #10b981);
+  color: #fff;
+  border-color: var(--primary-color, #10b981);
   transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .action-icon {

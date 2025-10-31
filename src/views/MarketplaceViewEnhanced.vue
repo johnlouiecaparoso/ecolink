@@ -8,7 +8,7 @@
           Discover and purchase verified carbon credits from projects worldwide
         </p>
 
-        <!-- Advanced Search Toggle -->
+        <!-- Search and Action Controls -->
         <div class="search-controls">
           <button
             @click="showAdvancedSearch = !showAdvancedSearch"
@@ -16,6 +16,13 @@
             :class="{ active: showAdvancedSearch }"
           >
             🔍 Advanced Search
+          </button>
+          <button
+            v-if="userStore.isProjectDeveloper"
+            @click="navigateToSubmitProject"
+            class="submit-project-button"
+          >
+            📝 Submit Project
           </button>
         </div>
       </div>
@@ -106,8 +113,8 @@
                   :clickable="true"
                   :swipeable="true"
                   @click="viewProject(listing)"
-                  @swipe-left="handleSwipeLeft(listing)"
-                  @swipe-right="handleSwipeRight(listing)"
+                  @swipe-left="navigateToBuyCredits(listing)"
+                  @swipe-right="openPurchaseModal(listing)"
                 />
               </div>
 
@@ -449,14 +456,29 @@ function viewProject(listing) {
   router.push(`/projects/${listing.project_id}`)
 }
 
-function handleSwipeLeft(listing) {
-  console.log('Swipe left on:', listing.project_title)
-  // Add to favorites or show more options
+function navigateToBuyCredits(listing) {
+  console.log('Navigating to buy credits for:', listing.project_title)
+  // Navigate to buy credits page with pre-selected project
+  router.push({
+    path: '/buy-credits',
+    query: {
+      project: listing.project_id,
+      listing: listing.listing_id,
+      title: listing.project_title,
+      price: listing.price_per_credit,
+      currency: listing.currency,
+    },
+  })
 }
 
-function handleSwipeRight(listing) {
-  console.log('Swipe right on:', listing.project_title)
-  // Quick purchase or add to cart
+function openPurchaseModal(listing) {
+  console.log('Opening purchase modal for:', listing.project_title)
+  showPurchaseModalFor(listing)
+}
+
+function navigateToSubmitProject() {
+  console.log('Navigating to submit project')
+  router.push('/submit-project')
 }
 
 function showPurchaseModalFor(listing) {
@@ -580,6 +602,23 @@ onMounted(() => {
 .advanced-search-toggle.active {
   background: rgba(255, 255, 255, 0.9);
   color: var(--primary-color);
+}
+
+.submit-project-button {
+  background: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.submit-project-button:hover {
+  background: var(--primary-hover, #058e3f);
+  border-color: var(--primary-hover, #058e3f);
+  transform: translateY(-1px);
 }
 
 .advanced-search-panel {

@@ -134,9 +134,12 @@ onMounted(() => {
 <template>
   <div class="wallet-page">
     <header class="wallet-header">
-      <button class="btn btn-ghost" @click="router.push('/profile')">← Back to Profile</button>
-      <h1 class="wallet-title">Wallet & Finance</h1>
-      <p class="wallet-subtitle">Manage your EcoLink wallet and transactions</p>
+      <div class="page-header">
+        <div class="container">
+          <h1 class="page-title">My Wallet</h1>
+          <p class="page-description">Manage your EcoLink wallet and transactions</p>
+        </div>
+      </div>
     </header>
 
     <main class="wallet-content">
@@ -211,6 +214,9 @@ onMounted(() => {
                 @click="router.push(`/retire?project=${credit.project_id}`)"
               >
                 Retire Credits
+              </button>
+              <button class="btn btn-sm btn-primary" @click="router.push('/credit-portfolio')">
+                View Portfolio
               </button>
             </div>
           </div>
@@ -297,22 +303,31 @@ onMounted(() => {
 }
 
 .wallet-header {
-  background: var(--bg-primary, #ffffff);
-  border-bottom: 1px solid var(--border-color, #d1e7dd);
-  padding: 24px;
+  padding: 0;
 }
 
-.wallet-title {
-  margin: 16px 0 8px 0;
-  font-size: 32px;
-  font-weight: 800;
-  color: var(--text-primary, #1a1a1a);
+.page-header {
+  padding: 2rem 0;
+  background: var(--primary-color, #10b981);
+  border-bottom: none;
 }
 
-.wallet-subtitle {
-  margin: 0;
-  font-size: 16px;
-  color: var(--text-secondary, #4a5568);
+.container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.page-description {
+  font-size: 1.1rem;
+  color: #fff;
 }
 
 .wallet-content {
@@ -343,6 +358,7 @@ onMounted(() => {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
+  color: white;
 }
 
 .balance-currency {
@@ -351,6 +367,7 @@ onMounted(() => {
   border-radius: 20px;
   font-size: 14px;
   font-weight: 600;
+  color: white;
 }
 
 .balance-amount {
@@ -556,11 +573,23 @@ onMounted(() => {
 /* Responsive Design */
 @media (max-width: 768px) {
   .wallet-header {
-    padding: 16px;
+    padding: 0;
   }
 
-  .wallet-title {
-    font-size: 24px;
+  .page-header {
+    padding: 1.5rem 0;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+  }
+
+  .page-description {
+    font-size: 0.95rem;
+  }
+
+  .container {
+    padding: 0 1rem;
   }
 
   .wallet-content {
@@ -797,8 +826,8 @@ onMounted(() => {
     padding: 12px;
   }
 
-  .wallet-title {
-    font-size: 20px;
+  .page-title {
+    font-size: 1.25rem;
   }
 
   .wallet-content {

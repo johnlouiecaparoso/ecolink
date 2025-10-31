@@ -2,17 +2,8 @@ import { getSupabase } from '@/services/supabaseClient'
 import { logUserAction } from '@/services/auditService'
 import { notifyCreditPurchased } from '@/services/emailService'
 // import { realPaymentService } from '@/services/realPaymentService'
-// Mock payment service for development
-const realPaymentService = {
-  processGCashPayment: async (data) => {
-    console.log('Mock GCash payment:', data)
-    return { success: true, transactionId: 'mock_gcash_' + Date.now() }
-  },
-  processMayaPayment: async (data) => {
-    console.log('Mock Maya payment:', data)
-    return { success: true, transactionId: 'mock_maya_' + Date.now() }
-  },
-}
+// Import real payment service
+import { realPaymentService } from './realPaymentService.js'
 import { creditOwnershipService } from '@/services/creditOwnershipService'
 
 /**
@@ -457,6 +448,64 @@ export async function purchaseCredits(listingId, purchaseData) {
       // Continue - purchase is still valid
     }
 
+    // Create credit_transaction record (required for certificates and receipts)
+    let transactionId = null
+    try {
+      const { data: transaction, error: transactionError } = await supabase
+        .from('credit_transactions')
+        .insert({
+          buyer_id: user.id,
+          seller_id: listing.seller_id,
+          project_credit_id: listing.project_credits.id,
+          listing_id: listingId,
+          quantity: purchaseData.quantity,
+          price_per_credit: listing.price_per_credit,
+          total_amount: totalCost,
+          currency: listing.currency || 'USD',
+          payment_method: purchaseData.paymentMethod || 'wallet',
+          payment_reference: paymentResult.transactionId,
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+
+      if (!transactionError && transaction) {
+        transactionId = transaction.id
+        console.log('✅ Credit transaction created:', transactionId)
+      } else {
+        console.warn('⚠️ Could not create credit_transaction:', transactionError)
+      }
+    } catch (transError) {
+      console.error('❌ Error creating credit transaction:', transError)
+      // Continue - purchase is still valid
+    }
+
+    // Generate certificate automatically when credits are purchased
+    if (transactionId) {
+      try {
+        const { generateCreditCertificate } = await import('@/services/certificateService')
+        const certificate = await generateCreditCertificate(transactionId, 'purchase')
+        console.log('✅ Certificate generated automatically:', certificate?.certificate_number)
+      } catch (certError) {
+        console.error('❌ Error generating certificate:', certError)
+        // Continue - certificate generation failure shouldn't break purchase
+      }
+    }
+
+    // Generate receipt automatically when credits are purchased
+    if (transactionId) {
+      try {
+        const { generateReceipt } = await import('@/services/receiptService')
+        const receipt = await generateReceipt(transactionId)
+        console.log('✅ Receipt generated automatically:', receipt?.receiptNumber)
+      } catch (receiptError) {
+        console.error('❌ Error generating receipt:', receiptError)
+        // Continue - receipt generation failure shouldn't break purchase
+      }
+    }
+
     // Log the purchase action
     await logUserAction(user.id, 'purchase_credits', {
       listing_id: listingId,
@@ -478,7 +527,7 @@ export async function purchaseCredits(listingId, purchaseData) {
     return {
       success: true,
       purchase_id: purchase.id,
-      transaction_id: paymentResult.transactionId,
+      transaction_id: transactionId || paymentResult.transactionId,
       credits_purchased: purchaseData.quantity,
       total_cost: totalCost,
       currency: listing.currency,
@@ -497,21 +546,15 @@ export async function purchaseCredits(listingId, purchaseData) {
  */
 async function processPayment(paymentData) {
   try {
-    console.log('💳 Processing payment:', paymentData)
+    console.log('💳 Processing real payment:', paymentData)
 
-    // Simulate payment processing
-    // In production, this would integrate with real payment gateways
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate processing time
-
-    const transactionId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-
-    return {
-      success: true,
-      transactionId,
-      amount: paymentData.amount,
-      currency: paymentData.currency,
-      method: paymentData.method,
-      status: 'completed',
+    // Use real payment service based on method
+    if (paymentData.method === 'gcash') {
+      return await realPaymentService.processGCashPayment(paymentData)
+    } else if (paymentData.method === 'maya') {
+      return await realPaymentService.processMayaPayment(paymentData)
+    } else {
+      throw new Error(`Unsupported payment method: ${paymentData.method}`)
     }
   } catch (error) {
     console.error('❌ Payment processing error:', error)

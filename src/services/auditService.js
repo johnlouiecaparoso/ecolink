@@ -403,7 +403,14 @@ export async function getRecentAuditLogs(limit = 50) {
     }))
   } catch (error) {
     console.error('Error in getRecentAuditLogs:', error)
-    return getSampleAuditLogs()
+    // In production, return empty array instead of fake data
+    // Only use sample data in development
+    if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
+      console.warn('[DEV] Using sample audit logs due to error')
+      return getSampleAuditLogs()
+    }
+    // Production: return empty array, show error to user instead
+    return []
   }
 }
 

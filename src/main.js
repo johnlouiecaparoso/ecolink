@@ -55,6 +55,15 @@ initializeMobile()
 optimizeImageLoading()
 setupServiceWorkerCache()
 
+// Handle browser extension context errors (harmless)
+window.addEventListener('error', (event) => {
+  if (event.message && event.message.includes('Extension context invalidated')) {
+    // This is a browser extension error, not our app - ignore it
+    console.debug('Browser extension context invalidated (harmless)')
+    event.preventDefault()
+  }
+})
+
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {

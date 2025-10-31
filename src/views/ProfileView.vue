@@ -286,7 +286,13 @@
                           <span class="notification-description">{{ setting.description }}</span>
                         </div>
                         <label class="toggle-switch">
-                          <input v-model="setting.enabled" type="checkbox" class="toggle-input" />
+                          <input
+                            v-model="setting.enabled"
+                            type="checkbox"
+                            class="toggle-input"
+                            @change="saveNotificationSettings"
+                            :disabled="savingNotifications"
+                          />
                           <span class="toggle-slider"></span>
                         </label>
                       </div>
@@ -423,9 +429,15 @@ export default {
           enabled: true,
         },
       },
+      savingNotifications: false,
     }
   },
   async mounted() {
+    // Ensure store has latest profile data from Supabase
+    if (this.store.isAuthenticated && this.store.session?.user?.id) {
+      await this.store.fetchUserProfile()
+    }
+    // Load profile data (which always uses Supabase)
     await this.loadProfile()
   },
   methods: {
@@ -463,12 +475,111 @@ export default {
           bio: profile.bio || '',
         }
 
+        // Load notification settings from Supabase
+        if (profile.notification_preferences) {
+          const prefs = profile.notification_preferences
+          this.notificationSettings = {
+            emailNotifications: {
+              label: 'Email Notifications',
+              description: 'Receive updates via email',
+              enabled: prefs.emailNotifications?.enabled ?? true,
+            },
+            projectUpdates: {
+              label: 'Project Updates',
+              description: 'Get notified about project milestones',
+              enabled: prefs.projectUpdates?.enabled ?? true,
+            },
+            marketAlerts: {
+              label: 'Market Alerts',
+              description: 'Price alerts and market updates',
+              enabled: prefs.marketAlerts?.enabled ?? false,
+            },
+            newsletter: {
+              label: 'Newsletter',
+              description: 'Weekly sustainability newsletter',
+              enabled: prefs.newsletter?.enabled ?? true,
+            },
+          }
+        }
+
+        // Load carbon impact data from Supabase
+        await this.loadCarbonImpact()
+
         console.log('Profile loaded successfully:', profile)
       } catch (error) {
         console.error('Error loading profile:', error)
         this.errors.general = 'Failed to load profile. Please try again.'
       } finally {
         this.loading = false
+      }
+    },
+
+    async loadCarbonImpact() {
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          return
+        }
+
+        const { getSupabase } = await import('@/services/supabaseClient')
+        const { generateCarbonImpactReport } = await import('@/services/receiptService')
+        const { creditOwnershipService } = await import('@/services/creditOwnershipService')
+
+        // Get carbon impact report
+        const impactReport = await generateCarbonImpactReport(userId)
+
+        // Get credit stats
+        const creditStats = await creditOwnershipService.getUserCreditStats(userId)
+
+        // Get unique projects count
+        const supabase = getSupabase()
+        if (supabase) {
+          const { data: ownership } = await supabase
+            .from('credit_ownership')
+            .select('project_id')
+            .eq('user_id', userId)
+
+          const uniqueProjects = new Set(ownership?.map((o) => o.project_id) || [])
+          const projectsCount = uniqueProjects.size
+
+          // Update carbon impact with real data
+          this.carbonImpact = {
+            tonnesRetired: creditStats.total_retired || 0,
+            projectsSupported: projectsCount || 0,
+            totalPurchased: impactReport.summary?.totalCreditsPurchased || 0,
+            portfolioValue: impactReport.summary?.totalAmountSpent || 0,
+          }
+
+          // Dynamically generate achievements based on user stats
+          this.achievements = []
+          if (creditStats.total_retired >= 1000) {
+            this.achievements.push({
+              title: 'Climate Champion',
+              description: `Retired ${creditStats.total_retired.toLocaleString()}+ tonnes CO2e`,
+              icon: '🏆',
+              color: '#f59e0b',
+            })
+          }
+          if (projectsCount >= 5) {
+            this.achievements.push({
+              title: 'Diversified Portfolio',
+              description: `Credits from ${projectsCount}+ project types`,
+              icon: '🏢',
+              color: '#3b82f6',
+            })
+          }
+          if (impactReport.summary?.totalTransactions >= 10) {
+            this.achievements.push({
+              title: 'Active Trader',
+              description: `${impactReport.summary.totalTransactions}+ transactions completed`,
+              icon: '📈',
+              color: '#10b981',
+            })
+          }
+        }
+      } catch (error) {
+        console.error('Error loading carbon impact:', error)
+        // Keep default values on error
       }
     },
 
@@ -522,8 +633,10 @@ export default {
           bio: updatedProfile.bio || '',
         }
 
-        // Update store profile
+        // Update store profile and refresh from Supabase
         this.store.profile = updatedProfile
+        // Refresh profile from Supabase to ensure we have latest data
+        await this.store.fetchUserProfile()
 
         this.isEditing = false
         this.successMessage = 'Profile updated successfully!'
@@ -561,6 +674,44 @@ export default {
       this.errors = {}
       this.successMessage = ''
     },
+
+    async saveNotificationSettings() {
+      if (!this.store.isAuthenticated) {
+        return
+      }
+
+      this.savingNotifications = true
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          throw new Error('User ID not found')
+        }
+
+        // Prepare notification preferences for saving
+        const notificationPreferences = {
+          emailNotifications: { enabled: this.notificationSettings.emailNotifications.enabled },
+          projectUpdates: { enabled: this.notificationSettings.projectUpdates.enabled },
+          marketAlerts: { enabled: this.notificationSettings.marketAlerts.enabled },
+          newsletter: { enabled: this.notificationSettings.newsletter.enabled },
+        }
+
+        // Save to Supabase
+        await updateProfile(userId, { notification_preferences: notificationPreferences })
+
+        // Update store profile
+        if (this.store.profile) {
+          this.store.profile.notification_preferences = notificationPreferences
+        }
+
+        console.log('Notification settings saved to Supabase')
+      } catch (error) {
+        console.error('Error saving notification settings:', error)
+        // Revert the change on error
+        await this.loadProfile()
+      } finally {
+        this.savingNotifications = false
+      }
+    },
   },
 }
 </script>
@@ -579,27 +730,23 @@ export default {
 
 /* Page Header */
 .page-header {
-  padding: 3rem 0;
-  border-bottom: 2px solid var(--border-green-light);
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  padding: 2rem 0;
+  border-bottom: none;
+  background: var(--primary-color, #10b981);
   margin-bottom: 2rem;
 }
 
 .page-title {
-  font-size: var(--font-size-6xl);
-  font-weight: 800;
-  color: var(--text-primary);
-  margin-bottom: 1rem;
+  font-size: var(--font-size-4xl, 2rem);
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 0.5rem;
   text-align: center;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .page-description {
-  font-size: var(--font-size-xl);
-  color: var(--text-secondary);
+  font-size: var(--font-size-lg, 1.1rem);
+  color: #fff;
   text-align: center;
   max-width: 600px;
   margin: 0 auto;
