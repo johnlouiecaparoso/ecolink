@@ -12,18 +12,16 @@ import { getSupabase } from '@/services/supabaseClient'
 export async function getCurrentUserId() {
   try {
     // Method 1: Try to get from user store first (most reliable)
-    if (typeof window !== 'undefined' && window.__VUE_APP__) {
-      try {
-        // Try to access the user store directly
-        const { useUserStore } = await import('@/store/userStore')
-        const userStore = useUserStore()
-        if (userStore.session?.user?.id) {
-          console.log('Got user ID from user store:', userStore.session.user.id)
-          return userStore.session.user.id
-        }
-      } catch (e) {
-        console.log('Could not access user store:', e.message)
+    try {
+      // Try to access the user store directly
+      const { useUserStore } = await import('@/store/userStore')
+      const userStore = useUserStore()
+      if (userStore.session?.user?.id) {
+        console.log('Got user ID from user store:', userStore.session.user.id)
+        return userStore.session.user.id
       }
+    } catch (e) {
+      console.log('Could not access user store:', e.message)
     }
 
     const supabase = getSupabase()

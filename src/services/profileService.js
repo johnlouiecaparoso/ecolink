@@ -59,6 +59,19 @@ export async function createProfile(profileData) {
     profile.notification_preferences = profileData.notification_preferences
   }
 
+  // Check if profile already exists
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('id', profile.id)
+    .single()
+
+  // If profile exists, return it instead of creating duplicate
+  if (existingProfile) {
+    console.log('Profile already exists, returning existing profile:', existingProfile)
+    return existingProfile
+  }
+
   let { data, error } = await supabase.from('profiles').insert([profile]).select().single()
 
   // If error is about missing notification_preferences column, retry without it

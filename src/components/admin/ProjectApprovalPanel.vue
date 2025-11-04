@@ -12,8 +12,8 @@
     </div>
 
     <!-- Error State -->
-    <div v-else-if="error" class="error-state">
-      <p class="error-message">{{ error }}</p>
+    <div v-else-if="errorMessage" class="error-state">
+      <p class="error-message">{{ errorMessage }}</p>
       <button @click="loadPendingProjects" class="retry-btn">Retry</button>
     </div>
 
@@ -75,9 +75,15 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { projectApprovalService } from '@/services/projectApprovalService'
+import { useUserStore } from '@/store/userStore'
+import { useModernPrompt } from '@/composables/useModernPrompt'
+import { getSupabase } from '@/services/supabaseClient'
 
+const { confirm, success, error: showErrorPrompt, warning } = useModernPrompt()
+
+const userStore = useUserStore()
 const loading = ref(true)
-const error = ref(null)
+const errorMessage = ref(null)
 const successMessage = ref(null)
 const pendingProjects = ref([])
 const processing = ref(false)
@@ -89,7 +95,7 @@ onMounted(() => {
 
 async function loadPendingProjects() {
   loading.value = true
-  error.value = null
+  errorMessage.value = null
 
   try {
     const projects = await projectApprovalService.getPendingProjects()
@@ -97,30 +103,65 @@ async function loadPendingProjects() {
     console.log('Loaded pending projects:', projects)
   } catch (err) {
     console.error('Error loading pending projects:', err)
-    error.value = err.message || 'Failed to load pending projects'
+    errorMessage.value = err.message || 'Failed to load pending projects'
   } finally {
     loading.value = false
   }
 }
 
 async function approveProject(projectId) {
+  // Prevent multiple simultaneous calls for same project
+  if (processingProjects.value.includes(projectId)) {
+    console.warn('⚠️ Project approval already in progress for:', projectId)
+    return
+  }
+
+  const project = pendingProjects.value.find((p) => p.id === projectId)
+  if (!project) return
+
+  // Show confirmation prompt
+  const confirmed = await confirm({
+    type: 'success',
+    title: 'Approve Project?',
+    message: `Are you sure you want to approve "${project.title}"? This will generate carbon credits and make the project available in the marketplace.`,
+    confirmText: 'Approve',
+    cancelText: 'Cancel',
+  })
+
+  if (!confirmed) {
+    return
+  }
+
   processingProjects.value.push(projectId)
   processing.value = true
 
   try {
+    console.log('🔍 Before approveProject call:', {
+      isAuthenticated: userStore.isAuthenticated,
+      hasSession: !!userStore.session,
+      userEmail: userStore.session?.user?.email,
+      role: userStore.role
+    })
+    
     const result = await projectApprovalService.approveProject(projectId, 'Approved by admin')
     console.log('Project approved:', result)
 
     // Remove from pending list
     pendingProjects.value = pendingProjects.value.filter((p) => p.id !== projectId)
 
-    successMessage.value = `Project "${result.project.title}" has been approved and credits generated!`
-    setTimeout(() => {
-      successMessage.value = null
-    }, 5000)
+    // Show modern success prompt
+    await success({
+      title: 'Project Approved! ✅',
+      message: `"${result.project.title}" has been approved and carbon credits have been generated. The project is now available in the marketplace.`,
+      confirmText: 'OK',
+    })
   } catch (err) {
     console.error('Error approving project:', err)
-    error.value = err.message || 'Failed to approve project'
+    await showErrorPrompt({
+      title: 'Approval Failed',
+      message: err.message || 'Failed to approve project. Please try again.',
+      confirmText: 'OK',
+    })
   } finally {
     processingProjects.value = processingProjects.value.filter((id) => id !== projectId)
     processing.value = processingProjects.value.length > 0
@@ -131,16 +172,42 @@ async function rejectProject(projectId) {
   const project = pendingProjects.value.find((p) => p.id === projectId)
   if (!project) return
 
+  // Show confirmation prompt with reason input
+  const confirmed = await confirm({
+    type: 'warning',
+    title: 'Reject Project?',
+    message: `Are you sure you want to reject "${project.title}"? This action cannot be undone. Please provide a reason in the next step.`,
+    confirmText: 'Continue',
+    cancelText: 'Cancel',
+  })
+
+  if (!confirmed) {
+    return
+  }
+
+  // Get rejection reason using a modern prompt
+  // Note: For a more advanced solution, we could create an input prompt component
+  // For now, we'll use a simple approach
   const reason = prompt('Please provide a reason for rejection:')
-  if (!reason) return
+  if (!reason || reason.trim() === '') {
+    await warning({
+      title: 'Reason Required',
+      message: 'A rejection reason is required. Please try again.',
+      confirmText: 'OK',
+      showCancel: false,
+    })
+    return
+  }
 
   processingProjects.value.push(projectId)
   processing.value = true
 
   try {
     // Update project status to rejected
-    const { getSupabase } = await import('@/services/supabaseClient')
     const supabase = getSupabase()
+    if (!supabase) {
+      throw new Error('Supabase client not available')
+    }
 
     const { error } = await supabase
       .from('projects')
@@ -158,13 +225,19 @@ async function rejectProject(projectId) {
     // Remove from pending list
     pendingProjects.value = pendingProjects.value.filter((p) => p.id !== projectId)
 
-    successMessage.value = `Project "${project.title}" has been rejected.`
-    setTimeout(() => {
-      successMessage.value = null
-    }, 5000)
+    // Show modern success prompt
+    await success({
+      title: 'Project Rejected',
+      message: `"${project.title}" has been rejected. The developer has been notified.`,
+      confirmText: 'OK',
+    })
   } catch (err) {
     console.error('Error rejecting project:', err)
-    error.value = err.message || 'Failed to reject project'
+    await showErrorPrompt({
+      title: 'Rejection Failed',
+      message: err.message || 'Failed to reject project. Please try again.',
+      confirmText: 'OK',
+    })
   } finally {
     processingProjects.value = processingProjects.value.filter((id) => id !== projectId)
     processing.value = processingProjects.value.length > 0

@@ -8,7 +8,16 @@ import { logUserAction } from '@/services/auditService'
 
 export class CreditOwnershipService {
   constructor() {
-    this.supabase = getSupabase()
+    // Don't initialize supabase here - it might not be ready yet
+    // Get it dynamically in each method to ensure it's initialized
+  }
+  
+  get supabase() {
+    const client = getSupabase()
+    if (!client) {
+      throw new Error('Supabase client not initialized. Please wait for app initialization.')
+    }
+    return client
   }
 
   /**
@@ -157,7 +166,7 @@ export class CreditOwnershipService {
       }
 
       // Log the action
-      await logUserAction(userId, 'credits_added_to_portfolio', {
+      await logUserAction('CREDITS_ADDED', 'credit_ownership', userId, result.id, {
         project_id: projectId,
         quantity: quantity,
         ownership_type: ownershipType,
@@ -239,7 +248,7 @@ export class CreditOwnershipService {
       }
 
       // Log the action
-      await logUserAction(userId, 'credits_removed_from_portfolio', {
+      await logUserAction('CREDITS_REMOVED', 'credit_ownership', userId, retirement?.id, {
         project_id: projectId,
         quantity: quantity,
         reason: reason,
@@ -384,7 +393,7 @@ export class CreditOwnershipService {
           project_location: r.projects?.location || 'Unknown',
           quantity: r.quantity,
           amount: 0,
-          currency: 'USD',
+          currency: 'PHP',
           status: 'completed',
           created_at: r.retired_at,
           description: `Retired ${r.quantity} credits from ${r.projects?.title}`,

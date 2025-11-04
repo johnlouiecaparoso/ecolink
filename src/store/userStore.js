@@ -33,26 +33,8 @@ export const useUserStore = defineStore('user', {
       try {
         console.log('🔄 Fetching session...')
 
-        // CRITICAL FIX: Give Supabase time to restore session from localStorage
-        // Supabase restores session asynchronously on initialization
-        // First attempt - immediate
-        let session = await getSession()
-
-        // If no session found, wait a bit and retry (Supabase might still be restoring)
-        if (!session) {
-          console.log(
-            '⏳ No session on first attempt, waiting for Supabase to restore from storage...',
-          )
-          await new Promise((resolve) => setTimeout(resolve, 300)) // Wait 300ms
-          session = await getSession()
-        }
-
-        // Second retry if still no session
-        if (!session) {
-          console.log('⏳ Still no session, second retry...')
-          await new Promise((resolve) => setTimeout(resolve, 500)) // Wait 500ms more
-          session = await getSession()
-        }
+        // Single attempt - Supabase restore is quick
+        const session = await getSession()
 
         // Check if session is valid and not expired
         if (session && session.user && session.expires_at) {
@@ -60,8 +42,10 @@ export const useUserStore = defineStore('user', {
           if (session.expires_at > now) {
             console.log('✅ Valid session found for user:', session.user.email)
             this.session = session
-            // Fetch user profile and role when session is valid
-            await this.fetchUserProfile()
+            // Fetch user profile and role when session is valid (don't await - let it load in background)
+            this.fetchUserProfile().catch((err) => {
+              console.error('Profile fetch failed:', err)
+            })
           } else {
             console.log('⚠️ Session expired, clearing...')
             // Session expired, clear it and storage

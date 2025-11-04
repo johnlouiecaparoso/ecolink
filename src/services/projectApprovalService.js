@@ -1,5 +1,6 @@
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
+import { isTestAccount } from '@/utils/testAccounts'
 
 /**
  * Simplified Project Approval Service
@@ -11,7 +12,11 @@ export class ProjectApprovalService {
   }
 
   get supabase() {
-    return getSupabase()
+    const client = getSupabase()
+    if (!client) {
+      throw new Error('Supabase client not initialized. Please wait for app initialization.')
+    }
+    return client
   }
 
   /**
@@ -26,21 +31,26 @@ export class ProjectApprovalService {
     }
 
     try {
-      // Get current user (should be admin/verifier)
-      const {
-        data: { user },
-      } = await this.supabase.auth.getUser()
-      if (!user) {
+      console.log('🔍 Checking authentication in approveProject...')
+      
+      // Get current user ID using helper (works for test accounts too)
+      const userId = await getCurrentUserId()
+      console.log('🔍 getCurrentUserId result:', userId)
+      
+      if (!userId) {
+        console.error('❌ No user ID found')
         throw new Error('User not authenticated')
       }
 
       // Update project status to approved
+      console.log('🔄 Approving project:', { projectId, userId })
+      
       const { data: updatedProject, error: updateError } = await this.supabase
         .from('projects')
         .update({
           status: 'approved',
           verification_notes: notes,
-          verified_by: user.id,
+          verified_by: userId,
           verified_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -49,8 +59,11 @@ export class ProjectApprovalService {
         .single()
 
       if (updateError) {
+        console.error('❌ Update failed:', updateError)
         throw new Error(updateError.message || 'Failed to approve project')
       }
+      
+      console.log('✅ Project approved successfully')
 
       // Generate credits manually (in case trigger doesn't work)
       const creditsResult = await this.generateCreditsForProject(projectId)
@@ -84,23 +97,135 @@ export class ProjectApprovalService {
         throw new Error('Project not found')
       }
 
-      // Calculate credits based on category
-      const creditsAmount = this.calculateCreditsAmount(project.category)
-      const basePrice = this.calculateBasePrice(project.category)
+      // Use project's credit data if available, otherwise calculate from category
+      const creditsAmount = project.estimated_credits || this.calculateCreditsAmount(project.category)
+      const basePrice = project.credit_price || this.calculateBasePrice(project.category)
+      
+      console.log('🔍 Project pricing data:', {
+        projectId: projectId,
+        projectTitle: project.title,
+        estimated_credits: project.estimated_credits,
+        credit_price: project.credit_price,
+        usingCreditsAmount: creditsAmount,
+        usingBasePrice: basePrice,
+        calculatedCredits: this.calculateCreditsAmount(project.category),
+        calculatedPrice: this.calculateBasePrice(project.category),
+      })
 
-      // Check if credits already exist
-      const { data: existingCredits } = await this.supabase
+      // Check if credits already exist (handle multiple gracefully)
+      const { data: existingCreditsArray } = await this.supabase
         .from('project_credits')
         .select('*')
         .eq('project_id', projectId)
-        .single()
-
-      if (existingCredits) {
-        return existingCredits
+        .order('created_at', { ascending: true })
+        .limit(1)
+      
+      // Use first existing credits if multiple exist
+      const existingCredits = existingCreditsArray && existingCreditsArray.length > 0 
+        ? existingCreditsArray[0] 
+        : null
+      
+      // Warn if multiple project_credits exist for same project
+      if (existingCreditsArray && existingCreditsArray.length > 1) {
+        console.warn(`⚠️ Found ${existingCreditsArray.length} project_credits for project_id ${projectId}, using oldest`)
       }
 
-      // Create project credits
-      const { data: credits, error: creditsError } = await this.supabase
+      let credits = existingCredits
+      let listing = null
+
+      // If credits exist, check for listing and return existing
+      if (existingCredits) {
+        console.log('✅ Project credits already exist, checking for listing...')
+        
+        // Check for existing listings (use maybeSingle to handle duplicates gracefully)
+        const { data: existingListings, error: listingsCheckError } = await this.supabase
+          .from('credit_listings')
+          .select('*')
+          .eq('project_credit_id', existingCredits.id)
+          .eq('status', 'active')
+        
+        // If multiple listings exist, log warning but use first one
+        if (existingListings && existingListings.length > 0) {
+          if (existingListings.length > 1) {
+            console.warn(`⚠️ Found ${existingListings.length} listings for project_credit_id ${existingCredits.id}, using first one`)
+          }
+          listing = existingListings[0]
+          console.log('✅ Marketplace listing already exists')
+          return {
+            ...credits,
+            listing: listing,
+          }
+        }
+        
+        // Credits exist but no listing - create with duplicate protection
+        console.log('⚠️ Credits exist but no listing found, creating listing...')
+        
+        // Double-check listing doesn't exist (race condition protection)
+        const { data: doubleCheck } = await this.supabase
+          .from('credit_listings')
+          .select('id')
+          .eq('project_credit_id', existingCredits.id)
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle()
+
+        if (doubleCheck) {
+          // Listing was just created by another process
+          console.log('✅ Listing exists (race condition detected), fetching...')
+          const { data: fetchedListing } = await this.supabase
+            .from('credit_listings')
+            .select('*')
+            .eq('project_credit_id', existingCredits.id)
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle()
+          listing = fetchedListing
+        } else {
+          // Safe to insert - unique constraint will prevent duplicates
+          const { data: newListing, error: listingError } = await this.supabase
+            .from('credit_listings')
+            .insert([
+              {
+                project_credit_id: existingCredits.id,
+                seller_id: project.user_id,
+                quantity: existingCredits.total_credits || existingCredits.available_credits || creditsAmount,
+                price_per_credit: existingCredits.price_per_credit || basePrice,
+                currency: 'PHP',
+                status: 'active',
+              },
+            ])
+            .select()
+            .maybeSingle()
+
+          // Handle unique constraint violation
+          if (listingError) {
+            if (listingError.code === '23505') {
+              // Unique constraint violation - fetch existing
+              console.log('⚠️ Listing already exists (unique constraint), fetching...')
+              const { data: fetchedListing } = await this.supabase
+                .from('credit_listings')
+                .select('*')
+                .eq('project_credit_id', existingCredits.id)
+                .eq('status', 'active')
+                .limit(1)
+                .maybeSingle()
+              listing = fetchedListing
+            } else {
+              console.error('Error creating marketplace listing:', listingError)
+            }
+          } else {
+            listing = newListing
+          }
+        }
+        
+        return {
+          ...credits,
+          listing: listing,
+        }
+      }
+
+      // Create project credits (new)
+      const { data: newCredits, error: creditsError } = await this.supabase
         .from('project_credits')
         .insert([
           {
@@ -108,6 +233,7 @@ export class ProjectApprovalService {
             total_credits: creditsAmount,
             available_credits: creditsAmount,
             price_per_credit: basePrice,
+            currency: 'PHP',
           },
         ])
         .select()
@@ -117,23 +243,84 @@ export class ProjectApprovalService {
         throw new Error(creditsError.message || 'Failed to generate project credits')
       }
 
-      // Create marketplace listing
-      const { data: listing, error: listingError } = await this.supabase
-        .from('credit_listings')
-        .insert([
-          {
-            project_credit_id: credits.id,
-            seller_id: project.user_id,
-            quantity: creditsAmount,
-            price_per_credit: basePrice,
-          },
-        ])
-        .select()
-        .single()
+      credits = newCredits
 
-      if (listingError) {
-        console.error('Error creating marketplace listing:', listingError)
-        // Don't fail the entire operation if listing creation fails
+      // Check if marketplace listing already exists (safety check - handle duplicates)
+      const { data: existingListings } = await this.supabase
+        .from('credit_listings')
+        .select('*')
+        .eq('project_credit_id', credits.id)
+        .eq('status', 'active')
+
+      // If multiple listings exist, use first one and log warning
+      if (existingListings && existingListings.length > 0) {
+        if (existingListings.length > 1) {
+          console.warn(`⚠️ Found ${existingListings.length} listings for new project_credit_id ${credits.id}, using first one`)
+        }
+        listing = existingListings[0]
+        console.log('✅ Marketplace listing already exists for new credits')
+      } else {
+        // Only create new listing if it doesn't exist - with duplicate protection
+        console.log('Creating new listing for new credits...')
+        
+        // Double-check listing doesn't exist (race condition protection)
+        const { data: doubleCheck } = await this.supabase
+          .from('credit_listings')
+          .select('id')
+          .eq('project_credit_id', credits.id)
+          .eq('status', 'active')
+          .limit(1)
+          .maybeSingle()
+
+        if (doubleCheck) {
+          // Listing was just created by another process
+          console.log('✅ Listing exists (race condition detected), fetching...')
+          const { data: fetchedListing } = await this.supabase
+            .from('credit_listings')
+            .select('*')
+            .eq('project_credit_id', credits.id)
+            .eq('status', 'active')
+            .limit(1)
+            .maybeSingle()
+          listing = fetchedListing
+        } else {
+          // Safe to insert - unique constraint will prevent duplicates
+          const { data: newListing, error: listingError } = await this.supabase
+            .from('credit_listings')
+            .insert([
+              {
+                project_credit_id: credits.id,
+                seller_id: project.user_id,
+                quantity: creditsAmount,
+                price_per_credit: basePrice,
+                currency: 'PHP',
+                status: 'active',
+              },
+            ])
+            .select()
+            .maybeSingle()
+
+          // Handle unique constraint violation
+          if (listingError) {
+            if (listingError.code === '23505') {
+              // Unique constraint violation - fetch existing
+              console.log('⚠️ Listing already exists (unique constraint), fetching...')
+              const { data: fetchedListing } = await this.supabase
+                .from('credit_listings')
+                .select('*')
+                .eq('project_credit_id', credits.id)
+                .eq('status', 'active')
+                .limit(1)
+                .maybeSingle()
+              listing = fetchedListing
+            } else {
+              console.error('Error creating marketplace listing:', listingError)
+              // Don't fail the entire operation if listing creation fails
+            }
+          } else {
+            listing = newListing
+          }
+        }
       }
 
       return {

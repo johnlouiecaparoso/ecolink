@@ -1,6 +1,6 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { USE_DATABASE } from '@/config/database'
-import { createGCashPayment, createMayaPayment, checkPaymentStatus } from './paymentGatewayService'
+import { realPaymentService } from './realPaymentService'
 
 export async function getWalletBalance(userId = null) {
   // In production, always use database (USE_DATABASE should be true)
@@ -11,7 +11,7 @@ export async function getWalletBalance(userId = null) {
     console.warn('[DEV] Database disabled, using sample data for wallet balance')
     return {
       current_balance: 1250.5,
-      currency: 'USD',
+      currency: 'PHP',
       last_updated: new Date().toISOString(),
     }
   }
@@ -203,12 +203,17 @@ export async function updateWalletBalance(userId = null, amount, transactionType
 }
 
 // Payment gateway integration functions
-export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcash') {
+export async function initiateTopUp(amount, paymentMethod = 'gcash', userId = null) {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
   }
 
+  // Validate amount is a number, not a UUID (prevents parameter order mistakes)
+  if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+    throw new Error('Amount must be a valid positive number')
+  }
+  
   // Get user ID from session if not provided
   if (!userId) {
     const {
@@ -219,17 +224,39 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
     }
     userId = user.id
   }
+  
+  // Ensure userId is a valid UUID format (not a number - common mistake)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (typeof userId === 'number' || !uuidRegex.test(userId)) {
+    throw new Error(`Invalid user ID format: ${userId}. Did you pass parameters in the wrong order? Expected: initiateTopUp(amount, paymentMethod, userId)`)
+  }
 
   try {
-    // Get wallet account ID
-    const { data: walletAccount, error: walletError } = await supabase
+    // Get or create wallet account
+    let walletAccount
+    const { data: existingWallet, error: walletError } = await supabase
       .from('wallet_accounts')
       .select('id')
       .eq('user_id', userId)
       .single()
 
-    if (walletError || !walletAccount) {
-      throw new Error('Wallet account not found')
+    if (walletError && walletError.code === 'PGRST116') {
+      // Wallet doesn't exist, create it
+      console.log('No wallet found, creating new wallet for user:', userId)
+      const newWallet = await createWallet(userId)
+      walletAccount = { id: newWallet.id }
+      console.log('✅ Created new wallet account:', walletAccount.id)
+    } else if (walletError) {
+      throw new Error(`Failed to fetch wallet: ${walletError.message}`)
+    } else if (!existingWallet) {
+      // Edge case: wallet query succeeded but returned null
+      console.log('Wallet query returned null, creating new wallet for user:', userId)
+      const newWallet = await createWallet(userId)
+      walletAccount = { id: newWallet.id }
+      console.log('✅ Created new wallet account:', walletAccount.id)
+    } else {
+      walletAccount = existingWallet
+      console.log('✅ Using existing wallet account:', walletAccount.id)
     }
 
     // Create payment intent with the payment gateway
@@ -238,58 +265,60 @@ export async function initiateTopUp(userId = null, amount, paymentMethod = 'gcas
       amount: amount,
       currency: 'PHP',
       description: `EcoLink Wallet Top-up`,
+      userId: userId, // Required by payment service - must be at top level
       metadata: {
-        userId: userId,
         walletAccountId: walletAccount.id,
       },
     }
 
+    // Use PayMongo via realPaymentService
+    let paymentResult
     if (paymentMethod === 'gcash') {
-      paymentIntent = await createGCashPayment(paymentData)
+      paymentResult = await realPaymentService.processGCashPayment(paymentData)
     } else if (paymentMethod === 'maya') {
-      paymentIntent = await createMayaPayment(paymentData)
+      paymentResult = await realPaymentService.processMayaPayment(paymentData)
     } else {
       throw new Error('Unsupported payment method')
     }
 
-    // Create pending transaction with payment intent ID
-    console.log('Creating top-up transaction:', {
+    if (!paymentResult.success) {
+      throw new Error(paymentResult.error || 'Payment processing failed')
+    }
+
+    // Return result with checkout URL for redirect
+    console.log('Top-up initiated:', {
       account_id: walletAccount.id,
       amount,
       paymentMethod,
-      paymentIntentId: paymentIntent.id,
+      transactionId: paymentResult.transactionId,
     })
 
-    const transaction = await createTransaction({
-      account_id: walletAccount.id,
-      amount: amount,
-      type: 'topup',
-      status: 'pending',
-      payment_method: paymentMethod,
-      description: `Top-up via ${paymentMethod.toUpperCase()}`,
-      reference_id: paymentIntent.id,
-    })
-
-    console.log('Transaction created:', transaction)
-
-    // Return transaction with payment details
     return {
-      ...transaction,
-      paymentIntent: paymentIntent,
-      paymentUrl: paymentIntent.paymentUrl,
-      qrCode: paymentIntent.qrCode,
+      success: true,
+      transactionId: paymentResult.transactionId,
+      checkoutUrl: paymentResult.checkoutUrl,
+      sessionId: paymentResult.sessionId,
+      amount: amount,
+      currency: 'PHP',
+      method: paymentMethod,
+      redirect: true, // Indicates user needs to be redirected
     }
   } catch (error) {
     throw new Error(error.message || 'Failed to initiate top-up')
   }
 }
 
-export async function initiateWithdrawal(userId = null, amount, paymentMethod = 'gcash') {
+export async function initiateWithdrawal(amount, paymentMethod = 'gcash', userId = null) {
   const supabase = getSupabase()
   if (!supabase) {
     throw new Error('Supabase client not available')
   }
 
+  // Validate amount is a number, not a UUID (prevents parameter order mistakes)
+  if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+    throw new Error('Amount must be a valid positive number')
+  }
+  
   // Get user ID from session if not provided
   if (!userId) {
     const {
@@ -299,6 +328,12 @@ export async function initiateWithdrawal(userId = null, amount, paymentMethod = 
       throw new Error('User not authenticated')
     }
     userId = user.id
+  }
+  
+  // Ensure userId is a valid UUID format (not a number - common mistake)
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  if (typeof userId === 'number' || !uuidRegex.test(userId)) {
+    throw new Error(`Invalid user ID format: ${userId}. Did you pass parameters in the wrong order? Expected: initiateWithdrawal(amount, paymentMethod, userId)`)
   }
 
   try {

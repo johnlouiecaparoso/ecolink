@@ -84,8 +84,8 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     // Redirect old project routes
-    { path: '/projects', redirect: '/submit-project' },
-    { path: '/projects/:id', redirect: '/submit-project' },
+    { path: '/projects', redirect: '/marketplace' },
+    { path: '/projects/:id', redirect: '/marketplace' },
     {
       path: '/admin',
       name: 'admin',
@@ -159,6 +159,14 @@ const router = createRouter({
       component: () => import('@/views/ReceiptView.vue'),
       meta: { requiresAuth: true },
     },
+    
+    // Payment Callback
+    {
+      path: '/payment/callback',
+      name: 'payment-callback',
+      component: () => import('@/views/PaymentCallbackView.vue'),
+      meta: { requiresAuth: true },
+    },
 
     // User Preference & Social Routes
     {
@@ -212,7 +220,7 @@ router.beforeEach(async (to, from, next) => {
     } else {
       // Wait for existing fetch to complete
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Auth check timeout')), 10000),
+        setTimeout(() => reject(new Error('Auth check timeout')), 3000),
       )
 
       try {
@@ -223,7 +231,7 @@ router.beforeEach(async (to, from, next) => {
                 console.log('✅ Loading completed')
                 resolve()
               } else {
-                setTimeout(checkLoading, 50) // Check more frequently
+                setTimeout(checkLoading, 100) // Check less frequently
               }
             }
             checkLoading()

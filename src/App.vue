@@ -3,11 +3,14 @@ import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
-import ConnectionIndicator from '@/components/ui/ConnectionIndicator.vue'
+import ModernPrompt from '@/components/ui/ModernPrompt.vue'
+import { useModernPrompt } from '@/composables/useModernPrompt'
 import { usePreferencesStore } from '@/store/preferencesStore'
 import { useUserStore } from '@/store/userStore'
 // import { useErrorStore } from '@/store/errorStore' // Temporarily disabled
 import { getSupabase } from '@/services/supabaseClient'
+
+const { promptState, handleConfirm, handleCancel, handleClose } = useModernPrompt()
 
 const route = useRoute()
 
@@ -47,12 +50,17 @@ onMounted(async () => {
 
           // Add timeout to prevent hanging
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Auth state change timeout')), 8000),
+            setTimeout(() => reject(new Error('Auth state change timeout')), 3000),
           )
 
           await Promise.race([userStore.fetchSession(), timeoutPromise])
         } catch (error) {
-          console.error('Error in auth state change:', error)
+          // Timeout errors are expected and not critical - just log as debug
+          if (error.message?.includes('timeout')) {
+            console.debug('⏱️ Auth state change timed out (non-critical):', error.message)
+          } else {
+            console.error('Error in auth state change:', error)
+          }
           // Clear the session on error and continue
           userStore.session = null
           userStore.loading = false
@@ -65,7 +73,7 @@ onMounted(async () => {
         try {
           console.log('📡 Fetching initial session in App.vue...')
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Initial session fetch timeout')), 10000),
+            setTimeout(() => reject(new Error('Initial session fetch timeout')), 3000),
           )
 
           await Promise.race([userStore.fetchSession(), timeoutPromise])
@@ -82,7 +90,12 @@ onMounted(async () => {
             console.log('ℹ️ No active session found')
           }
         } catch (error) {
-          console.error('Initial session fetch failed:', error)
+          // Timeout errors are expected and not critical - just log as debug
+          if (error.message?.includes('timeout')) {
+            console.debug('⏱️ Initial session fetch timed out (non-critical):', error.message)
+          } else {
+            console.error('Initial session fetch failed:', error)
+          }
           // Continue without session - app should still work
           userStore.loading = false
         }
@@ -125,11 +138,22 @@ onMounted(async () => {
       <Header v-if="showHeader" />
       <router-view />
 
-      <!-- Connection Status Indicator -->
-      <ConnectionIndicator />
-
       <!-- Global Toast Notifications -->
       <div id="toast-container" class="toast-container"></div>
+
+      <!-- Modern Prompt Component -->
+      <ModernPrompt
+        :is-open="promptState.isOpen"
+        :type="promptState.type"
+        :title="promptState.title"
+        :message="promptState.message"
+        :confirm-text="promptState.confirmText"
+        :cancel-text="promptState.cancelText"
+        :show-cancel="promptState.showCancel"
+        @confirm="handleConfirm"
+        @cancel="handleCancel"
+        @close="handleClose"
+      />
 
       <!-- Global Error Notifications -->
       <!-- Error notifications temporarily disabled during Pinia fix -->

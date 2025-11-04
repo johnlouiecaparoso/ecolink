@@ -1,36 +1,73 @@
 /**
- * Real Payment Service - GCash and Maya Integration
- * Replaces mock payment system with real payment processing
+ * Real Payment Service - PayMongo Integration
+ * Replaces mock payment system with real payment processing via PayMongo
  */
 
 import { getSupabase } from '@/services/supabaseClient'
+import { 
+  createCheckoutSession, 
+  processPaymentCallback,
+  getPayMongoPublicKey,
+  initPayMongo 
+} from './paymongoService'
 
 export class RealPaymentService {
   constructor() {
-    this.supabase = getSupabase()
+    // Don't initialize supabase here - it might not be ready yet
+    // Get it dynamically in each method to ensure it's initialized
+  }
+  
+  get supabase() {
+    const client = getSupabase()
+    if (!client) {
+      throw new Error('Supabase client not initialized. Please wait for app initialization.')
+    }
+    return client
   }
 
   /**
-   * Process GCash payment
+   * Process GCash payment via PayMongo
    * @param {Object} paymentData - Payment information
-   * @returns {Promise<Object>} Payment result
+   * @returns {Promise<Object>} Payment result with checkout URL
    */
   async processGCashPayment(paymentData) {
     try {
-      console.log('💳 Processing GCash payment:', paymentData)
+      console.log('💳 Processing GCash payment via PayMongo:', paymentData)
+
+      // Get wallet account ID - wallet should already exist (created by walletService)
+      let walletAccountId
+      
+      // Try to get wallet account ID from metadata first (preferred - avoids RLS issues)
+      if (paymentData.metadata && paymentData.metadata.walletAccountId) {
+        walletAccountId = paymentData.metadata.walletAccountId
+        console.log('✅ Using wallet account ID from metadata:', walletAccountId)
+      } else {
+        // Fallback: fetch wallet account (walletService should have created it already)
+        const walletAccountResult = await this.supabase
+          .from('wallet_accounts')
+          .select('id')
+          .eq('user_id', paymentData.userId)
+          .single()
+
+        if (walletAccountResult.error || !walletAccountResult.data) {
+          throw new Error(`Wallet account not found for user ${paymentData.userId}. Please ensure wallet is created first.`)
+        }
+        walletAccountId = walletAccountResult.data.id
+        console.log('✅ Using existing wallet from database:', walletAccountId)
+      }
 
       // Create wallet transaction record
       const { data: transaction, error: transactionError } = await this.supabase
         .from('wallet_transactions')
         .insert({
+          account_id: walletAccountId,
           user_id: paymentData.userId,
           type: 'deposit',
           amount: paymentData.amount,
           status: 'pending',
           payment_method: 'gcash',
           description: `GCash payment for ${paymentData.description || 'credit purchase'}`,
-          reference_id: `gcash_${Date.now()}`,
-          external_reference: paymentData.gcashNumber,
+          reference_id: `pm_gcash_${Date.now()}`,
         })
         .select()
         .single()
@@ -39,43 +76,40 @@ export class RealPaymentService {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
-      // Simulate GCash API call (replace with real GCash API)
-      const gcashResult = await this.callGCashAPI(paymentData)
-
-      if (gcashResult.success) {
-        // Update transaction status
-        await this.supabase
-          .from('wallet_transactions')
-          .update({
-            status: 'completed',
-            external_reference: gcashResult.transactionId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', transaction.id)
-
-        // Update wallet balance
-        await this.updateWalletBalance(paymentData.userId, paymentData.amount, 'add')
-
-        return {
-          success: true,
-          transactionId: transaction.id,
-          gcashTransactionId: gcashResult.transactionId,
-          amount: paymentData.amount,
-          currency: 'PHP',
+      // Create PayMongo checkout session
+      // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
+      const checkoutSession = await createCheckoutSession({
+        amount: paymentData.amount,
+        description: paymentData.description || 'EcoLink Credit Purchase',
+        paymentMethodTypes: ['gcash'],
+        metadata: {
+          transaction_id: transaction.id,
+          user_id: paymentData.userId,
           method: 'gcash',
-          status: 'completed',
-        }
-      } else {
-        // Update transaction status to failed
-        await this.supabase
-          .from('wallet_transactions')
-          .update({
-            status: 'failed',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', transaction.id)
+          // Include purchase details for checkout display
+          ...(paymentData.metadata || {}),
+        },
+      })
 
-        throw new Error(gcashResult.error || 'GCash payment failed')
+      // Update transaction with PayMongo session ID
+      await this.supabase
+        .from('wallet_transactions')
+        .update({
+          external_reference: checkoutSession.sessionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transaction.id)
+
+      return {
+        success: true,
+        transactionId: transaction.id,
+        checkoutUrl: checkoutSession.checkoutUrl,
+        sessionId: checkoutSession.sessionId,
+        amount: paymentData.amount,
+        currency: 'PHP',
+        method: 'gcash',
+        status: 'pending',
+        expiresAt: checkoutSession.expiresAt,
       }
     } catch (error) {
       console.error('❌ GCash payment error:', error)
@@ -87,26 +121,48 @@ export class RealPaymentService {
   }
 
   /**
-   * Process Maya payment
+   * Process Card payment via PayMongo
    * @param {Object} paymentData - Payment information
-   * @returns {Promise<Object>} Payment result
+   * @returns {Promise<Object>} Payment result with checkout URL
    */
-  async processMayaPayment(paymentData) {
+  async processCardPayment(paymentData) {
     try {
-      console.log('💳 Processing Maya payment:', paymentData)
+      console.log('💳 Processing Card payment via PayMongo:', paymentData)
+
+      // Get wallet account ID - wallet should already exist (created by walletService)
+      let walletAccountId
+      
+      // Try to get wallet account ID from metadata first (preferred - avoids RLS issues)
+      if (paymentData.metadata && paymentData.metadata.walletAccountId) {
+        walletAccountId = paymentData.metadata.walletAccountId
+        console.log('✅ Using wallet account ID from metadata:', walletAccountId)
+      } else {
+        // Fallback: fetch wallet account (walletService should have created it already)
+        const walletAccountResult = await this.supabase
+          .from('wallet_accounts')
+          .select('id')
+          .eq('user_id', paymentData.userId)
+          .single()
+
+        if (walletAccountResult.error || !walletAccountResult.data) {
+          throw new Error(`Wallet account not found for user ${paymentData.userId}. Please ensure wallet is created first.`)
+        }
+        walletAccountId = walletAccountResult.data.id
+        console.log('✅ Using existing wallet from database:', walletAccountId)
+      }
 
       // Create wallet transaction record
       const { data: transaction, error: transactionError } = await this.supabase
         .from('wallet_transactions')
         .insert({
+          account_id: walletAccountId,
           user_id: paymentData.userId,
           type: 'deposit',
           amount: paymentData.amount,
           status: 'pending',
-          payment_method: 'maya',
-          description: `Maya payment for ${paymentData.description || 'credit purchase'}`,
-          reference_id: `maya_${Date.now()}`,
-          external_reference: paymentData.mayaNumber,
+          payment_method: 'card',
+          description: `Card payment for ${paymentData.description || 'credit purchase'}`,
+          reference_id: `pm_card_${Date.now()}`,
         })
         .select()
         .single()
@@ -115,43 +171,136 @@ export class RealPaymentService {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
-      // Simulate Maya API call (replace with real Maya API)
-      const mayaResult = await this.callMayaAPI(paymentData)
+      // Create PayMongo checkout session
+      // PayMongo checkout supports card, gcash, and paymaya in the same session
+      // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
+      const checkoutSession = await createCheckoutSession({
+        amount: paymentData.amount,
+        description: paymentData.description || 'EcoLink Credit Purchase',
+        paymentMethodTypes: ['card', 'gcash', 'paymaya'], // Allow all methods, user chooses
+        metadata: {
+          transaction_id: transaction.id,
+          user_id: paymentData.userId,
+          method: 'card',
+          // Include purchase details for checkout display
+          ...(paymentData.metadata || {}),
+        },
+      })
 
-      if (mayaResult.success) {
-        // Update transaction status
-        await this.supabase
-          .from('wallet_transactions')
-          .update({
-            status: 'completed',
-            external_reference: mayaResult.transactionId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', transaction.id)
+      // Update transaction with PayMongo session ID
+      await this.supabase
+        .from('wallet_transactions')
+        .update({
+          external_reference: checkoutSession.sessionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transaction.id)
 
-        // Update wallet balance
-        await this.updateWalletBalance(paymentData.userId, paymentData.amount, 'add')
+      return {
+        success: true,
+        transactionId: transaction.id,
+        checkoutUrl: checkoutSession.checkoutUrl,
+        sessionId: checkoutSession.sessionId,
+        amount: paymentData.amount,
+        currency: 'PHP',
+        method: 'card',
+        status: 'pending',
+        expiresAt: checkoutSession.expiresAt,
+      }
+    } catch (error) {
+      console.error('❌ Card payment error:', error)
+      return {
+        success: false,
+        error: error.message,
+      }
+    }
+  }
 
-        return {
-          success: true,
-          transactionId: transaction.id,
-          mayaTransactionId: mayaResult.transactionId,
-          amount: paymentData.amount,
-          currency: 'PHP',
-          method: 'maya',
-          status: 'completed',
-        }
+  /**
+   * Process Maya payment via PayMongo
+   * @param {Object} paymentData - Payment information
+   * @returns {Promise<Object>} Payment result with checkout URL
+   */
+  async processMayaPayment(paymentData) {
+    try {
+      console.log('💳 Processing Maya payment via PayMongo:', paymentData)
+
+      // Get wallet account ID - wallet should already exist (created by walletService)
+      let walletAccountId
+      
+      // Try to get wallet account ID from metadata first (preferred - avoids RLS issues)
+      if (paymentData.metadata && paymentData.metadata.walletAccountId) {
+        walletAccountId = paymentData.metadata.walletAccountId
+        console.log('✅ Using wallet account ID from metadata:', walletAccountId)
       } else {
-        // Update transaction status to failed
-        await this.supabase
-          .from('wallet_transactions')
-          .update({
-            status: 'failed',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', transaction.id)
+        // Fallback: fetch wallet account (walletService should have created it already)
+        const walletAccountResult = await this.supabase
+          .from('wallet_accounts')
+          .select('id')
+          .eq('user_id', paymentData.userId)
+          .single()
 
-        throw new Error(mayaResult.error || 'Maya payment failed')
+        if (walletAccountResult.error || !walletAccountResult.data) {
+          throw new Error(`Wallet account not found for user ${paymentData.userId}. Please ensure wallet is created first.`)
+        }
+        walletAccountId = walletAccountResult.data.id
+        console.log('✅ Using existing wallet from database:', walletAccountId)
+      }
+
+      // Create wallet transaction record
+      const { data: transaction, error: transactionError } = await this.supabase
+        .from('wallet_transactions')
+        .insert({
+          account_id: walletAccountId,
+          user_id: paymentData.userId,
+          type: 'deposit',
+          amount: paymentData.amount,
+          status: 'pending',
+          payment_method: 'maya',
+          description: `Maya payment for ${paymentData.description || 'credit purchase'}`,
+          reference_id: `pm_maya_${Date.now()}`,
+        })
+        .select()
+        .single()
+
+      if (transactionError) {
+        throw new Error(`Failed to create transaction: ${transactionError.message}`)
+      }
+
+      // Create PayMongo checkout session
+      // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
+      const checkoutSession = await createCheckoutSession({
+        amount: paymentData.amount,
+        description: paymentData.description || 'EcoLink Credit Purchase',
+        paymentMethodTypes: ['paymaya'],
+        metadata: {
+          transaction_id: transaction.id,
+          user_id: paymentData.userId,
+          method: 'maya',
+          // Include purchase details for checkout display
+          ...(paymentData.metadata || {}),
+        },
+      })
+
+      // Update transaction with PayMongo session ID
+      await this.supabase
+        .from('wallet_transactions')
+        .update({
+          external_reference: checkoutSession.sessionId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', transaction.id)
+
+      return {
+        success: true,
+        transactionId: transaction.id,
+        checkoutUrl: checkoutSession.checkoutUrl,
+        sessionId: checkoutSession.sessionId,
+        amount: paymentData.amount,
+        currency: 'PHP',
+        method: 'maya',
+        status: 'pending',
+        expiresAt: checkoutSession.expiresAt,
       }
     } catch (error) {
       console.error('❌ Maya payment error:', error)
@@ -163,52 +312,65 @@ export class RealPaymentService {
   }
 
   /**
-   * Simulate GCash API call (replace with real GCash integration)
-   * @param {Object} paymentData - Payment data
-   * @returns {Promise<Object>} API result
+   * Confirm completed PayMongo payment
+   * Called when user returns from PayMongo checkout
+   * @param {string} sessionId - PayMongo checkout session ID
+   * @returns {Promise<Object>} Payment confirmation result
    */
-  async callGCashAPI(paymentData) {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
+  async confirmPayMongoPayment(sessionId) {
+    try {
+      console.log('✅ Confirming PayMongo payment for session:', sessionId)
 
-    // Simulate success/failure based on amount
-    if (paymentData.amount > 0 && paymentData.amount <= 50000) {
+      // Process the payment callback from PayMongo
+      const callbackResult = await processPaymentCallback(sessionId)
+
+      if (!callbackResult.success) {
+        throw new Error('Payment not completed')
+      }
+
+      const payment = callbackResult.payment
+      const userId = callbackResult.session?.attributes?.metadata?.user_id
+
+      if (!userId) {
+        console.warn('⚠️ No user ID in payment metadata')
+      }
+
+      // Update wallet transaction status
+      const { data: transactions } = await this.supabase
+        .from('wallet_transactions')
+        .select('*')
+        .eq('external_reference', sessionId)
+        .eq('status', 'pending')
+
+      if (transactions && transactions.length > 0) {
+        const transaction = transactions[0]
+
+        // Update transaction to completed
+        await this.supabase
+          .from('wallet_transactions')
+          .update({
+            status: 'completed',
+            external_reference: payment.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', transaction.id)
+
+        // Update wallet balance
+        if (userId) {
+          await this.updateWalletBalance(userId, transaction.amount, 'add')
+        }
+      }
+
       return {
         success: true,
-        transactionId: `gcash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        amount: paymentData.amount,
-        status: 'completed',
+        paymentId: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        fee: payment.fee,
       }
-    } else {
-      return {
-        success: false,
-        error: 'Invalid amount or insufficient balance',
-      }
-    }
-  }
-
-  /**
-   * Simulate Maya API call (replace with real Maya integration)
-   * @param {Object} paymentData - Payment data
-   * @returns {Promise<Object>} API result
-   */
-  async callMayaAPI(paymentData) {
-    // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 2000))
-
-    // Simulate success/failure based on amount
-    if (paymentData.amount > 0 && paymentData.amount <= 50000) {
-      return {
-        success: true,
-        transactionId: `maya_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        amount: paymentData.amount,
-        status: 'completed',
-      }
-    } else {
-      return {
-        success: false,
-        error: 'Invalid amount or insufficient balance',
-      }
+    } catch (error) {
+      console.error('❌ Error confirming PayMongo payment:', error)
+      throw error
     }
   }
 

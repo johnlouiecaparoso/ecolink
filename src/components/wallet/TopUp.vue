@@ -1,10 +1,12 @@
 <script setup>
 import { ref } from 'vue'
+import { useUserStore } from '@/store/userStore'
 import { initiateTopUp } from '@/services/walletService'
 import UiInput from '@/components/ui/Input.vue'
 import UiButton from '@/components/ui/Button.vue'
 
 const emit = defineEmits(['success', 'cancel'])
+const userStore = useUserStore()
 
 const formData = ref({
   amount: '',
@@ -45,7 +47,22 @@ async function handleSubmit() {
   loading.value = true
   try {
     const amount = parseFloat(formData.value.amount)
-    await initiateTopUp(amount, formData.value.paymentMethod) // userId will be set in service
+    const result = await initiateTopUp(amount, formData.value.paymentMethod) // userId will be set in service
+    
+    // If PayMongo checkout is created, redirect user
+    if (result.redirect && result.checkoutUrl) {
+      // Store session and user data for callback
+      localStorage.setItem('wallet_topup_session', result.sessionId)
+      localStorage.setItem('wallet_topup_amount', amount.toString())
+      if (userStore.session?.user?.id) {
+        localStorage.setItem('wallet_topup_user_id', userStore.session.user.id)
+      }
+      
+      // Redirect to PayMongo checkout
+      window.location.href = result.checkoutUrl
+      return // Stop here, user will be redirected
+    }
+    
     emit('success', { amount, paymentMethod: formData.value.paymentMethod })
 
     // Reset form
