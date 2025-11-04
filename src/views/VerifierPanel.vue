@@ -68,35 +68,36 @@ const store = useUserStore()
 <style scoped>
 .verifier-panel {
   min-height: 100vh;
-  background: #f9fafb;
+  background: var(--bg-primary);
 }
 
 .page-header {
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  background: var(--primary-color, #10b981);
   color: white;
-  padding: 3rem 0;
-  margin-bottom: 2rem;
+  padding: 2rem 0;
+  border-bottom: none;
 }
 
 .container {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 var(--spacing-md);
 }
 
 .page-title {
-  font-size: 2.5rem;
+  font-size: var(--font-size-4xl);
   font-weight: 700;
+  color: #fff;
   margin-bottom: 0.5rem;
 }
 
 .page-description {
-  font-size: 1.125rem;
-  opacity: 0.95;
+  font-size: var(--font-size-lg);
+  color: #fff;
 }
 
 .verifier-content {
-  padding-bottom: 3rem;
+  padding: 2rem 0;
 }
 
 .access-denied {

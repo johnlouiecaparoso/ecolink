@@ -64,29 +64,18 @@ window.addEventListener('error', (event) => {
   }
 })
 
-// Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('Service Worker registered successfully:', registration.scope)
-
-        // Check for updates
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              // New content is available, notify user
-              if (confirm('New version available! Reload to update?')) {
-                window.location.reload()
-              }
-            }
-          })
-        })
-      })
-      .catch((error) => {
-        console.log('Service Worker registration failed:', error)
-      })
-  })
-}
+// Handle unhandled promise rejections (like DOMException from service workers)
+window.addEventListener('unhandledrejection', (event) => {
+  // Silently ignore DOMException errors from service worker registration
+  if (event.reason?.name === 'DOMException' && 
+      (event.reason?.message?.includes('not, or is no longer, usable') ||
+       event.reason?.message?.includes('Service Worker'))) {
+    // Service worker errors are optional and not critical
+    event.preventDefault()
+    console.debug('Service Worker registration error (optional, safely ignored)')
+    return
+  }
+  
+  // Log other unhandled rejections for debugging
+  console.warn('Unhandled promise rejection:', event.reason)
+})

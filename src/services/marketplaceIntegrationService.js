@@ -81,9 +81,19 @@ export class MarketplaceIntegrationService {
 
       if (projectCreditError || !existingProjectCredit) {
         // Create project_credit record if it doesn't exist
-        // Use project's credit data if available, otherwise use defaults
+        // PRIORITY: Use project.estimated_credits (developer-set limit) - this is the MAXIMUM limit
+        // Only use fallback if developer didn't set a limit
+        if (!project.estimated_credits || project.estimated_credits <= 0) {
+          console.warn('⚠️ No estimated_credits set by developer, using fallback')
+        }
         const estimatedCredits = project.estimated_credits || listingData.quantity || 1000
         const creditPrice = project.credit_price || listingData.pricePerCredit || 15.0
+
+        console.log('📊 Creating project_credits with developer-set limit:', {
+          project_estimated_credits: project.estimated_credits,
+          final_credits: estimatedCredits,
+          respects_limit: project.estimated_credits ? estimatedCredits === project.estimated_credits : 'no limit set'
+        })
 
         const { data: newProjectCredit, error: createProjectCreditError } = await this.supabase
           .from('project_credits')
@@ -92,6 +102,7 @@ export class MarketplaceIntegrationService {
             total_credits: estimatedCredits,
             credits_available: estimatedCredits,
             price_per_credit: creditPrice,
+            currency: 'PHP',
             status: 'active',
             vintage_year: new Date().getFullYear(),
             created_at: new Date().toISOString(),
@@ -107,20 +118,69 @@ export class MarketplaceIntegrationService {
         projectCreditId = newProjectCredit.id
       } else {
         projectCreditId = existingProjectCredit.id
+        // Update existing credits if developer set a limit that's different
+        if (project.estimated_credits && project.estimated_credits > 0) {
+          const { data: existingCredit } = await this.supabase
+            .from('project_credits')
+            .select('total_credits')
+            .eq('id', projectCreditId)
+            .single()
+          
+          if (existingCredit && existingCredit.total_credits > project.estimated_credits) {
+            console.warn(`⚠️ Existing credits (${existingCredit.total_credits}) exceed developer limit (${project.estimated_credits}). Updating to respect limit.`)
+            await this.supabase
+              .from('project_credits')
+              .update({
+                total_credits: project.estimated_credits,
+                credits_available: Math.min(existingCredit.total_credits - (existingCredit.total_credits - existingCredit.credits_available || 0), project.estimated_credits)
+              })
+              .eq('id', projectCreditId)
+          }
+        }
       }
 
       // Create credit listing with values that match the actual table structure
-      // Use project's credit data if available
+      // PRIORITY: project.credit_price (developer-set) > project_credits.price_per_credit > listingData
+      // Always prioritize project.credit_price because it's the source of truth set by the developer
+      let finalPrice = project.credit_price
+      
+      if (!finalPrice && existingProjectCredit && !projectCreditError) {
+        // Get the full project_credits record to access price_per_credit as fallback
+        const { data: fullProjectCredit } = await this.supabase
+          .from('project_credits')
+          .select('price_per_credit, total_credits')
+          .eq('id', projectCreditId)
+          .single()
+        
+        if (fullProjectCredit?.price_per_credit) {
+          finalPrice = fullProjectCredit.price_per_credit
+        }
+      }
+      
+      // Final fallback to listingData or default
+      const creditPrice = finalPrice || listingData.pricePerCredit || 15.0
+      // CRITICAL: Use project.estimated_credits (developer-set limit) - this must not be exceeded
       const estimatedCredits = project.estimated_credits || listingData.quantity || 1000
-      const creditPrice = project.credit_price || listingData.pricePerCredit || 15.0
+      
+      console.log('📊 Creating listing with developer-set limit:', {
+        project_estimated_credits: project.estimated_credits,
+        listing_quantity: estimatedCredits,
+        respects_limit: project.estimated_credits ? estimatedCredits === project.estimated_credits : 'no limit set'
+      })
+
+      console.log('💰 Creating listing with price:', {
+        project_credit_price: project.credit_price,
+        final_price: creditPrice,
+        source: project.credit_price ? 'project.credit_price' : 'fallback'
+      })
 
       const defaultListing = {
         project_id: projectId,
         project_credit_id: projectCreditId, // This is required and NOT NULL
         seller_id: project.user_id,
         quantity: estimatedCredits, // Use project's estimated credits
-        price_per_credit: creditPrice, // Use project's credit price
-        currency: 'USD',
+        price_per_credit: creditPrice, // Use prioritized price (project.credit_price first!)
+        currency: 'PHP',
         listing_type: 'sell',
         status: 'active',
         title: project.title ? `${project.title} - Carbon Credits` : 'Carbon Credits',

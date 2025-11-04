@@ -44,7 +44,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
 
   // Display preferences
   const display = ref({
-    currency: 'USD',
+    currency: 'PHP',
     dateFormat: 'MM/DD/YYYY',
     timeFormat: '12h',
     numberFormat: 'en-US',
@@ -226,7 +226,7 @@ export const usePreferencesStore = defineStore('preferences', () => {
       },
     }
     display.value = {
-      currency: 'USD',
+      currency: 'PHP',
       dateFormat: 'MM/DD/YYYY',
       timeFormat: '12h',
       numberFormat: 'en-US',

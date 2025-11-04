@@ -194,13 +194,23 @@ export function getCacheStats() {
  */
 export function setupServiceWorkerCache() {
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('Service Worker registered:', registration)
-      })
-      .catch((error) => {
-        console.log('Service Worker registration failed:', error)
-      })
+    // Use setTimeout to avoid DOMException from using objects after page navigation
+    setTimeout(() => {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((registration) => {
+          // Only log if registration is still valid
+          if (registration && registration.active) {
+            console.log('✅ Service Worker registered successfully')
+          }
+        })
+        .catch((error) => {
+          // Silently ignore service worker errors - they're optional
+          // Only log specific errors that aren't DOMException
+          if (error.name !== 'DOMException') {
+            console.debug('Service Worker not available (optional):', error.message)
+          }
+        })
+    }, 100)
   }
 }

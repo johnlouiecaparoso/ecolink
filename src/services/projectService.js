@@ -46,19 +46,51 @@ export class ProjectService {
         throw new Error('User not authenticated')
       }
 
+      // Prepare insert data with all fields including estimated_credits and credit_price
+      const { documents, ...projectDataWithoutDocuments } = projectData
+      
+      // Convert numeric fields to numbers (form inputs are strings)
+      const estimatedCredits = projectData.estimated_credits 
+        ? parseFloat(projectData.estimated_credits) 
+        : null
+      const creditPrice = projectData.credit_price 
+        ? parseFloat(projectData.credit_price) 
+        : null
+      
+      // Validate numeric fields
+      if (estimatedCredits !== null && (isNaN(estimatedCredits) || estimatedCredits <= 0)) {
+        throw new Error('Estimated credits must be a positive number')
+      }
+      if (creditPrice !== null && (isNaN(creditPrice) || creditPrice <= 0)) {
+        throw new Error('Credit price must be a positive number')
+      }
+      
+      const insertData = {
+        title: projectData.title.trim(),
+        description: projectData.description.trim(),
+        category: projectData.category.trim(),
+        location: projectData.location.trim(),
+        expected_impact: projectData.expected_impact.trim(),
+        status: 'pending',
+        user_id: finalUserId,
+        ...(estimatedCredits !== null && !isNaN(estimatedCredits) && { estimated_credits: estimatedCredits }),
+        ...(creditPrice !== null && !isNaN(creditPrice) && { credit_price: creditPrice }),
+        ...(projectData.project_image && { project_image: projectData.project_image }),
+        ...(projectData.image_name && { image_name: projectData.image_name }),
+        ...(projectData.image_type && { image_type: projectData.image_type }),
+        ...(projectData.image_size && { image_size: projectData.image_size }),
+      }
+
+      console.log('🔍 Creating project with data:', {
+        title: insertData.title,
+        estimated_credits: insertData.estimated_credits,
+        credit_price: insertData.credit_price,
+        fullInsertData: insertData
+      })
+
       const { data, error } = await this.supabase
         .from('projects')
-        .insert([
-          {
-            title: title.trim(),
-            description: description.trim(),
-            category: category.trim(),
-            location: location.trim(),
-            expected_impact: expected_impact.trim(),
-            status: 'pending',
-            user_id: finalUserId, // Add user_id to track who created the project
-          },
-        ])
+        .insert([insertData])
         .select()
         .single()
 

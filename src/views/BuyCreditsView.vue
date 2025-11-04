@@ -122,7 +122,40 @@
                       <span>${{ totalPrice.toFixed(2) }}</span>
                     </div>
                   </div>
-                  <button class="purchase-button" @click="processPurchase">
+
+                  <!-- Payment Method Selection -->
+                  <div class="payment-method-selection">
+                    <label class="form-label">Payment Method</label>
+                    <div class="payment-methods">
+                      <div
+                        v-for="method in paymentMethods"
+                        :key="method.value"
+                        :class="['payment-method-card', { active: selectedPaymentMethod === method.value }]"
+                        @click="selectedPaymentMethod = method.value"
+                      >
+                        <div class="payment-method-icon">{{ method.icon }}</div>
+                        <div class="payment-method-info">
+                          <div class="payment-method-name">{{ method.label }}</div>
+                          <div v-if="method.value === 'wallet'" class="wallet-balance">
+                            Balance: ${{ walletBalance.toFixed(2) }}
+                          </div>
+                          <div v-else class="payment-method-desc">{{ method.description }}</div>
+                        </div>
+                        <div v-if="method.value === 'wallet' && walletBalance < totalPrice" class="insufficient-balance">
+                          Insufficient funds
+                        </div>
+                      </div>
+                    </div>
+                    <div v-if="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice" class="error-message">
+                      ⚠️ Your wallet balance (${{ walletBalance.toFixed(2) }}) is insufficient for this purchase (${{ totalPrice.toFixed(2) }})
+                    </div>
+                  </div>
+
+                  <button
+                    class="purchase-button"
+                    :disabled="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice"
+                    @click="processPurchase"
+                  >
                     Complete Purchase
                   </button>
                 </div>
@@ -182,6 +215,30 @@ const selectedCategory = ref('')
 const sortBy = ref('price-low')
 const loading = ref(false)
 const error = ref('')
+const selectedPaymentMethod = ref('wallet') // Default to wallet
+const walletBalance = ref(0)
+
+// Payment methods
+const paymentMethods = [
+  {
+    value: 'wallet',
+    label: 'Wallet Balance',
+    icon: '💳',
+    description: 'Pay from your wallet',
+  },
+  {
+    value: 'gcash',
+    label: 'GCash',
+    icon: '📱',
+    description: 'Pay via GCash (PayMongo)',
+  },
+  {
+    value: 'maya',
+    label: 'Maya',
+    icon: '🏦',
+    description: 'Pay via Maya (PayMongo)',
+  },
+]
 
 // Computed properties
 const filteredCredits = computed(() => {
@@ -257,9 +314,21 @@ const loadCredits = async () => {
   }
 }
 
-const selectCredit = (credit) => {
+const selectCredit = async (credit) => {
   selectedCredit.value = credit
   purchaseQuantity.value = 1
+  
+  // Load wallet balance when credit is selected
+  if (userStore.isAuthenticated) {
+    try {
+      const { getWalletBalance } = await import('@/services/walletService')
+      const balance = await getWalletBalance()
+      walletBalance.value = balance.current_balance || 0
+    } catch (err) {
+      console.error('Failed to load wallet balance:', err)
+      walletBalance.value = 0
+    }
+  }
 }
 
 const buyCredits = (credit) => {
@@ -281,7 +350,7 @@ const processPurchase = async () => {
     // Create purchase data
     const purchaseData = {
       quantity: purchaseQuantity.value,
-      paymentMethod: 'gcash', // Default to GCash
+      paymentMethod: selectedPaymentMethod.value, // Use selected payment method
       paymentData: {
         userId: userStore.session.user.id,
         amount: totalPrice.value,
@@ -319,8 +388,20 @@ const processPurchase = async () => {
 }
 
 // Lifecycle
-onMounted(() => {
+onMounted(async () => {
   loadCredits()
+  
+  // Load wallet balance if authenticated
+  if (userStore.isAuthenticated) {
+    try {
+      const { getWalletBalance } = await import('@/services/walletService')
+      const balance = await getWalletBalance()
+      walletBalance.value = balance.current_balance || 0
+    } catch (err) {
+      console.error('Failed to load wallet balance:', err)
+      walletBalance.value = 0
+    }
+  }
 
   // Check if we came from marketplace with a pre-selected project
   const urlParams = new URLSearchParams(window.location.search)
@@ -336,7 +417,7 @@ onMounted(() => {
       id: listingId || projectId,
       title: title,
       pricePerCredit: parseFloat(price),
-      currency: currency || 'USD',
+      currency: currency || 'PHP',
       availableCredits: 1000, // Default value
       category: 'Pre-selected',
       location: 'From Marketplace',
@@ -667,10 +748,94 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
+.purchase-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .no-selection {
   text-align: center;
   color: var(--text-muted, #718096);
   padding: 2rem 0;
+}
+
+/* Payment Method Selection */
+.payment-method-selection {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.payment-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.payment-method-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 2px solid var(--border-color, #e2e8f0);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: var(--bg-primary, #ffffff);
+}
+
+.payment-method-card:hover {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--bg-secondary, #f8fdf8);
+}
+
+.payment-method-card.active {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--primary-light, rgba(6, 158, 45, 0.1));
+}
+
+.payment-method-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.payment-method-info {
+  flex: 1;
+}
+
+.payment-method-name {
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+  margin-bottom: 0.25rem;
+}
+
+.payment-method-desc {
+  font-size: 0.875rem;
+  color: var(--text-muted, #718096);
+}
+
+.wallet-balance {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--primary-color, #069e2d);
+}
+
+.insufficient-balance {
+  font-size: 0.75rem;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.error-message {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid #dc2626;
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 0.875rem;
 }
 
 /* Payment Methods */

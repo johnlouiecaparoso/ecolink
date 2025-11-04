@@ -127,18 +127,7 @@ export async function getUserReceipts(userId) {
   try {
     const { data, error } = await supabase
       .from('receipts')
-      .select(
-        `
-        *,
-        credit_transactions!inner(
-          *,
-          project_credits!inner(
-            *,
-            projects!inner(title, category, location)
-          )
-        )
-      `,
-      )
+      .select('*')
       .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
       .order('issued_at', { ascending: false })
 
@@ -147,7 +136,28 @@ export async function getUserReceipts(userId) {
       throw new Error(`Failed to fetch receipts: ${error.message}`)
     }
 
-    return data || []
+    // Extract project details from receipt_data JSONB if available
+    const enrichedReceipts = (data || []).map(receipt => {
+      if (receipt.receipt_data) {
+        const receiptData = typeof receipt.receipt_data === 'string' 
+          ? JSON.parse(receipt.receipt_data) 
+          : receipt.receipt_data
+        
+        return {
+          ...receipt,
+          project_title: receiptData.project?.title,
+          project_location: receiptData.project?.location,
+          credits_purchased: receiptData.purchase?.creditsPurchased,
+          total_amount: receiptData.purchase?.totalAmount,
+          currency: receiptData.purchase?.currency || 'PHP',
+          payment_method: receiptData.purchase?.paymentMethod,
+          status: receiptData.purchase?.status || 'completed',
+        }
+      }
+      return receipt
+    })
+
+    return enrichedReceipts
   } catch (error) {
     console.error('Error in getUserReceipts:', error)
     throw error

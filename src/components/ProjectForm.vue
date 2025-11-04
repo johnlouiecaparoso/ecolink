@@ -4,8 +4,11 @@ import { useUserStore } from '@/store/userStore'
 import { projectService } from '@/services/projectService'
 import { projectWorkflowService } from '@/services/projectWorkflowService'
 import { projectApprovalService } from '@/services/projectApprovalService'
+import { useModernPrompt } from '@/composables/useModernPrompt'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
+
+const { success: showSuccessPrompt, error: showErrorPrompt, warning: showWarningPrompt } = useModernPrompt()
 
 const props = defineProps({
   project: {
@@ -31,8 +34,8 @@ const formData = ref({
   location: '',
   expected_impact: '',
   project_image: null, // Add project image field
-  estimated_credits: '', // Add estimated credits field
-  credit_price: '', // Add credit price field
+  estimated_credits: null, // Add estimated credits field (null for number inputs)
+  credit_price: null, // Add credit price field (null for number inputs)
 })
 
 // File upload state
@@ -49,7 +52,7 @@ const uploadingImage = ref(false)
 // Form state
 const loading = ref(false)
 const errors = ref({})
-const success = ref('')
+const successMessage = ref('')
 
 // Available categories
 const categories = ref(projectService.getProjectCategories())
@@ -87,14 +90,12 @@ const validationRules = {
   estimated_credits: {
     required: true,
     min: 1,
-    max: 1000000,
-    message: 'Estimated credits must be between 1 and 1,000,000',
+    message: 'Estimated credits must be at least 1',
   },
   credit_price: {
     required: true,
     min: 0.01,
-    max: 1000,
-    message: 'Credit price must be between $0.01 and $1,000',
+    message: 'Credit price must be at least ₱0.01',
   },
 }
 
@@ -130,24 +131,106 @@ const submitButtonText = computed(() => {
 })
 
 const isFormValid = computed(() => {
-  return Object.keys(validationRules).every((field) => {
+  const validationResults = {}
+  const isValid = Object.keys(validationRules).every((field) => {
     const value = formData.value[field]
     const rule = validationRules[field]
+    let fieldValid = true
 
-    if (rule.required && (!value || value.trim() === '')) {
-      return false
+    // Check required fields - handle both string and number types
+    if (rule.required) {
+      // Check for empty/null/undefined/NaN (for number inputs)
+      if (value === null || value === undefined || value === '' || (typeof value === 'number' && isNaN(value))) {
+        validationResults[field] = 'required'
+        return false
+      }
+      // For strings, check if empty after trim
+      if (typeof value === 'string' && value.trim() === '') {
+        validationResults[field] = 'empty string'
+        return false
+      }
+      // For numeric fields, check if valid (not NaN and > 0)
+      if (field === 'estimated_credits' || field === 'credit_price') {
+        const numValue = typeof value === 'number' ? value : parseFloat(value)
+        if (isNaN(numValue) || numValue <= 0) {
+          validationResults[field] = `invalid number: ${value} (parsed: ${numValue})`
+          return false
+        }
+      }
     }
 
-    if (value && rule.minLength && value.length < rule.minLength) {
-      return false
+    // Validate numeric fields (estimated_credits, credit_price)
+    if (field === 'estimated_credits' || field === 'credit_price') {
+      // Only validate if value exists (already checked required above)
+      if (value !== null && value !== undefined && value !== '') {
+        const numValue = typeof value === 'number' ? value : parseFloat(value)
+        if (isNaN(numValue)) {
+          validationResults[field] = 'not a number'
+          return false
+        }
+        if (rule.min !== undefined && numValue < rule.min) {
+          validationResults[field] = `below minimum: ${numValue} < ${rule.min}`
+          return false
+        }
+        // Max validation removed - no upper limit for price and credits
+        // if (rule.max !== undefined && numValue > rule.max) {
+        //   validationResults[field] = `above maximum: ${numValue} > ${rule.max}`
+        //   return false
+        // }
+      }
     }
 
-    if (value && rule.maxLength && value.length > rule.maxLength) {
-      return false
+    // Validate string length fields (only for string values)
+    if (value && typeof value === 'string') {
+      if (rule.minLength && value.length < rule.minLength) {
+        validationResults[field] = `too short: ${value.length} < ${rule.minLength}`
+        return false
+      }
+      if (rule.maxLength && value.length > rule.maxLength) {
+        validationResults[field] = `too long: ${value.length} > ${rule.maxLength}`
+        return false
+      }
     }
 
     return true
   })
+  
+  // Debug logging (only log when form is invalid to avoid spam)
+  if (!isValid) {
+    console.log('🔍 Form validation details:', {
+      isValid,
+      validationResults,
+      formData: formData.value,
+    })
+    console.log('❌ Invalid fields:', validationResults)
+    console.log('📋 Current form values:', {
+      title: formData.value.title,
+      description: formData.value.description,
+      category: formData.value.category,
+      location: formData.value.location,
+      expected_impact: formData.value.expected_impact,
+      estimated_credits: formData.value.estimated_credits,
+      credit_price: formData.value.credit_price,
+      project_image: formData.value.project_image ? 'set' : 'not set',
+    })
+    // Also update the errors object so the UI shows the errors
+    Object.keys(validationResults).forEach((field) => {
+      const rule = validationRules[field]
+      const value = formData.value[field]
+      if (field === 'credit_price' || field === 'estimated_credits') {
+        const numValue = typeof value === 'number' ? value : parseFloat(value)
+        // Max validation removed - no upper limit
+        // if (rule.max !== undefined && numValue > rule.max) {
+        //   errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at most ${rule.max}`
+        // } else 
+        if (rule.min !== undefined && numValue < rule.min) {
+          errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at least ${rule.min}`
+        }
+      }
+    })
+  }
+  
+  return isValid
 })
 
 // Methods
@@ -155,17 +238,36 @@ function validateField(field) {
   const value = formData.value[field]
   const rule = validationRules[field]
 
-  if (rule.required && (!value || value.trim() === '')) {
+  if (rule.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
     errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
     return false
   }
 
-  if (value && rule.minLength && value.length < rule.minLength) {
+  // Validate numeric fields (estimated_credits, credit_price)
+  if (field === 'estimated_credits' || field === 'credit_price') {
+    const numValue = parseFloat(value)
+    if (isNaN(numValue)) {
+      errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be a valid number`
+      return false
+    }
+    if (rule.min !== undefined && numValue < rule.min) {
+      errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at least ${rule.min}`
+      return false
+    }
+    // Max validation removed - no upper limit for price and credits
+    // if (rule.max !== undefined && numValue > rule.max) {
+    //   errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at most ${rule.max}`
+    //   return false
+    // }
+  }
+
+  // Validate string length fields
+  if (value && typeof value === 'string' && rule.minLength && value.length < rule.minLength) {
     errors.value[field] = rule.message
     return false
   }
 
-  if (value && rule.maxLength && value.length > rule.maxLength) {
+  if (value && typeof value === 'string' && rule.maxLength && value.length > rule.maxLength) {
     errors.value[field] = rule.message
     return false
   }
@@ -197,7 +299,7 @@ function validateForm() {
 
 function clearErrors() {
   errors.value = {}
-  success.value = ''
+  successMessage.value = ''
 }
 
 function resetForm() {
@@ -208,8 +310,8 @@ function resetForm() {
     location: '',
     expected_impact: '',
     project_image: null,
-    estimated_credits: '',
-    credit_price: '',
+    estimated_credits: null,
+    credit_price: null,
   }
   uploadedFiles.value = []
   fileUploadError.value = ''
@@ -361,20 +463,70 @@ async function convertImageToBase64(file) {
 async function handleSubmit() {
   clearErrors()
 
-  if (!validateForm()) {
+  console.log('🔍 Submit button clicked - Form validation check:', {
+    isFormValid: isFormValid.value,
+    formData: formData.value,
+    errors: errors.value,
+  })
+
+  // Run validateForm to populate errors object
+  const formValidationResult = validateForm()
+  
+  // Also check isFormValid computed property
+  const computedValidationResult = isFormValid.value
+
+  if (!formValidationResult || !computedValidationResult) {
+    console.warn('⚠️ Form validation failed:', {
+      validateForm: formValidationResult,
+      isFormValid: computedValidationResult,
+      errors: errors.value,
+    })
+    
+    // Build a detailed error message from the errors object
+    const errorFields = Object.keys(errors.value)
+    let errorMessage = 'Please fix the following issues:\n\n'
+    errorFields.forEach((field) => {
+      const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+      errorMessage += `• ${fieldName}: ${errors.value[field]}\n`
+    })
+    
+    if (errorFields.length === 0) {
+      errorMessage = 'Please check all required fields. Some fields may be invalid or missing.'
+    }
+    
+    await showErrorPrompt({
+      title: 'Validation Failed',
+      message: errorMessage || 'Please fill in all required fields correctly. Check the form for error messages.',
+      confirmText: 'OK',
+    })
     return
   }
 
-  if (!isFormValid.value) {
-    return
-  }
-
+  console.log('✅ Form validation passed, proceeding with submission...')
   loading.value = true
 
   try {
     // Prepare project data with files and image
+    // Convert numeric fields from strings to numbers (form inputs return strings)
+    const estimatedCredits = formData.value.estimated_credits 
+      ? parseFloat(formData.value.estimated_credits) 
+      : null
+    const creditPrice = formData.value.credit_price 
+      ? parseFloat(formData.value.credit_price) 
+      : null
+    
+    // Validate numeric fields before submission
+    if (estimatedCredits !== null && (isNaN(estimatedCredits) || estimatedCredits <= 0)) {
+      throw new Error('Estimated credits must be a positive number')
+    }
+    if (creditPrice !== null && (isNaN(creditPrice) || creditPrice <= 0)) {
+      throw new Error('Credit price must be a positive number (minimum 0.01)')
+    }
+    
     const projectData = {
       ...formData.value,
+      estimated_credits: estimatedCredits,
+      credit_price: creditPrice,
       documents: uploadedFiles.value.map((file) => ({
         name: file.name,
         size: file.size,
@@ -401,7 +553,7 @@ async function handleSubmit() {
     if (isEditMode.value) {
       // Update existing project
       await projectService.updateProject(props.project.id, projectData)
-      success.value = 'Project updated successfully!'
+      successMessage.value = 'Project updated successfully!'
     } else {
       // Submit new project - try multiple methods for reliability
       let submittedProject = null
@@ -414,66 +566,22 @@ async function handleSubmit() {
         throw new Error('Supabase client not available')
       }
 
-      // Method 1: Try getUser() first
+      // Get user ID from session (most reliable)
       try {
         const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser()
-        if (user && !userError) {
-          userId = user.id
-          console.log('✅ Using user ID from Supabase getUser():', userId)
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+        if (session?.user && !sessionError) {
+          userId = session.user.id
+          console.log('✅ Using user ID from Supabase getSession():', userId)
         } else {
-          console.log('getUser() failed:', userError)
+          console.log('getSession() failed:', sessionError)
+          throw new Error('No valid session found')
         }
       } catch (error) {
-        console.log('getUser() error:', error)
-      }
-
-      // Method 2: Try getSession() if getUser() failed
-      if (!userId) {
-        try {
-          const {
-            data: { session },
-            error: sessionError,
-          } = await supabase.auth.getSession()
-          if (session?.user && !sessionError) {
-            userId = session.user.id
-            console.log('✅ Using user ID from Supabase getSession():', userId)
-          } else {
-            console.log('getSession() failed:', sessionError)
-          }
-        } catch (error) {
-          console.log('getSession() error:', error)
-        }
-      }
-
-      // Method 3: Validate the user ID exists in database
-      if (userId) {
-        try {
-          const { data: userExists, error: checkError } = await supabase
-            .from('auth.users')
-            .select('id')
-            .eq('id', userId)
-            .single()
-
-          if (checkError || !userExists) {
-            console.log('❌ User ID does not exist in auth.users:', userId)
-            userId = null
-          } else {
-            console.log('✅ User ID validated in database:', userId)
-          }
-        } catch (error) {
-          console.log('Error validating user ID:', error)
-          userId = null
-        }
-      }
-
-      // TEMPORARY FIX: Use the real user ID we know exists
-      if (!userId) {
-        console.log('⚠️ No valid session found, using known real user ID as fallback')
-        userId = 'ec907b5f-7b95-4b18-8d14-ec0635879a9a' // Real user ID from diagnostic
-        console.log('🔧 Using fallback user ID:', userId)
+        console.log('getSession() error:', error)
+        throw new Error('Unable to get user session')
       }
 
       try {
@@ -496,8 +604,16 @@ async function handleSubmit() {
         }
       }
 
-      success.value =
+      successMessage.value =
         'Project submitted successfully! It will be reviewed by our verification team.'
+      
+      // Show enhanced modern success prompt with better design
+      const projectTitle = formData.value.title || 'your project'
+      await showSuccessPrompt({
+        title: 'Project Submitted Successfully! 🎉',
+        message: `Your project "${projectTitle}" has been submitted for verification.\n\nNext Steps:\n• Your project will be reviewed by our verifiers\n• Once approved, it will appear in the marketplace\n• You can track your project status in your dashboard`,
+        confirmText: 'OK',
+      })
     }
 
     // Emit success event
@@ -510,6 +626,13 @@ async function handleSubmit() {
   } catch (error) {
     console.error('Error saving project:', error)
     errors.value.general = error.message || 'Failed to save project. Please try again.'
+
+    // Show modern error prompt
+    await showErrorPrompt({
+      title: 'Submission Failed',
+      message: error.message || 'Failed to save project. Please check all fields and try again.',
+      confirmText: 'OK',
+    })
 
     // Show more detailed error information
     if (error.message) {
@@ -609,7 +732,7 @@ async function forceSubmit() {
       }
 
       console.log('Project submitted successfully:', data)
-      success.value = 'Project submitted successfully!'
+      successMessage.value = 'Project submitted successfully!'
       resetForm()
     } else {
       throw new Error('Supabase not available')
@@ -652,10 +775,10 @@ onMounted(() => {
         {{ errors.general }}
       </div>
 
-      <!-- Success Message -->
-      <div v-if="success" class="success-message">
-        {{ success }}
-      </div>
+      <!-- Success Message (hidden - using modern prompt instead) -->
+      <!-- <div v-if="successMessage" class="success-message">
+        {{ successMessage }}
+      </div> -->
 
       <!-- Project Title -->
       <div class="form-group">
@@ -803,12 +926,11 @@ onMounted(() => {
             <label for="estimated_credits" class="form-label">Estimated Credits *</label>
             <UiInput
               id="estimated_credits"
-              v-model="formData.estimated_credits"
+              v-model.number="formData.estimated_credits"
               type="number"
               :class="{ error: errors.estimated_credits }"
               placeholder="e.g., 1000"
               min="1"
-              max="1000000"
               @blur="validateField('estimated_credits')"
               @input="clearErrors"
             />
@@ -821,15 +943,14 @@ onMounted(() => {
           <div class="credit-field">
             <label for="credit_price" class="form-label">Price per Credit *</label>
             <div class="price-input-container">
-              <span class="currency-symbol">$</span>
+              <span class="currency-symbol">₱</span>
               <UiInput
                 id="credit_price"
-                v-model="formData.credit_price"
+                v-model.number="formData.credit_price"
                 type="number"
                 :class="{ error: errors.credit_price }"
                 placeholder="e.g., 15.50"
                 min="0.01"
-                max="1000"
                 step="0.01"
                 @blur="validateField('credit_price')"
                 @input="clearErrors"
@@ -838,7 +959,7 @@ onMounted(() => {
             <div v-if="errors.credit_price" class="field-error">
               {{ errors.credit_price }}
             </div>
-            <div class="field-help">Price per credit in USD</div>
+            <div class="field-help">Price per credit in PHP (Philippine Pesos)</div>
           </div>
         </div>
       </div>
@@ -906,46 +1027,6 @@ onMounted(() => {
               </div>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Debug Section (temporary) -->
-      <div
-        class="debug-section"
-        style="margin: 20px 0; padding: 15px; background: #f0f0f0; border-radius: 8px"
-      >
-        <h4>Debug Info:</h4>
-        <p><strong>Form Valid:</strong> {{ isFormValid }}</p>
-        <p><strong>Loading:</strong> {{ loading }}</p>
-        <p><strong>Errors:</strong> {{ Object.keys(errors).length > 0 ? errors : 'None' }}</p>
-        <div style="margin-top: 10px">
-          <button
-            type="button"
-            @click="debugFormSubmission"
-            style="
-              margin-right: 10px;
-              padding: 8px 16px;
-              background: #007bff;
-              color: white;
-              border: none;
-              border-radius: 4px;
-            "
-          >
-            Debug Form (Check Console)
-          </button>
-          <button
-            type="button"
-            @click="forceSubmit"
-            style="
-              padding: 8px 16px;
-              background: #28a745;
-              color: white;
-              border: none;
-              border-radius: 4px;
-            "
-          >
-            Force Submit (Bypass Validation)
-          </button>
         </div>
       </div>
 

@@ -92,7 +92,7 @@ export async function createSampleMarketplaceData() {
         quantity_available: creditsPerProject[index],
         quantity_sold: 0,
         price_per_credit: pricePerCredit[index],
-        currency: 'USD',
+        currency: 'PHP',
         verification_standard: index % 2 === 0 ? 'VCS' : 'Gold Standard',
         status: 'active',
       })

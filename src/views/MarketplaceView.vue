@@ -165,7 +165,7 @@
                 :key="listing.listing_id"
                 class="project-card"
                 :class="{
-                  'admin-selected': showAdminDelete && selectedListings.includes(listing.id),
+                  'admin-selected': showAdminDelete && selectedListings.includes(listing.listing_id),
                 }"
               >
                 <!-- Admin Selection Checkbox -->
@@ -176,8 +176,8 @@
                 >
                   <input
                     type="checkbox"
-                    :checked="selectedListings.includes(listing.id)"
-                    @change="toggleListingSelection(listing.id)"
+                    :checked="selectedListings.includes(listing.listing_id)"
+                    @change="toggleListingSelection(listing.listing_id)"
                     class="admin-checkbox"
                   />
                   <span class="admin-label">Select for deletion</span>
@@ -528,7 +528,7 @@ export default {
           paymentMethod: selectedPaymentMethod.value,
           paymentData: {
             amount: selectedListing.value.price_per_credit * purchaseQuantity.value,
-            currency: selectedListing.value.currency || 'USD',
+            currency: selectedListing.value.currency || 'PHP',
             description: `Purchase ${purchaseQuantity.value} credits from ${selectedListing.value.project_title}`,
           },
         }
@@ -649,8 +649,8 @@ export default {
       alert('Purchase functionality coming soon!')
     }
 
-    function formatCurrency(amount, currency = 'USD') {
-      return new Intl.NumberFormat('en-US', {
+    function formatCurrency(amount, currency = 'PHP') {
+      return new Intl.NumberFormat('en-PH', {
         style: 'currency',
         currency: currency,
       }).format(amount)
@@ -671,7 +671,7 @@ export default {
     }
 
     function selectAllListings() {
-      selectedListings.value = filteredListings.value.map((l) => l.id)
+      selectedListings.value = filteredListings.value.map((l) => l.listing_id)
     }
 
     function clearSelection() {
@@ -706,7 +706,7 @@ export default {
 
       const listingNames = selectedListings.value
         .map((id) => {
-          const listing = listings.value.find((l) => l.id === id)
+          const listing = listings.value.find((l) => l.listing_id === id)
           return listing ? listing.project_title : 'Unknown'
         })
         .join(', ')
@@ -722,7 +722,7 @@ export default {
       try {
         const projectIds = selectedListings.value
           .map((id) => {
-            const listing = listings.value.find((l) => l.id === id)
+            const listing = listings.value.find((l) => l.listing_id === id)
             return listing ? listing.project_id : null
           })
           .filter((id) => id !== null)

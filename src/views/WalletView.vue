@@ -49,6 +49,8 @@ async function loadWalletData() {
     creditPortfolio.value = portfolio
     creditStats.value = stats
     console.log('Wallet data loaded successfully')
+    console.log('📊 Credit Portfolio loaded:', portfolio.length, 'items')
+    console.log('📊 Credit Stats:', stats)
   } catch (err) {
     console.error('Error loading wallet data:', err)
     error.value = 'Failed to load wallet data. Please try refreshing the page.'

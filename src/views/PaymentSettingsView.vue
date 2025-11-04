@@ -73,6 +73,24 @@ function getStatusColor(status) {
   return colors[status] || 'var(--ecolink-muted)'
 }
 
+// Format payment method for display
+function formatPaymentMethod(method) {
+  if (!method) return 'UNKNOWN'
+  
+  const methodMap = {
+    'card': 'CREDIT/DEBIT CARD',
+    'credit_card': 'CREDIT CARD',
+    'debit_card': 'DEBIT CARD',
+    'gcash': 'GCASH',
+    'maya': 'MAYA',
+    'paymaya': 'MAYA',
+    'wallet': 'WALLET',
+    'grab_pay': 'GRAB PAY',
+  }
+  
+  return methodMap[method.toLowerCase()] || method.toUpperCase()
+}
+
 onMounted(() => {
   loadPaymentData()
 })
@@ -151,8 +169,8 @@ onMounted(() => {
                   </div>
                   <div class="payment-details">
                     <div class="payment-method">
-                      {{ payment.provider.toUpperCase() }} •
-                      {{ payment.payment_method.toUpperCase() }}
+                      {{ payment.provider ? payment.provider.toUpperCase() : 'PAYMONGO' }} •
+                      {{ formatPaymentMethod(payment.payment_method) }}
                     </div>
                     <div class="payment-date">
                       {{ formatDate(payment.created_at) }}

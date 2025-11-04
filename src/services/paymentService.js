@@ -27,7 +27,7 @@ export class PaymentService {
           user_id: transactionData.userId,
           type: transactionData.type || 'purchase',
           amount: transactionData.amount,
-          currency: transactionData.currency || 'USD',
+          currency: transactionData.currency || 'PHP',
           description: transactionData.description,
           reference_id: transactionData.transactionId,
           status: transactionData.status || 'pending',

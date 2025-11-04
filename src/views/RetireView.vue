@@ -209,19 +209,20 @@ const canRetire = computed(() => {
 
 // Methods
 const loadUserCredits = async () => {
-  if (!userStore.user?.id) return
+  const userId = userStore.session?.user?.id || userStore.user?.id
+  if (!userId) return
 
   loading.value = true
   error.value = ''
 
   try {
-    const credits = await getUserCreditPortfolio(userStore.user.id)
+    const credits = await getUserCreditPortfolio(userId)
 
-    // Transform the data to include project details
+    // Transform the data to include project details (only show credits with quantity > 0)
     availableProjects.value = credits
-      .filter((credit) => credit.ownership_status === 'owned')
+      .filter((credit) => credit.quantity > 0)
       .map((credit) => ({
-        id: credit.id,
+        id: credit.project_credits?.projects?.id || credit.id,
         name: credit.project_credits?.projects?.title || 'Unknown Project',
         project_title: credit.project_credits?.projects?.title || 'Unknown Project',
         credits: credit.quantity,
@@ -230,18 +231,34 @@ const loadUserCredits = async () => {
         location: credit.project_credits?.projects?.location || 'Unknown',
       }))
 
-    // Load retirement history
-    retirementHistory.value = credits
-      .filter((credit) => credit.ownership_status === 'retired')
-      .map((credit) => ({
-        id: credit.id,
-        project: credit.project_credits?.projects?.title || 'Unknown Project',
-        credits: credit.quantity,
-        purpose: credit.retirement_reason || 'Carbon Offset',
-        date: credit.retired_at || credit.created_at,
+    // Load retirement history from credit_retirements table separately
+    try {
+      const userId = userStore.session?.user?.id || userStore.user?.id
+      const supabase = (await import('@/services/supabaseClient')).getSupabase()
+      const { data: retirements } = await supabase
+        .from('credit_retirements')
+        .select(`
+          *,
+          projects(
+            id,
+            title
+          )
+        `)
+        .eq('user_id', userId)
+        .order('retired_at', { ascending: false })
+
+      retirementHistory.value = (retirements || []).map((retirement) => ({
+        id: retirement.id,
+        project: retirement.projects?.title || 'Unknown Project',
+        credits: retirement.quantity,
+        purpose: retirement.reason || 'Carbon Offset',
+        date: retirement.retired_at,
         certificateUrl: '#',
       }))
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+    } catch (retirementError) {
+      console.error('Error loading retirement history:', retirementError)
+      retirementHistory.value = []
+    }
   } catch (err) {
     console.error('Error loading user credits:', err)
     error.value = 'Failed to load your credits. Please try again.'
@@ -266,12 +283,25 @@ const handleRetire = async () => {
     const creditsToRetireValue = creditsToRetire.value
     const projectName = selectedProjectName.value
 
-    // Call the retire service
-    await retireCredits(selectedCredit.id, {
-      reason: retirementPurpose.value,
-      statement: retirementStatement.value,
-      quantity: creditsToRetireValue,
-    })
+    // Get user ID from store
+    const userId = userStore.session?.user?.id || userStore.user?.id
+    if (!userId) {
+      throw new Error('User not authenticated')
+    }
+
+    // Get project ID from selected credit
+    const projectId = selectedCredit.id
+    if (!projectId) {
+      throw new Error('Project ID not found')
+    }
+
+    // Call the retire service with correct parameters
+    await retireCredits(
+      userId,
+      projectId,
+      creditsToRetireValue,
+      retirementPurpose.value + (retirementStatement.value ? ` - ${retirementStatement.value}` : '')
+    )
 
     // Reset form
     selectedProject.value = ''

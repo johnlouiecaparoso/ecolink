@@ -75,7 +75,6 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ProjectForm from '@/components/ProjectForm.vue'
 
@@ -83,31 +82,8 @@ const router = useRouter()
 
 const handleProjectSuccess = (projectData) => {
   console.log('Project submitted successfully:', projectData)
-
-  // Show success message with navigation options
-  const successMessage = `
-🎉 Project Submitted Successfully!
-
-Your project "${projectData.title}" has been submitted for verification.
-
-Next Steps:
-1. Your project will be reviewed by our verifiers
-2. Once approved, it will appear in the marketplace
-3. You can track your project status in your dashboard
-
-Would you like to:
-• Browse the marketplace to see other projects
-• Return to your dashboard
-• Submit another project
-  `
-
-  if (
-    confirm(successMessage + '\n\nClick OK to go to marketplace, Cancel to return to dashboard.')
-  ) {
-    router.push('/marketplace')
-  } else {
-    router.push('/')
-  }
+  // The modern prompt is already shown by ProjectForm component
+  // No need to show another prompt - the user can stay on the page or navigate manually
 }
 
 const handleProjectCancel = () => {

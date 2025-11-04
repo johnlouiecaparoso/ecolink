@@ -617,7 +617,16 @@ const navItems = computed(() => {
 })
 
 function isActive(path) {
-  return route.path === path
+  // Exact match for active state
+  // Only mark as active if we're exactly on that path
+  if (route.path === path) {
+    return true
+  }
+  // Also handle nested routes (e.g., /verifier/... should match /verifier)
+  if (route.path.startsWith(path + '/')) {
+    return true
+  }
+  return false
 }
 
 function handleLogout() {

@@ -387,8 +387,8 @@ export default {
       alert('Purchase functionality coming soon!')
     }
 
-    function formatCurrency(amount, currency = 'USD') {
-      return new Intl.NumberFormat('en-US', {
+    function formatCurrency(amount, currency = 'PHP') {
+      return new Intl.NumberFormat('en-PH', {
         style: 'currency',
         currency: currency,
       }).format(amount)

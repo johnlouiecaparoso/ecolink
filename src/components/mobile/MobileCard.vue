@@ -7,10 +7,11 @@ const props = defineProps({
   description: { type: String, default: '' },
   image: { type: String, default: '' },
   price: { type: [String, Number], default: '' },
-  currency: { type: String, default: 'USD' },
+  currency: { type: String, default: 'PHP' },
   badge: { type: String, default: '' },
   clickable: { type: Boolean, default: true },
   swipeable: { type: Boolean, default: false },
+  availableCredits: { type: Number, default: null }, // Available credits to display
 })
 
 const emit = defineEmits(['click', 'swipeLeft', 'swipeRight', 'swipeUp', 'swipeDown'])
@@ -81,6 +82,11 @@ function formatPrice(price, currency) {
 
   return formatter.format(price)
 }
+
+function formatNumber(num) {
+  if (num === null || num === undefined) return '0'
+  return new Intl.NumberFormat('en-US').format(num)
+}
 </script>
 
 <template>
@@ -117,6 +123,9 @@ function formatPrice(price, currency) {
       </p>
       <div v-if="price" class="mobile-card__price">
         {{ formatPrice(price, currency) }}
+      </div>
+      <div v-if="availableCredits !== null && availableCredits !== undefined" class="mobile-card__credits">
+        {{ formatNumber(availableCredits) }} credits available
       </div>
     </div>
 
@@ -223,6 +232,13 @@ function formatPrice(price, currency) {
   font-weight: 700;
   color: #059669;
   margin: 0;
+}
+
+.mobile-card__credits {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+  font-weight: 500;
 }
 
 .mobile-card__actions {

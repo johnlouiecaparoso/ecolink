@@ -172,9 +172,9 @@ function formatDate(dateString) {
   })
 }
 
-function formatCurrency(amount, currency = 'USD') {
+function formatCurrency(amount, currency = 'PHP') {
   if (!amount) return 'N/A'
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency: currency,
   }).format(amount)
@@ -204,7 +204,7 @@ function getTotalAmount(receipt) {
 }
 
 function getCurrency(receipt) {
-  return receipt.currency || receipt.credit_transactions?.currency || 'USD'
+  return receipt.currency || receipt.credit_transactions?.currency || 'PHP'
 }
 
 function getPaymentMethod(receipt) {

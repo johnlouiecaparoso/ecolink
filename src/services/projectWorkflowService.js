@@ -32,20 +32,44 @@ export class ProjectWorkflowService {
         throw new Error('User not authenticated')
       }
 
-      // Create the project
+      // Create the project with all fields including estimated_credits and credit_price
+      const { documents, ...projectDataWithoutDocuments } = projectData
+      
+      // Convert numeric fields to numbers (form inputs are strings)
+      const estimatedCredits = projectData.estimated_credits 
+        ? (typeof projectData.estimated_credits === 'string' ? parseFloat(projectData.estimated_credits) : projectData.estimated_credits)
+        : null
+      const creditPrice = projectData.credit_price 
+        ? (typeof projectData.credit_price === 'string' ? parseFloat(projectData.credit_price) : projectData.credit_price)
+        : null
+      
+      // Validate numeric fields
+      if (estimatedCredits !== null && (isNaN(estimatedCredits) || estimatedCredits <= 0)) {
+        throw new Error('Estimated credits must be a positive number')
+      }
+      if (creditPrice !== null && (isNaN(creditPrice) || creditPrice <= 0)) {
+        throw new Error('Credit price must be a positive number (minimum 0.01)')
+      }
+      
+      const insertData = {
+        title: projectData.title.trim(),
+        description: projectData.description.trim(),
+        category: projectData.category.trim(),
+        location: projectData.location.trim(),
+        expected_impact: projectData.expected_impact.trim(),
+        status: 'pending',
+        user_id: finalUserId,
+        ...(estimatedCredits !== null && !isNaN(estimatedCredits) && estimatedCredits > 0 && { estimated_credits: estimatedCredits }),
+        ...(creditPrice !== null && !isNaN(creditPrice) && creditPrice > 0 && { credit_price: creditPrice }),
+        ...(projectData.project_image && { project_image: projectData.project_image }),
+        ...(projectData.image_name && { image_name: projectData.image_name }),
+        ...(projectData.image_type && { image_type: projectData.image_type }),
+        ...(projectData.image_size && { image_size: projectData.image_size }),
+      }
+
       const { data, error } = await this.supabase
         .from('projects')
-        .insert([
-          {
-            title: projectData.title.trim(),
-            description: projectData.description.trim(),
-            category: projectData.category.trim(),
-            location: projectData.location.trim(),
-            expected_impact: projectData.expected_impact.trim(),
-            status: 'pending',
-            user_id: finalUserId,
-          },
-        ])
+        .insert([insertData])
         .select()
         .single()
 
@@ -286,9 +310,19 @@ export class ProjectWorkflowService {
         throw new Error('Project not found')
       }
 
-      // Calculate credits based on category and impact
-      const creditsAmount = this.calculateCreditsAmount(project.category, project.expected_impact)
-      const basePrice = this.calculateBasePrice(project.category)
+      // Use project's credit data if available, otherwise calculate from category
+      // PRIORITY: project.credit_price and project.estimated_credits (developer-set) are the source of truth
+      // CRITICAL: estimated_credits is the MAXIMUM limit - we must not exceed it
+      const creditsAmount = project.estimated_credits || this.calculateCreditsAmount(project.category, project.expected_impact)
+      const basePrice = project.credit_price || this.calculateBasePrice(project.category)
+
+      console.log('💰 Generating project credits:', {
+        project_estimated_credits: project.estimated_credits,
+        project_credit_price: project.credit_price,
+        final_credits_amount: creditsAmount,
+        final_base_price: basePrice,
+        respects_limit: project.estimated_credits ? creditsAmount === project.estimated_credits : 'no limit set'
+      })
 
       // Check if credits already exist
       const { data: existingCredits } = await this.supabase
@@ -298,10 +332,40 @@ export class ProjectWorkflowService {
         .single()
 
       if (existingCredits) {
+        // Update existing credits with correct price if it's different
+        if (project.credit_price && existingCredits.price_per_credit !== project.credit_price) {
+          console.log('💰 Updating existing project_credits price from', existingCredits.price_per_credit, 'to', project.credit_price)
+          await this.supabase
+            .from('project_credits')
+            .update({ price_per_credit: project.credit_price })
+            .eq('id', existingCredits.id)
+          
+          existingCredits.price_per_credit = project.credit_price
+        }
+        
+        // CRITICAL: Update existing credits to respect developer-set limit if it exists
+        if (project.estimated_credits && project.estimated_credits > 0 && existingCredits.total_credits > project.estimated_credits) {
+          console.warn(`⚠️ Existing credits (${existingCredits.total_credits}) exceed developer limit (${project.estimated_credits}). Updating to respect limit.`)
+          const updatedAvailable = Math.min(
+            existingCredits.credits_available || existingCredits.total_credits,
+            project.estimated_credits
+          )
+          await this.supabase
+            .from('project_credits')
+            .update({
+              total_credits: project.estimated_credits,
+              credits_available: updatedAvailable
+            })
+            .eq('id', existingCredits.id)
+          
+          existingCredits.total_credits = project.estimated_credits
+          existingCredits.credits_available = updatedAvailable
+        }
+        
         return existingCredits
       }
 
-      // Create project credits
+      // Create project credits - use project.credit_price (developer-set price)
       const { data: credits, error: creditsError } = await this.supabase
         .from('project_credits')
         .insert([
@@ -309,7 +373,8 @@ export class ProjectWorkflowService {
             project_id: projectId,
             total_credits: creditsAmount,
             available_credits: creditsAmount,
-            price_per_credit: basePrice,
+            price_per_credit: basePrice, // This uses project.credit_price if available
+            currency: 'PHP',
           },
         ])
         .select()
@@ -319,15 +384,16 @@ export class ProjectWorkflowService {
         throw new Error(creditsError.message || 'Failed to generate project credits')
       }
 
-      // Create marketplace listing
+      // Create marketplace listing - use project.credit_price (developer-set price)
       const { data: listing, error: listingError } = await this.supabase
         .from('credit_listings')
         .insert([
           {
-            project_credits_id: credits.id,
+            project_credit_id: credits.id,
             seller_id: project.user_id,
             quantity: creditsAmount,
-            price_per_credit: basePrice,
+            price_per_credit: basePrice, // This uses project.credit_price if available
+            currency: 'PHP',
           },
         ])
         .select()
