@@ -1,4 +1,5 @@
 import { getSupabase } from '@/services/supabaseClient'
+import { uploadProfilePhoto, deleteProfilePhoto } from '@/services/storageService'
 
 /**
  * Check if a column exists in the profiles table
@@ -74,6 +75,21 @@ export async function createProfile(profileData) {
 
   let { data, error } = await supabase.from('profiles').insert([profile]).select().single()
 
+  // Check for RLS (Row Level Security) policy violations
+  if (error && (error.message.includes('row-level security') || error.message.includes('violates row-level security') || error.code === '42501' || error.code === 'PGRST301')) {
+    const rlsError = new Error(
+      'Profile creation blocked by database security policy. Please contact an administrator to configure Row Level Security (RLS) policies to allow users to create their own profiles.'
+    )
+    rlsError.code = 'RLS_VIOLATION'
+    rlsError.originalError = error
+    console.error('RLS Policy Violation - Profile creation blocked:', {
+      message: error.message,
+      code: error.code,
+      hint: 'The Supabase RLS policy for the profiles table needs to allow INSERT operations for authenticated users.',
+    })
+    throw rlsError
+  }
+
   // If error is about missing notification_preferences column, retry without it
   if (
     error &&
@@ -95,6 +111,17 @@ export async function createProfile(profileData) {
       .single()
     data = retryResult.data
     error = retryResult.error
+
+    // Check for RLS violation in retry too
+    if (error && (error.message.includes('row-level security') || error.message.includes('violates row-level security') || error.code === '42501' || error.code === 'PGRST301')) {
+      const rlsError = new Error(
+        'Profile creation blocked by database security policy. Please contact an administrator to configure Row Level Security (RLS) policies.'
+      )
+      rlsError.code = 'RLS_VIOLATION'
+      rlsError.originalError = error
+      console.error('RLS Policy Violation - Profile creation blocked (retry):', error.message)
+      throw rlsError
+    }
 
     // If retry also fails, throw error
     if (error) {
@@ -198,13 +225,24 @@ export async function getProfile(userId) {
       const userName =
         authUser?.user?.user_metadata?.name || authUser?.user?.email?.split('@')[0] || 'User'
 
-      return await createProfile({
-        id: userId,
-        full_name: userName,
-        email: userEmail,
-        role: 'general_user',
-        kyc_level: 0,
-      })
+      try {
+        return await createProfile({
+          id: userId,
+          full_name: userName,
+          email: userEmail,
+          role: 'general_user',
+          kyc_level: 0,
+        })
+      } catch (createError) {
+        // If RLS violation, return null instead of throwing to allow app to continue
+        if (createError.code === 'RLS_VIOLATION') {
+          if (import.meta.env.DEV) {
+            console.warn('[DEV] Profile creation blocked by RLS policy. App will continue without profile.')
+          }
+          return null
+        }
+        throw createError
+      }
     }
 
     // Ensure notification_preferences exists with default values if null (only if column exists)
@@ -366,6 +404,48 @@ export function getUserInitials(fullName) {
     .join('')
     .toUpperCase()
     .slice(0, 2)
+}
+
+/**
+ * Upload and update profile photo
+ * @param {string} userId - The user ID
+ * @param {File} file - The image file to upload
+ * @returns {Promise<string>} - The public URL of the uploaded image
+ */
+export async function uploadAndUpdateProfilePhoto(userId, file) {
+  const supabase = getSupabase()
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  try {
+    // Get current profile to check for existing avatar
+    const currentProfile = await getProfile(userId)
+    const oldAvatarUrl = currentProfile?.avatar_url
+
+    // Upload new photo
+    const newAvatarUrl = await uploadProfilePhoto(file, userId)
+
+    // Update profile with new avatar URL
+    await updateProfile(userId, { avatar_url: newAvatarUrl })
+
+    // Delete old photo if it exists and is different
+    if (oldAvatarUrl && oldAvatarUrl !== newAvatarUrl) {
+      await deleteProfilePhoto(oldAvatarUrl, userId).catch((err) => {
+        // Log but don't throw - deletion failure shouldn't block the update
+        console.warn('Could not delete old profile photo:', err)
+      })
+    }
+
+    if (import.meta.env.DEV) {
+      console.log('[DEV] Profile photo updated successfully')
+    }
+
+    return newAvatarUrl
+  } catch (error) {
+    console.error('Error uploading profile photo:', error)
+    throw error
+  }
 }
 
 /**

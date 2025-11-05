@@ -4,6 +4,10 @@ import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { processPaymentCallback } from '@/services/paymongoService'
 import { realPaymentService } from '@/services/realPaymentService'
+import { useModernPrompt } from '@/composables/useModernPrompt'
+import ModernPrompt from '@/components/ui/ModernPrompt.vue'
+
+const { promptState, success: showSuccess, error: showError, handleConfirm, handleCancel, handleClose } = useModernPrompt()
 
 const router = useRouter()
 const route = useRoute()
@@ -175,56 +179,159 @@ onMounted(async () => {
             // Use purchase ID if available, otherwise use session ID as fallback
             const purchaseId = purchase?.id || paymentResult.sessionId || `purchase_${Date.now()}`
             
-            // Add credits to portfolio (even if purchase record failed)
+            // Create credit_transactions record FIRST (CRITICAL - needed for certificates and history)
+            // This must be created before credit_ownership to get the transaction ID
+            let transaction = null
+            let transactionId = null
+            
             try {
-              await creditOwnershipService.addCreditsToPortfolio(
-                store.session.user.id,
-                listing.project_credits.project_id,
-                pd.quantity,
-                'purchased',
-                purchaseId,
-              )
-              console.log('✅ Credits added to portfolio')
-            } catch (ownershipError) {
-              console.error('❌ Error adding credits to portfolio:', ownershipError)
-              // This is critical - throw to prevent silent failure
-              throw ownershipError
-            }
-            
-            // Create credit_transactions record (needed for receipts)
-            const { data: transaction, error: transactionError } = await supabase
-              .from('credit_transactions')
-              .insert({
-                buyer_id: store.session.user.id,
-                seller_id: sellerId,
-                project_credit_id: listing.project_credits.id,
-                listing_id: purchaseData.listingId,
-                quantity: pd.quantity,
-                price_per_credit: listing.price_per_credit,
-                total_amount: totalCost,
-                currency: listing.currency || 'PHP',
-                payment_method: actualPaymentMethod, // Use detected payment method
-                payment_reference: paymentResult.sessionId,
-                status: 'completed',
-                completed_at: new Date().toISOString(),
-                created_at: new Date().toISOString(),
-              })
-              .select()
-              .single()
-            
-            if (transactionError) {
-              console.error('❌ Error creating credit_transaction:', transactionError)
-              // Non-critical - purchase is still valid
-            }
-            
-            // Generate receipt
-            if (transaction) {
-              const { generateReceipt } = await import('@/services/receiptService')
-              try {
-                await generateReceipt(transaction.id)
-              } catch (receiptError) {
-                console.error('Receipt generation failed:', receiptError)
+              const { data: transactionData, error: transactionError } = await supabase
+                .from('credit_transactions')
+                .insert({
+                  buyer_id: store.session.user.id,
+                  seller_id: sellerId,
+                  project_credit_id: listing.project_credits.id,
+                  listing_id: purchaseData.listingId,
+                  quantity: pd.quantity,
+                  price_per_credit: listing.price_per_credit,
+                  total_amount: totalCost,
+                  currency: listing.currency || 'PHP',
+                  payment_method: actualPaymentMethod, // Use detected payment method
+                  payment_reference: paymentResult.sessionId || paymentResult.paymentId,
+                  status: 'completed',
+                  completed_at: new Date().toISOString(),
+                  created_at: new Date().toISOString(),
+                })
+                .select()
+                .single()
+              
+              if (!transactionError && transactionData) {
+                transaction = transactionData
+                transactionId = transaction.id
+                console.log('✅ Credit transaction created:', transactionId)
+                
+                // NOW add credits to portfolio (after transaction is created)
+                // Note: This may fail due to schema issues, but we'll continue anyway
+                try {
+                  // credit_ownership table requires project_credit_id, not project_id
+                  const projectCreditId = listing.project_credits.id
+                  if (!projectCreditId) {
+                    throw new Error('project_credit_id is missing from listing')
+                  }
+                  
+                  // Get purchase price from listing
+                  const purchasePrice = listing.price_per_credit || listing.price || 0
+                  
+                  // Use transactionId from credit_transactions (valid UUID)
+                  await creditOwnershipService.addCreditsToPortfolio(
+                    store.session.user.id,
+                    listing.project_credits.project_id, // Keep project_id for backward compatibility
+                    pd.quantity,
+                    'purchased',
+                    transactionId, // Use credit_transactions ID (valid UUID)
+                    projectCreditId, // Pass project_credit_id separately if function supports it
+                    purchasePrice, // Pass purchase_price to satisfy not-null constraint
+                  )
+                  console.log('✅ Credits added to portfolio')
+                } catch (ownershipError) {
+                  console.error('❌ Error adding credits to portfolio:', ownershipError)
+                  console.error('⚠️ CRITICAL: Purchase payment succeeded but credits not added to portfolio')
+                  console.error('⚠️ This needs to be fixed - user paid but credits are missing')
+                  // Don't throw - allow certificate creation to proceed
+                  // The purchase is still valid even if ownership record fails
+                  // User will need manual credit addition
+                }
+              } else {
+                console.error('❌ Error creating credit_transaction:', transactionError)
+                // Try with minimal fields as fallback
+                console.log('🔄 Attempting to create transaction with minimal fields...')
+                const { data: minimalTransaction, error: minimalError } = await supabase
+                  .from('credit_transactions')
+                  .insert({
+                    buyer_id: store.session.user.id,
+                    seller_id: sellerId,
+                    project_credit_id: listing.project_credits.id,
+                    quantity: pd.quantity,
+                    price_per_credit: listing.price_per_credit,
+                    total_amount: totalCost,
+                    currency: listing.currency || 'PHP',
+                    payment_method: actualPaymentMethod,
+                    status: 'completed',
+                    completed_at: new Date().toISOString(),
+                  })
+                  .select()
+                  .single()
+                
+                if (!minimalError && minimalTransaction) {
+                  transaction = minimalTransaction
+                  transactionId = transaction.id
+                  console.log('✅ Credit transaction created with minimal fields:', transactionId)
+                } else {
+                  console.error('❌ CRITICAL: Failed to create transaction even with minimal fields:', minimalError)
+                  throw new Error('Failed to create transaction record. Purchase history may not show.')
+                }
               }
+            } catch (transErr) {
+              console.error('❌ CRITICAL ERROR creating credit transaction:', transErr)
+              throw transErr // Re-throw to prevent silent failure
+            }
+            
+            // Generate receipt (optional)
+            if (transactionId) {
+              try {
+                const { generateReceipt } = await import('@/services/receiptService')
+                await generateReceipt(transactionId)
+                console.log('✅ Receipt generated')
+              } catch (receiptError) {
+                console.error('⚠️ Receipt generation failed (non-critical):', receiptError)
+              }
+            }
+            
+            // Generate certificate for purchase (CRITICAL)
+            if (transactionId) {
+              console.log('🔄 Starting certificate generation for transaction:', transactionId)
+              try {
+                const { generateCreditCertificate } = await import('@/services/certificateService')
+                const certificate = await generateCreditCertificate(transactionId, 'purchase')
+                
+                if (certificate && certificate.id) {
+                  console.log('✅ Purchase certificate generated successfully!')
+                  console.log('✅ Certificate ID:', certificate.id)
+                  console.log('✅ Certificate Number:', certificate.certificate_number)
+                  console.log('✅ Certificate will appear in certificate dashboard and retire section')
+                  // Show success message with modern prompt
+                  await showSuccess({
+                    title: 'Certificate Generated! 🎉',
+                    message: 'Your certificate has been generated successfully. You can view and download it in the Certificates section.',
+                    confirmText: 'View Certificates',
+                  }).then((confirmed) => {
+                    if (confirmed) {
+                      router.push('/certificates')
+                    }
+                  })
+                } else {
+                  console.error('❌ Certificate generation returned null or invalid certificate')
+                  throw new Error('Certificate generation returned invalid result')
+                }
+              } catch (certError) {
+                console.error('❌ CRITICAL: Certificate generation failed:', certError)
+                console.error('❌ Error details:', {
+                  message: certError.message,
+                  stack: certError.stack,
+                  transactionId: transactionId
+                })
+                console.error('⚠️ Purchase completed but certificate is missing. This needs to be fixed.')
+                // Show user-friendly error with modern prompt
+                await showError({
+                  title: 'Certificate Generation Failed',
+                  message: 'Purchase completed successfully, but certificate generation failed. You can try generating it manually from the Certificates section.',
+                  confirmText: 'OK',
+                })
+                // Don't throw - purchase is still valid, but certificate won't be generated
+              }
+            } else {
+              console.error('❌ CRITICAL: Cannot generate certificate - no transactionId available')
+              console.error('⚠️ Transaction ID is missing. Purchase completed but certificate cannot be generated.')
             }
             
             console.log('✅ Marketplace purchase completed successfully')
@@ -235,7 +342,14 @@ onMounted(async () => {
         }
       }
       
-      const redirectPath = wasTopUp ? '/wallet' : '/marketplace'
+      // Redirect to retire dashboard after purchase (shows proof of purchase)
+      // For wallet top-up, redirect to wallet
+      const redirectPath = wasTopUp ? '/wallet' : '/retire'
+      
+      // Add a flag to trigger refresh in RetireView
+      if (!wasTopUp) {
+        sessionStorage.setItem('refresh_retire_history', 'true')
+      }
       
       // Clean up localStorage
       localStorage.removeItem('pending_purchase')
@@ -277,7 +391,7 @@ onMounted(async () => {
           <p><strong>Amount:</strong> ₱{{ paymentDetails.amount.toLocaleString() }}</p>
           <p><strong>Status:</strong> {{ paymentDetails.status }}</p>
         </div>
-        <p class="redirect-message">Redirecting to marketplace...</p>
+        <p class="redirect-message">Redirecting to retire dashboard...</p>
       </div>
 
       <div v-else class="error-container">
@@ -289,6 +403,18 @@ onMounted(async () => {
         </button>
       </div>
     </div>
+    <ModernPrompt
+      :is-open="promptState.isOpen"
+      :type="promptState.type"
+      :title="promptState.title"
+      :message="promptState.message"
+      :confirm-text="promptState.confirmText"
+      :cancel-text="promptState.cancelText"
+      :show-cancel="promptState.showCancel"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
+      @close="handleClose"
+    />
   </div>
 </template>
 

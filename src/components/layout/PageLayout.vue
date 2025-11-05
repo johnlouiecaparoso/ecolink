@@ -19,7 +19,15 @@
 
         <div class="nav-right">
           <div class="user-info">
-            <div class="user-avatar">{{ userInitials }}</div>
+            <div class="user-avatar">
+              <img
+                v-if="userProfile?.avatar_url"
+                :src="userProfile.avatar_url"
+                :alt="userProfile?.full_name || 'User'"
+                class="avatar-image"
+              />
+              <span v-else class="avatar-initials">{{ userInitials }}</span>
+            </div>
             <div class="user-details">
               <div class="user-name">{{ userProfile?.full_name || 'User' }}</div>
               <div class="user-role">{{ userRoleDisplay }}</div>
@@ -37,7 +45,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getProfile } from '@/services/profileService'
@@ -107,8 +115,24 @@ function goHome() {
   router.push('/profile')
 }
 
+let profileWatcher = null
+
 onMounted(() => {
   loadUserProfile()
+  
+  // Watch for profile updates in the store and refresh
+  profileWatcher = store.$subscribe((mutation, state) => {
+    if (state.profile && state.profile.id && state.profile.avatar_url) {
+      // Reload profile when store profile avatar is updated
+      loadUserProfile()
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (profileWatcher) {
+    profileWatcher()
+  }
 })
 </script>
 
@@ -213,6 +237,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar-initials {
   font-size: 0.75rem;
   font-weight: 600;
   color: white;

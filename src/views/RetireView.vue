@@ -122,41 +122,116 @@
             </div>
           </div>
 
-          <!-- Right Column - Retirement History -->
-          <div class="retirement-history">
+          <!-- Right Column - Transaction History (Purchase & Retirement) -->
+          <div class="transaction-history">
             <div class="history-card">
-              <h2 class="card-title">Retirement History</h2>
-              <div class="history-list">
+              <div class="card-header-with-action">
+                <div>
+                  <h2 class="card-title">Transaction History</h2>
+                  <p class="card-subtitle">Proof of purchases and retirements</p>
+                </div>
+                <button 
+                  v-if="purchaseHistory.length > 0 && purchaseHistory.some(p => !p.certificate)"
+                  @click="generateMissingCertificates"
+                  class="generate-cert-btn"
+                  :disabled="generatingCerts"
+                >
+                  {{ generatingCerts ? 'Generating...' : 'Generate Missing Certificates' }}
+                </button>
+              </div>
+              
+              <!-- Tabs for Purchase/Retirement -->
+              <div class="history-tabs">
+                <button
+                  :class="['tab-button', { active: activeTab === 'purchases' }]"
+                  @click="activeTab = 'purchases'"
+                >
+                  Purchases ({{ purchaseHistory.length }})
+                </button>
+                <button
+                  :class="['tab-button', { active: activeTab === 'retirements' }]"
+                  @click="activeTab = 'retirements'"
+                >
+                  Retirements ({{ retirementHistory.length }})
+                </button>
+              </div>
+
+              <!-- Purchase History -->
+              <div v-if="activeTab === 'purchases'" class="history-list">
+                <div v-if="purchaseHistory.length === 0" class="empty-history">
+                  <p>No purchase history yet. Buy credits from the marketplace to see them here.</p>
+                </div>
+                <div
+                  v-for="purchase in purchaseHistory"
+                  :key="purchase.id"
+                  class="history-item purchase-item"
+                >
+                  <div class="history-header">
+                    <div class="history-project-info">
+                      <span class="history-type-badge purchase-badge">Purchase</span>
+                      <span class="history-project">{{ purchase.project_title }}</span>
+                    </div>
+                    <span class="history-date">{{ formatDate(purchase.date) }}</span>
+                  </div>
+                  <div class="history-details">
+                    <div class="detail-group">
+                      <span class="history-credits">{{ purchase.credits_quantity }} credits</span>
+                      <span class="history-amount">{{ purchase.currency }} {{ purchase.total_amount.toLocaleString() }}</span>
+                    </div>
+                    <div class="detail-group">
+                      <span class="history-payment">{{ purchase.payment_method.toUpperCase() }}</span>
+                      <span v-if="purchase.certificate_number" class="cert-badge">
+                        Cert: {{ purchase.certificate_number }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="history-actions">
+                    <button
+                      v-if="purchase.certificate"
+                      @click="viewCertificate(purchase.certificate)"
+                      class="action-btn view-cert-btn"
+                    >
+                      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                      View Certificate
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Retirement History -->
+              <div v-if="activeTab === 'retirements'" class="history-list">
+                <div v-if="retirementHistory.length === 0" class="empty-history">
+                  <p>No retirement history yet. Retire credits to see them here.</p>
+                </div>
                 <div
                   v-for="retirement in retirementHistory"
                   :key="retirement.id"
-                  class="history-item"
+                  class="history-item retirement-item"
                 >
                   <div class="history-header">
-                    <span class="history-project">{{ retirement.project }}</span>
+                    <div class="history-project-info">
+                      <span class="history-type-badge retirement-badge">Retired</span>
+                      <span class="history-project">{{ retirement.project_title }}</span>
+                    </div>
                     <span class="history-date">{{ formatDate(retirement.date) }}</span>
                   </div>
                   <div class="history-details">
-                    <span class="history-credits">{{ retirement.credits }} credits</span>
+                    <span class="history-credits">{{ retirement.credits_quantity }} credits</span>
                     <span class="history-purpose">{{ retirement.purpose }}</span>
                   </div>
-                  <div class="history-certificate">
-                    <a :href="retirement.certificateUrl" target="_blank" class="certificate-link">
-                      <svg
-                        class="certificate-icon"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                        ></path>
+                  <div class="history-actions">
+                    <button
+                      v-if="retirement.certificate"
+                      @click="viewCertificate(retirement.certificate)"
+                      class="action-btn view-cert-btn"
+                    >
+                      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                       </svg>
                       View Certificate
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -170,10 +245,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getUserCreditPortfolio, retireCredits } from '@/services/marketplaceService'
+import { getUserTransactionHistory } from '@/services/transactionHistoryService'
 
 const userStore = useUserStore()
+const router = useRouter()
 
 // Form data
 const selectedProject = ref('')
@@ -183,9 +261,12 @@ const retirementStatement = ref('')
 
 // Data
 const availableProjects = ref([])
+const purchaseHistory = ref([])
 const retirementHistory = ref([])
+const activeTab = ref('purchases') // 'purchases' or 'retirements'
 const loading = ref(false)
 const error = ref('')
+const generatingCerts = ref(false)
 
 // Computed properties
 const selectedProjectCredits = computed(() => {
@@ -231,33 +312,45 @@ const loadUserCredits = async () => {
         location: credit.project_credits?.projects?.location || 'Unknown',
       }))
 
-    // Load retirement history from credit_retirements table separately
+    // Load complete transaction history (purchases and retirements)
     try {
       const userId = userStore.session?.user?.id || userStore.user?.id
-      const supabase = (await import('@/services/supabaseClient')).getSupabase()
-      const { data: retirements } = await supabase
-        .from('credit_retirements')
-        .select(`
-          *,
-          projects(
-            id,
-            title
-          )
-        `)
-        .eq('user_id', userId)
-        .order('retired_at', { ascending: false })
-
-      retirementHistory.value = (retirements || []).map((retirement) => ({
-        id: retirement.id,
-        project: retirement.projects?.title || 'Unknown Project',
-        credits: retirement.quantity,
-        purpose: retirement.reason || 'Carbon Offset',
-        date: retirement.retired_at,
-        certificateUrl: '#',
-      }))
-    } catch (retirementError) {
-      console.error('Error loading retirement history:', retirementError)
+      if (!userId) {
+        console.warn('⚠️ No user ID available for loading transaction history')
+        purchaseHistory.value = []
+        retirementHistory.value = []
+        return
+      }
+      
+      const history = await getUserTransactionHistory(userId)
+      
+      purchaseHistory.value = history.purchases || []
+      retirementHistory.value = history.retirements || []
+      
+      console.log('✅ Transaction history loaded:', {
+        purchases: purchaseHistory.value.length,
+        retirements: retirementHistory.value.length,
+        purchaseDetails: purchaseHistory.value.map(p => ({
+          id: p.id,
+          project_title: p.project_title,
+          has_certificate: !!p.certificate,
+          certificate_number: p.certificate_number
+        }))
+      })
+      
+      // Log any purchases without certificates for debugging
+      const purchasesWithoutCert = purchaseHistory.value.filter(p => !p.certificate)
+      if (purchasesWithoutCert.length > 0) {
+        console.warn('⚠️ Found purchases without certificates:', purchasesWithoutCert.length)
+        purchasesWithoutCert.forEach(p => {
+          console.warn('  - Purchase ID:', p.id, 'Project:', p.project_title, 'Date:', p.date)
+        })
+      }
+    } catch (historyError) {
+      console.error('❌ Error loading transaction history:', historyError)
+      purchaseHistory.value = []
       retirementHistory.value = []
+      error.value = 'Failed to load transaction history. Please refresh the page.'
     }
   } catch (err) {
     console.error('Error loading user credits:', err)
@@ -323,6 +416,7 @@ const handleRetire = async () => {
 }
 
 const formatDate = (dateString) => {
+  if (!dateString) return 'N/A'
   const date = new Date(dateString)
   return date.toLocaleDateString('en-US', {
     year: 'numeric',
@@ -331,9 +425,73 @@ const formatDate = (dateString) => {
   })
 }
 
+const viewCertificate = (certificate) => {
+  // Navigate to certificate view or open certificate details
+  if (!certificate) {
+    console.error('❌ No certificate provided to viewCertificate')
+    error.value = 'Certificate not available. It may still be generating.'
+    return
+  }
+  
+  const certId = certificate.certificate_number || certificate.id
+  if (!certId) {
+    console.error('❌ Certificate missing ID:', certificate)
+    error.value = 'Certificate information is incomplete.'
+    return
+  }
+  
+  router.push({
+    path: '/certificates',
+    query: { cert: certId },
+  })
+}
+
+const generateMissingCertificates = async () => {
+  const userId = userStore.session?.user?.id || userStore.user?.id
+  if (!userId) {
+    error.value = 'User not authenticated'
+    return
+  }
+
+  generatingCerts.value = true
+  error.value = ''
+
+  try {
+    const { generateMissingCertificates: generateMissing } = await import('@/services/certificateService')
+    const result = await generateMissing(userId)
+    
+    if (result.generated > 0) {
+      console.log(`✅ Generated ${result.generated} missing certificates`)
+      // Reload history to show new certificates
+      await loadUserCredits()
+      alert(`Successfully generated ${result.generated} certificate(s)!`)
+    } else {
+      alert('All purchases already have certificates.')
+    }
+    
+    if (result.errors && result.errors.length > 0) {
+      console.warn('⚠️ Some certificates could not be generated:', result.errors)
+    }
+  } catch (err) {
+    console.error('❌ Error generating missing certificates:', err)
+    error.value = 'Failed to generate certificates. Please try again.'
+  } finally {
+    generatingCerts.value = false
+  }
+}
+
 // Lifecycle
 onMounted(() => {
   loadUserCredits()
+  
+  // Check if we need to refresh after purchase
+  if (sessionStorage.getItem('refresh_retire_history')) {
+    sessionStorage.removeItem('refresh_retire_history')
+    // Refresh after a short delay to ensure database has updated
+    setTimeout(() => {
+      loadUserCredits()
+    }, 1000)
+  }
 })
 </script>
 
@@ -388,11 +546,46 @@ onMounted(() => {
   box-shadow: var(--shadow-sm);
 }
 
+.card-header-with-action {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
 .card-title {
   font-size: var(--font-size-2xl);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 0.5rem;
+}
+
+.card-subtitle {
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.generate-cert-btn {
+  padding: 0.5rem 1rem;
+  background: var(--primary-color, #10b981);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md, 0.5rem);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+}
+
+.generate-cert-btn:hover:not(:disabled) {
+  background: var(--primary-hover, #059669);
+  transform: translateY(-1px);
+}
+
+.generate-cert-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .card-description {
@@ -503,11 +696,57 @@ onMounted(() => {
   height: 1.25rem;
 }
 
-/* Retirement History */
-.retirement-history {
+/* Transaction History */
+.transaction-history {
   position: sticky;
   top: 2rem;
   height: fit-content;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+}
+
+.card-subtitle {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  margin-bottom: 1rem;
+}
+
+.history-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  border-bottom: 2px solid var(--border-light, #e8f5e8);
+}
+
+.tab-button {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: var(--font-size-sm);
+}
+
+.tab-button:hover {
+  color: var(--primary-color);
+  background: var(--bg-secondary);
+}
+
+.tab-button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  font-weight: 600;
+}
+
+.empty-history {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
 }
 
 .history-card {
@@ -529,6 +768,102 @@ onMounted(() => {
   background: var(--bg-secondary);
   border-radius: var(--radius-md);
   border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.history-item:hover {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.1);
+}
+
+.purchase-item {
+  border-left: 4px solid var(--primary-color);
+}
+
+.retirement-item {
+  border-left: 4px solid #10b981;
+}
+
+.history-project-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.history-type-badge {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.purchase-badge {
+  background: var(--primary-light, #e8f5e8);
+  color: var(--primary-color, #069e2d);
+}
+
+.retirement-badge {
+  background: #dcfce7;
+  color: #059669;
+}
+
+.detail-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.history-amount {
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.history-payment {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  background: var(--bg-primary);
+  border-radius: 0.25rem;
+}
+
+.cert-badge {
+  font-size: 0.75rem;
+  color: var(--primary-color);
+  font-weight: 500;
+}
+
+.history-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.action-btn:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.action-btn .icon {
+  width: 1rem;
+  height: 1rem;
 }
 
 .history-header {

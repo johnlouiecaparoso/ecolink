@@ -101,22 +101,61 @@
             <div v-else-if="filteredListings.length > 0" class="projects-container">
               <!-- Grid View -->
               <div v-if="viewMode === 'grid'" class="projects-grid">
-                <MobileCard
+                <div
                   v-for="listing in paginatedListings"
                   :key="listing.listing_id"
-                  :title="listing.project_title"
-                  :description="listing.project_description"
-                  :image="listing.project_image"
-                  :price="listing.price_per_credit"
-                  :currency="listing.currency"
-                  :badge="listing.certification_status"
-                  :available-credits="listing.available_quantity"
-                  :clickable="true"
-                  :swipeable="true"
+                  class="project-grid-card"
                   @click="viewProject(listing)"
-                  @swipe-left="navigateToBuyCredits(listing)"
-                  @swipe-right="openPurchaseModal(listing)"
-                />
+                >
+                  <div class="project-grid-image">
+                    <img
+                      v-if="listing.project_image"
+                      :src="listing.project_image"
+                      :alt="listing.project_title"
+                    />
+                    <img
+                      v-else
+                      :src="`https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=400&h=250&fit=crop&${listing.listing_id}`"
+                      :alt="listing.project_title"
+                    />
+                  </div>
+                  <div class="project-grid-content">
+                    <h3 class="project-grid-title">{{ listing.project_title }}</h3>
+                    <p class="project-grid-description">{{ listing.project_description }}</p>
+                    <div class="project-grid-meta">
+                      <span>📍 {{ listing.location }}</span>
+                      <span>🏷️ {{ listing.category }}</span>
+                    </div>
+                    <div class="project-grid-pricing">
+                      <div class="price">
+                        {{ formatCurrency(listing.price_per_credit, listing.currency) }}
+                      </div>
+                      <div class="quantity">
+                        {{ formatNumber(listing.available_quantity) }} credits
+                      </div>
+                    </div>
+                    <div class="project-grid-actions" @click.stop>
+                      <UiButton
+                        variant="primary"
+                        size="sm"
+                        @click.stop="openPurchaseModal(listing)"
+                      >
+                        Purchase
+                      </UiButton>
+                      <UiButton
+                        v-if="isUserAdmin"
+                        variant="danger"
+                        size="sm"
+                        @click.stop.prevent="adminDeleteListing(listing)"
+                        @mousedown.stop
+                        style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
+                        :title="`Delete project: ${listing.project_title}`"
+                      >
+                        🗑️ Delete
+                      </UiButton>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <!-- List View -->
@@ -155,22 +194,26 @@
                     <div class="quantity">
                       {{ formatNumber(listing.available_quantity) }} credits
                     </div>
-                    <UiButton
-                      variant="primary"
-                      size="sm"
-                      @click.stop="showPurchaseModalFor(listing)"
-                    >
-                      Purchase
-                    </UiButton>
-                    <UiButton
-                      v-if="userStore.isAdmin"
-                      variant="danger"
-                      size="sm"
-                      @click.stop="adminDeleteListing(listing)"
-                      style="margin-left: 0.5rem"
-                    >
-                      🗑️ Delete
-                    </UiButton>
+                    <div class="project-actions-buttons" @click.stop>
+                      <UiButton
+                        variant="primary"
+                        size="sm"
+                        @click.stop="openPurchaseModal(listing)"
+                      >
+                        Purchase
+                      </UiButton>
+                      <UiButton
+                        v-if="isUserAdmin"
+                        variant="danger"
+                        size="sm"
+                        @click.stop.prevent="adminDeleteListing(listing)"
+                        @mousedown.stop
+                        style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
+                        :title="`Delete project: ${listing.project_title}`"
+                      >
+                        🗑️ Delete
+                      </UiButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -298,6 +341,20 @@
         </div>
       </div>
     </AccessibleModal>
+    
+    <!-- Modern Prompt Modal -->
+    <ModernPrompt
+      :is-open="promptState.isOpen"
+      :type="promptState.type"
+      :title="promptState.title"
+      :message="promptState.message"
+      :confirm-text="promptState.confirmText"
+      :cancel-text="promptState.cancelText"
+      :show-cancel="promptState.showCancel"
+      @confirm="handleConfirm"
+      @cancel="handleCancel"
+      @close="handleClose"
+    />
   </div>
 </template>
 
@@ -314,11 +371,24 @@ import AdvancedSearch from '@/components/search/AdvancedSearch.vue'
 import Pagination from '@/components/ui/Pagination.vue'
 import MobileCard from '@/components/mobile/MobileCard.vue'
 import AccessibleModal from '@/components/ui/AccessibleModal.vue'
+import ModernPrompt from '@/components/ui/ModernPrompt.vue'
 
-const { confirm, success, error: showErrorPrompt, warning } = useModernPrompt()
+const { promptState, confirm, success, error: showErrorPrompt, warning, handleConfirm, handleCancel, handleClose } = useModernPrompt()
 
 const router = useRouter()
 const userStore = useUserStore()
+
+// Computed property to ensure admin check is reactive
+const isUserAdmin = computed(() => {
+  const adminStatus = userStore.isAdmin
+  console.log('🔍 [Marketplace] Admin check computed:', {
+    isAdmin: adminStatus,
+    role: userStore.role,
+    profile: userStore.profile,
+    session: !!userStore.session
+  })
+  return adminStatus
+})
 
 // State
 const listings = ref([])
@@ -569,10 +639,10 @@ function viewProject(listing) {
 }
 
 function navigateToBuyCredits(listing) {
-  console.log('Navigating to buy credits for:', listing.project_title)
-  // Navigate to buy credits page with pre-selected project
+  console.log('Navigating to marketplace for:', listing.project_title)
+  // Navigate to marketplace (buy credits functionality is now in marketplace)
   router.push({
-    path: '/buy-credits',
+    path: '/marketplace',
     query: {
       project: listing.project_id,
       listing: listing.listing_id,
@@ -735,13 +805,46 @@ function formatNumber(number) {
   return new Intl.NumberFormat('en-US').format(number)
 }
 
-// Admin delete function
+// Admin delete function - deletes the project (which will cascade to listings)
 async function adminDeleteListing(listing) {
+  // Immediate console log to verify function is called
+  console.log('🗑️🗑️🗑️ DELETE FUNCTION CALLED! 🗑️🗑️🗑️')
+  console.log('🗑️ Delete button clicked for listing:', listing)
+  console.log('🔍 User store isAdmin:', userStore.isAdmin)
+  console.log('🔍 User role:', userStore.role)
+  console.log('🔍 User store object:', userStore)
+  
+  // Check if user is admin
+  if (!userStore.isAdmin) {
+    console.warn('⚠️ Non-admin user attempted to delete project')
+    await showErrorPrompt({
+      title: 'Access Denied',
+      message: 'Only administrators can delete projects from the marketplace.',
+      confirmText: 'OK',
+    })
+    return
+  }
+
+  // Get project ID from listing - check multiple possible fields
+  const projectId = listing.project_id || listing.id || listing.projectId
+  console.log('🔍 Project ID extracted:', projectId)
+  console.log('🔍 Full listing object:', listing)
+  
+  if (!projectId) {
+    console.error('❌ No project ID found in listing:', listing)
+    await showErrorPrompt({
+      title: 'Delete Failed',
+      message: 'Could not identify the project to delete. Please check console for details.',
+      confirmText: 'OK',
+    })
+    return
+  }
+
   const confirmed = await confirm({
     type: 'warning',
-    title: 'Delete Listing?',
-    message: `Are you sure you want to delete "${listing.project_title}" from the marketplace? This action cannot be undone and will remove the project from public view.`,
-    confirmText: 'Delete',
+    title: 'Delete Project?',
+    message: `⚠️ WARNING: Are you sure you want to permanently delete "${listing.project_title}" from the marketplace?\n\nThis action cannot be undone and will:\n- Remove the project from the system\n- Delete all associated credits and listings\n- Delete all related data\n\nThis is a permanent action!`,
+    confirmText: 'Delete Permanently',
     cancelText: 'Cancel',
   })
 
@@ -750,42 +853,30 @@ async function adminDeleteListing(listing) {
   }
 
   try {
-    const supabase = getSupabase()
-    if (!supabase) {
-      throw new Error('Supabase client not available')
+    console.log('🗑️ Admin deleting project from marketplace:', projectId)
+    
+    // Use admin delete function which handles all related data deletion
+    const result = await projectService.adminDeleteProject(projectId)
+    
+    if (!result) {
+      throw new Error('Delete operation returned false')
     }
 
-    // Delete the credit listing first
-    const { error: deleteError } = await supabase
-      .from('credit_listings')
-      .delete()
-      .eq('id', listing.listing_id)
-
-    if (deleteError) {
-      console.error('Error deleting credit listing:', deleteError)
-      await showErrorPrompt({
-        title: 'Delete Failed',
-        message: deleteError.message || 'Failed to delete listing. Please try again.',
-        confirmText: 'OK',
-      })
-      return
-    }
-
-    console.log('Successfully deleted listing from marketplace')
+    console.log('✅ Project deleted successfully from marketplace:', projectId)
     
     // Reload marketplace data
     await loadMarketplaceData()
     
     await success({
-      title: 'Listing Deleted',
-      message: `"${listing.project_title}" has been successfully removed from the marketplace.`,
+      title: 'Project Deleted! 🗑️',
+      message: `"${listing.project_title}" has been permanently deleted from the marketplace and system.`,
       confirmText: 'OK',
     })
   } catch (err) {
-    console.error('Error deleting listing from marketplace:', err)
+    console.error('❌ Error deleting project from marketplace:', err)
     await showErrorPrompt({
       title: 'Delete Failed',
-      message: err.message || 'An error occurred while deleting the listing.',
+      message: err.message || 'Failed to delete project. Please check console for details and try again.',
       confirmText: 'OK',
     })
   }
@@ -793,6 +884,15 @@ async function adminDeleteListing(listing) {
 
 // Lifecycle
 onMounted(() => {
+  // Debug: Log admin status when component mounts
+  console.log('🔍 [Marketplace] Component mounted - Admin status:', {
+    isAdmin: userStore.isAdmin,
+    role: userStore.role,
+    profile: userStore.profile?.role,
+    session: !!userStore.session,
+    userStore: userStore
+  })
+  
   loadMarketplaceData()
 })
 </script>
@@ -925,6 +1025,102 @@ onMounted(() => {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
+}
+
+.project-grid-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-grid-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.project-grid-image {
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.project-grid-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.project-grid-content {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.project-grid-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.project-grid-description {
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.project-grid-meta {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.project-grid-pricing {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+}
+
+.project-grid-pricing .price {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #059669;
+}
+
+.project-grid-pricing .quantity {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.project-grid-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+.project-actions-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.5rem;
 }
 
 .projects-list {

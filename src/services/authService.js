@@ -134,23 +134,55 @@ export async function getSession() {
 
 export async function signOut() {
   const supabase = getSupabase()
-
-  // Get current user before signing out
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  if (!supabase) return
 
   try {
-    await supabase.auth.signOut({ scope: 'global' })
-    // Log successful logout
-    await logUserAction('LOGOUT_SUCCESS', 'user', user?.id, null, {})
+    // Get current user before signing out (non-blocking with timeout)
+    let user = null
+    try {
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('getUser timeout')), 2000)
+      )
+      const { data } = await Promise.race([
+        supabase.auth.getUser(),
+        timeoutPromise,
+      ])
+      user = data?.user
+    } catch (e) {
+      // Ignore getUser timeout/error - proceed with signOut anyway
+      console.warn('Could not get user before signOut:', e.message)
+    }
+
+    // Sign out from Supabase (with timeout to prevent hanging)
+    const signOutPromise = supabase.auth.signOut({ scope: 'global' })
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('signOut timeout')), 3000)
+    )
+    
+    await Promise.race([signOutPromise, timeoutPromise])
+
+    // Log successful logout (non-blocking)
+    if (user?.id) {
+      logUserAction('LOGOUT_SUCCESS', 'user', user.id, null, {}).catch(() => {
+        // Ignore audit log errors
+      })
+    }
   } catch (e) {
-    // Log failed logout
-    await logUserAction('LOGOUT_FAILED', 'user', user?.id, null, { error: e.message })
-    // ignore but continue clearing local state
+    // Log failed logout (non-blocking)
+    try {
+      const { data } = await supabase.auth.getUser()
+      if (data?.user?.id) {
+        logUserAction('LOGOUT_FAILED', 'user', data.user.id, null, { error: e.message }).catch(() => {
+          // Ignore audit log errors
+        })
+      }
+    } catch (logError) {
+      // Ignore - we're already in error handling
+    }
   }
+
+  // Clear any persisted Supabase auth tokens
   try {
-    // Clear any persisted Supabase auth tokens to avoid stale sessions after refresh
     if (typeof window !== 'undefined' && window.localStorage) {
       Object.keys(window.localStorage).forEach((key) => {
         if (key.startsWith('sb-') || key.includes('supabase')) {
@@ -158,5 +190,7 @@ export async function signOut() {
         }
       })
     }
-  } catch (e) {}
+  } catch (e) {
+    // Ignore localStorage errors
+  }
 }

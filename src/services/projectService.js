@@ -234,15 +234,109 @@ export class ProjectService {
 
       // For admin users, show warning for approved projects
       if (isAdmin && project.status === 'approved') {
-        console.warn('Admin deleting approved project:', project.title)
+        console.warn('⚠️ Admin deleting approved project:', project.title)
       }
 
-      const { error } = await this.supabase.from('projects').delete().eq('id', projectId)
+      // Step 1: Get all project_credits for this project
+      const { data: projectCredits, error: creditsFetchError } = await this.supabase
+        .from('project_credits')
+        .select('id')
+        .eq('project_id', projectId)
+
+      if (creditsFetchError) {
+        console.warn('⚠️ Could not fetch project credits (may not exist):', creditsFetchError)
+      }
+
+      const projectCreditIds = projectCredits?.map(pc => pc.id) || []
+      console.log(`🗑️ Found ${projectCreditIds.length} project credits to delete for project ${projectId}`)
+
+      // Step 2: Delete credit listings associated with these project credits
+      if (projectCreditIds.length > 0) {
+        try {
+          const { error: listingsError, count: deletedListings } = await this.supabase
+            .from('credit_listings')
+            .delete({ count: 'exact' })
+            .in('project_credit_id', projectCreditIds)
+          
+          if (listingsError) {
+            console.warn('⚠️ Could not delete credit listings:', listingsError)
+          } else {
+            console.log(`✅ Deleted ${deletedListings || 0} credit listings`)
+          }
+        } catch (err) {
+          console.warn('⚠️ Error deleting credit listings:', err)
+        }
+      }
+
+      // Step 3: Delete project credits
+      try {
+        const { error: creditsError, count: deletedCredits } = await this.supabase
+          .from('project_credits')
+          .delete({ count: 'exact' })
+          .eq('project_id', projectId)
+        
+        if (creditsError) {
+          console.warn('⚠️ Could not delete project credits:', creditsError)
+        } else {
+          console.log(`✅ Deleted ${deletedCredits || 0} project credits`)
+        }
+      } catch (err) {
+        console.warn('⚠️ Error deleting project credits:', err)
+      }
+
+      // Finally delete the project itself - this physically removes it from Supabase
+      const { error, count } = await this.supabase
+        .from('projects')
+        .delete({ count: 'exact' })
+        .eq('id', projectId)
 
       if (error) {
+        console.error('❌ Error deleting project:', error)
+        // Provide more detailed error message
+        if (error.code === '23503') {
+          throw new Error('Cannot delete project: It has related data that must be removed first. Please check database constraints.')
+        }
         throw new Error(error.message || 'Failed to delete project')
       }
 
+      // Verify the project was actually deleted
+      if (count === 0) {
+        console.warn('⚠️ No rows deleted - project may not exist:', projectId)
+        throw new Error('Project not found or already deleted')
+      }
+
+      console.log(`✅ Project deleted successfully from Supabase (${count} row(s) deleted):`, projectId)
+      
+      // Double-check: Verify project no longer exists in database
+      // Try multiple times to ensure deletion is complete
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        const { data: verifyProject, error: verifyError } = await this.supabase
+          .from('projects')
+          .select('id')
+          .eq('id', projectId)
+          .single()
+        
+        if (verifyError && verifyError.code === 'PGRST116') {
+          // PGRST116 means no rows returned - this is good, project is deleted
+          console.log(`✅ Verification attempt ${attempt}: Project confirmed deleted from Supabase database`)
+          break
+        }
+        
+        if (verifyProject) {
+          if (attempt < 3) {
+            console.warn(`⚠️ Verification attempt ${attempt}: Project still exists, waiting and retrying...`)
+            await new Promise(resolve => setTimeout(resolve, 500))
+          } else {
+            console.error('❌ CRITICAL: Project still exists after deletion after 3 attempts!', projectId)
+            throw new Error('Project deletion verification failed - project still exists in database after multiple verification attempts')
+          }
+        } else {
+          console.log(`✅ Verification attempt ${attempt}: Project confirmed deleted from Supabase database`)
+          break
+        }
+      }
+      
+      console.log('✅ Final verification: Project confirmed completely deleted from Supabase database')
       return true
     } catch (error) {
       console.error('Error deleting project:', error)

@@ -17,9 +17,44 @@
             <!-- Profile Overview Card -->
             <div class="profile-card">
               <div class="profile-avatar">
-                <div class="avatar-circle">
-                  <span class="avatar-initials">{{ userProfile.initials }}</span>
+                <div class="avatar-circle" :class="{ 'has-image': userProfile.avatarUrl }">
+                  <img
+                    v-if="userProfile.avatarUrl"
+                    :src="userProfile.avatarUrl"
+                    :alt="userProfile.fullName"
+                    class="avatar-image"
+                  />
+                  <span v-else class="avatar-initials">{{ userProfile.initials }}</span>
                 </div>
+                <div class="avatar-upload-section">
+                  <input
+                    ref="fileInput"
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    @change="handleFileSelect"
+                    class="avatar-file-input"
+                    :disabled="uploadingPhoto"
+                  />
+                  <button
+                    type="button"
+                    @click="triggerFileInput"
+                    class="upload-photo-button"
+                    :disabled="uploadingPhoto"
+                  >
+                    <span v-if="uploadingPhoto">Uploading...</span>
+                    <span v-else>{{ userProfile.avatarUrl ? 'Change Photo' : 'Upload Photo' }}</span>
+                  </button>
+                  <button
+                    v-if="userProfile.avatarUrl"
+                    type="button"
+                    @click="removeProfilePhoto"
+                    class="remove-photo-button"
+                    :disabled="uploadingPhoto"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div v-if="photoError" class="photo-error">{{ photoError }}</div>
               </div>
               <div class="profile-info">
                 <h2 class="profile-name">{{ userProfile.fullName }}</h2>
@@ -216,6 +251,28 @@
                             placeholder="Enter your location"
                           />
                         </div>
+                        <div class="form-group">
+                          <label class="form-label">Phone</label>
+                          <input
+                            v-model="editForm.phone"
+                            type="tel"
+                            class="form-input"
+                            :disabled="!isEditing"
+                            placeholder="Enter your phone number"
+                          />
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Website</label>
+                          <input
+                            v-model="editForm.website"
+                            type="url"
+                            class="form-input"
+                            :class="{ error: errors.website }"
+                            :disabled="!isEditing"
+                            placeholder="https://example.com"
+                          />
+                          <span v-if="errors.website" class="field-error">{{ errors.website }}</span>
+                        </div>
                         <div class="form-group full-width">
                           <label class="form-label">Bio</label>
                           <textarea
@@ -345,7 +402,9 @@ import {
   updateProfile,
   getUserInitials,
   validateProfileData,
+  uploadAndUpdateProfilePhoto,
 } from '@/services/profileService'
+import { resizeImage } from '@/services/storageService'
 
 export default {
   name: 'ProfileView',
@@ -372,13 +431,18 @@ export default {
         email: '',
         company: '',
         location: '',
+        phone: '',
+        website: '',
         bio: '',
+        avatarUrl: null,
       },
       editForm: {
         full_name: '',
         email: '',
         company: '',
         location: '',
+        phone: '',
+        website: '',
         bio: '',
       },
       carbonImpact: {
@@ -430,6 +494,8 @@ export default {
         },
       },
       savingNotifications: false,
+      uploadingPhoto: false,
+      photoError: '',
     }
   },
   async mounted() {
@@ -456,6 +522,77 @@ export default {
 
         const profile = await getProfile(userId)
 
+        // Handle null profile (when RLS blocks creation)
+        if (!profile) {
+          console.warn('Profile is null - likely blocked by RLS policy. Using defaults from auth session.')
+          
+          // Get user info from auth session as fallback
+          const authUser = this.store.session?.user
+          const userEmail = authUser?.email || ''
+          const userName = authUser?.user_metadata?.name || authUser?.email?.split('@')[0] || 'User'
+
+          // Update user profile display with defaults
+          this.userProfile = {
+            initials: getUserInitials(userName),
+            fullName: userName,
+            email: userEmail,
+            company: '',
+            location: '',
+            phone: '',
+            website: '',
+            bio: '',
+            avatarUrl: null,
+          }
+
+          // Update edit form with defaults
+          this.editForm = {
+            full_name: userName,
+            email: userEmail,
+            company: '',
+            location: '',
+            phone: '',
+            website: '',
+            bio: '',
+          }
+
+          // Use default notification settings
+          this.notificationSettings = {
+            emailNotifications: {
+              label: 'Email Notifications',
+              description: 'Receive updates via email',
+              enabled: true,
+            },
+            projectUpdates: {
+              label: 'Project Updates',
+              description: 'Get notified about project milestones',
+              enabled: true,
+            },
+            marketAlerts: {
+              label: 'Market Alerts',
+              description: 'Price alerts and market updates',
+              enabled: false,
+            },
+            newsletter: {
+              label: 'Newsletter',
+              description: 'Weekly sustainability newsletter',
+              enabled: true,
+            },
+          }
+
+          // Show warning message to user
+          this.errors.general = 'Profile could not be loaded due to database security settings. Some features may be limited. Please contact support if this persists.'
+          
+          // Still try to load carbon impact (may fail but won't crash)
+          try {
+            await this.loadCarbonImpact()
+          } catch (err) {
+            console.warn('Could not load carbon impact without profile:', err)
+          }
+
+          return
+        }
+
+        // Profile exists - proceed normally
         // Update user profile display
         this.userProfile = {
           initials: getUserInitials(profile.full_name),
@@ -463,7 +600,10 @@ export default {
           email: profile.email || '',
           company: profile.company || '',
           location: profile.location || '',
+          phone: profile.phone || '',
+          website: profile.website || '',
           bio: profile.bio || '',
+          avatarUrl: profile.avatar_url || null,
         }
 
         // Update edit form
@@ -472,6 +612,8 @@ export default {
           email: profile.email || '',
           company: profile.company || '',
           location: profile.location || '',
+          phone: profile.phone || '',
+          website: profile.website || '',
           bio: profile.bio || '',
         }
 
@@ -594,6 +736,8 @@ export default {
         email: this.userProfile.email,
         company: this.userProfile.company,
         location: this.userProfile.location,
+        phone: this.userProfile.phone || '',
+        website: this.userProfile.website || '',
         bio: this.userProfile.bio,
       }
     },
@@ -620,7 +764,60 @@ export default {
           throw new Error('User ID not found')
         }
 
-        // Update profile in database
+        // Check if profile exists before trying to update
+        // If profile is null (RLS blocked), try to create it first
+        if (!this.store.profile) {
+          // Profile doesn't exist - try to create it with the form data
+          try {
+            const { createProfile } = await import('@/services/profileService')
+            const authUser = this.store.session?.user
+            const newProfile = await createProfile({
+              id: userId,
+              full_name: this.editForm.full_name,
+              email: this.editForm.email || authUser?.email || '',
+              company: this.editForm.company || '',
+              location: this.editForm.location || '',
+              phone: this.editForm.phone || '',
+              website: this.editForm.website || '',
+              bio: this.editForm.bio || '',
+              role: 'general_user',
+              kyc_level: 0,
+            })
+            
+            // Use the newly created profile
+            const updatedProfile = newProfile
+            
+            // Update local state
+            this.userProfile = {
+              initials: getUserInitials(updatedProfile.full_name),
+              fullName: updatedProfile.full_name || '',
+              email: updatedProfile.email || '',
+              company: updatedProfile.company || '',
+              location: updatedProfile.location || '',
+              phone: updatedProfile.phone || '',
+              website: updatedProfile.website || '',
+              bio: updatedProfile.bio || '',
+              avatarUrl: updatedProfile.avatar_url || null,
+            }
+
+            // Update store profile and refresh from Supabase
+            this.store.profile = updatedProfile
+            await this.store.fetchUserProfile()
+
+            this.isEditing = false
+            this.successMessage = 'Profile created successfully!'
+            return
+          } catch (createError) {
+            // If RLS still blocks creation, show helpful error
+            if (createError.code === 'RLS_VIOLATION' || createError.message?.includes('row-level security')) {
+              this.errors.general = 'Cannot save profile: Database security settings are preventing profile creation. Please contact support.'
+              return
+            }
+            throw createError
+          }
+        }
+
+        // Profile exists - update it normally
         const updatedProfile = await updateProfile(userId, this.editForm)
 
         // Update local state
@@ -630,7 +827,10 @@ export default {
           email: updatedProfile.email || '',
           company: updatedProfile.company || '',
           location: updatedProfile.location || '',
+          phone: updatedProfile.phone || '',
+          website: updatedProfile.website || '',
           bio: updatedProfile.bio || '',
+          avatarUrl: updatedProfile.avatar_url || null,
         }
 
         // Update store profile and refresh from Supabase
@@ -666,6 +866,8 @@ export default {
         email: this.userProfile.email,
         company: this.userProfile.company,
         location: this.userProfile.location,
+        phone: this.userProfile.phone || '',
+        website: this.userProfile.website || '',
         bio: this.userProfile.bio,
       }
     },
@@ -712,6 +914,102 @@ export default {
         this.savingNotifications = false
       }
     },
+
+    triggerFileInput() {
+      this.$refs.fileInput?.click()
+    },
+
+    async handleFileSelect(event) {
+      const file = event.target.files?.[0]
+      if (!file) return
+
+      this.photoError = ''
+      this.uploadingPhoto = true
+
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          throw new Error('User ID not found')
+        }
+
+        // Resize image before upload (max 800x800, quality 0.8)
+        const resizedFile = await resizeImage(file, 800, 800, 0.8)
+
+        // Upload and update profile photo
+        const avatarUrl = await uploadAndUpdateProfilePhoto(userId, resizedFile)
+
+        // Update local state
+        this.userProfile.avatarUrl = avatarUrl
+
+        // Update store profile
+        if (this.store.profile) {
+          this.store.profile.avatar_url = avatarUrl
+        }
+
+        // Refresh profile from Supabase to ensure we have latest data
+        await this.store.fetchUserProfile()
+
+        this.successMessage = 'Profile photo updated successfully!'
+        setTimeout(() => {
+          this.successMessage = ''
+        }, 3000)
+
+        console.log('Profile photo uploaded successfully')
+      } catch (error) {
+        console.error('Error uploading profile photo:', error)
+        this.photoError = error.message || 'Failed to upload profile photo. Please try again.'
+      } finally {
+        this.uploadingPhoto = false
+        // Reset file input
+        if (this.$refs.fileInput) {
+          this.$refs.fileInput.value = ''
+        }
+      }
+    },
+
+    async removeProfilePhoto() {
+      if (!this.userProfile.avatarUrl) return
+
+      if (!confirm('Are you sure you want to remove your profile photo?')) {
+        return
+      }
+
+      this.photoError = ''
+      this.uploadingPhoto = true
+
+      try {
+        const userId = this.store.session?.user?.id
+        if (!userId) {
+          throw new Error('User ID not found')
+        }
+
+        // Update profile to remove avatar URL
+        await updateProfile(userId, { avatar_url: null })
+
+        // Update local state
+        this.userProfile.avatarUrl = null
+
+        // Update store profile
+        if (this.store.profile) {
+          this.store.profile.avatar_url = null
+        }
+
+        // Refresh profile from Supabase
+        await this.store.fetchUserProfile()
+
+        this.successMessage = 'Profile photo removed successfully!'
+        setTimeout(() => {
+          this.successMessage = ''
+        }, 3000)
+
+        console.log('Profile photo removed successfully')
+      } catch (error) {
+        console.error('Error removing profile photo:', error)
+        this.photoError = error.message || 'Failed to remove profile photo. Please try again.'
+      } finally {
+        this.uploadingPhoto = false
+      }
+    },
   },
 }
 </script>
@@ -720,6 +1018,8 @@ export default {
 .profile-page {
   min-height: 100vh;
   background: var(--bg-primary);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .container {
@@ -757,6 +1057,7 @@ export default {
 .profile-content {
   padding: 3rem 0;
   min-height: 80vh;
+  overflow: visible;
 }
 
 .content-layout {
@@ -765,6 +1066,7 @@ export default {
   gap: 3rem;
   max-width: 1400px;
   margin: 0 auto;
+  overflow: visible;
 }
 
 /* Profile Sidebar */
@@ -806,6 +1108,13 @@ export default {
   box-shadow: var(--shadow-green);
   border: 4px solid var(--bg-primary);
   transition: all 0.3s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.avatar-circle.has-image {
+  background: transparent;
+  border-color: var(--border-green-light);
 }
 
 .avatar-circle:hover {
@@ -813,11 +1122,73 @@ export default {
   box-shadow: var(--shadow-green-lg);
 }
 
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
 .avatar-initials {
   font-size: var(--font-size-4xl);
   font-weight: 800;
   color: white;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.avatar-upload-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.avatar-file-input {
+  display: none;
+}
+
+.upload-photo-button,
+.remove-photo-button {
+  padding: 0.5rem 1rem;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: var(--transition);
+  border: 1px solid var(--primary-color);
+  background: var(--primary-color);
+  color: white;
+}
+
+.upload-photo-button:hover:not(:disabled) {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.upload-photo-button:disabled,
+.remove-photo-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.remove-photo-button {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+.remove-photo-button:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.photo-error {
+  color: #dc2626;
+  font-size: var(--font-size-xs);
+  text-align: center;
+  margin-top: 0.5rem;
 }
 
 .profile-name {

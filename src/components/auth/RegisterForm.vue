@@ -77,49 +77,88 @@ async function handleSubmit() {
       <p class="register-subtitle">Get started with EcoLink in minutes.</p>
     </div>
     <form class="form-grid" @submit.prevent="handleSubmit">
-      <UiInput
-        id="name"
-        label="Full name"
-        type="text"
-        placeholder="Jane Doe"
-        v-model="name"
-        :error="nameError"
-        required
-      />
+      <!-- Full Name Input -->
+      <div class="form-field">
+        <label for="name" class="form-label">
+          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          Full name
+        </label>
+        <UiInput
+          id="name"
+          type="text"
+          placeholder="Jane Doe"
+          v-model="name"
+          :error="nameError"
+          @input="nameError = ''"
+          required
+        />
+      </div>
 
-      <UiInput
-        id="email"
-        label="Email"
-        type="email"
-        placeholder="you@ecolink.io"
-        v-model="email"
-        :error="emailError"
-        required
-      />
+      <!-- Email Input -->
+      <div class="form-field">
+        <label for="email" class="form-label">
+          <span class="label-icon">@</span>
+          Email Address
+        </label>
+        <UiInput
+          id="email"
+          type="email"
+          placeholder="you@ecolink.io"
+          v-model="email"
+          :error="emailError"
+          @input="emailError = ''"
+          required
+        />
+      </div>
 
-      <UiInput
-        id="password"
-        label="Password"
-        type="password"
-        placeholder="Create a strong password"
-        v-model="password"
-        :error="passwordError"
-        required
-      />
+      <!-- Password Input -->
+      <div class="form-field">
+        <label for="password" class="form-label">
+          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Password
+        </label>
+        <UiInput
+          id="password"
+          type="password"
+          placeholder="Create a strong password"
+          v-model="password"
+          :error="passwordError"
+          @input="passwordError = ''"
+          required
+        />
+      </div>
 
-      <UiInput
-        id="confirm"
-        label="Confirm password"
-        type="password"
-        placeholder="Re-enter password"
-        v-model="confirmPassword"
-        :error="confirmError"
-        required
-      />
+      <!-- Confirm Password Input -->
+      <div class="form-field">
+        <label for="confirm" class="form-label">
+          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          Confirm password
+        </label>
+        <UiInput
+          id="confirm"
+          type="password"
+          placeholder="Re-enter password"
+          v-model="confirmPassword"
+          :error="confirmError"
+          @input="confirmError = ''"
+          required
+        />
+      </div>
 
-      <div v-if="errorMessage" style="color: #b00020; font-weight: 600">{{ errorMessage }}</div>
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
-      <UiButton type="submit" :loading="loading" block> Create Account </UiButton>
+      <UiButton type="submit" :loading="loading" block class="create-account-button">
+        Create Account
+      </UiButton>
     </form>
   </div>
 </template>
@@ -128,41 +167,35 @@ async function handleSubmit() {
 /* Enhanced Register Form - Properly centered and sized */
 .register-form-container {
   width: 100%;
-  max-width: 100%;
   margin: 0;
-  padding: 1.5rem 1rem;
+  padding: 0;
   background: transparent;
-  border-radius: 0;
-  box-shadow: none;
-  backdrop-filter: none;
-  border: none;
   position: relative;
-  overflow: visible;
-  transition: all 0.3s ease;
 }
 
 /* Register Header - Centered and properly spaced */
 .register-header {
-  text-align: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
 .register-title {
-  font-size: 1.75rem;
+  font-size: 1.875rem;
   font-weight: 700;
   color: #1f2937;
   margin: 0 0 0.5rem;
   letter-spacing: -0.025em;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .register-subtitle {
   color: #6b7280;
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   margin: 0;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Form Grid - Optimized spacing and centering */
@@ -172,17 +205,37 @@ async function handleSubmit() {
   display: grid;
   gap: 1.25rem;
   width: 100%;
-  max-width: 100%;
   padding: 0;
   margin: 0;
   box-sizing: border-box;
 }
 
-/* Ensure form elements are properly sized */
-.form-grid > * {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #6b7280;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.label-icon {
+  width: 16px;
+  height: 16px;
+  color: #6b7280;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 /* Specific styling for UiInput components */
@@ -192,10 +245,68 @@ async function handleSubmit() {
   box-sizing: border-box;
 }
 
+.form-grid :deep(.enhanced-input__label) {
+  display: none;
+}
+
 .form-grid :deep(.enhanced-input__field) {
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+  border: 1px solid #d1fae5;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #1f2937;
+  background: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.form-grid :deep(.enhanced-input__field:focus) {
+  border-color: var(--primary-color, #069e2d);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(6, 158, 45, 0.1);
+}
+
+.form-grid :deep(.enhanced-input__field::placeholder) {
+  color: #9ca3af;
+  font-weight: 400;
+  font-style: italic;
+}
+
+.create-account-button {
+  margin-top: 0.25rem;
+}
+
+.create-account-button :deep(.ui-btn) {
+  background: var(--primary-color, #069e2d);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.create-account-button :deep(.ui-btn:hover) {
+  background: var(--primary-hover, #058e3f);
+}
+
+.error-message {
+  color: #b00020;
+  font-weight: 600;
+  font-size: 0.875rem;
+  padding: 0.75rem;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 8px;
+  text-align: center;
 }
 
 button[disabled] {
@@ -203,27 +314,8 @@ button[disabled] {
   cursor: not-allowed;
 }
 
-/* Enhanced error message styling */
-.form-grid > div[style*='color: #b00020'] {
-  text-align: center;
-  padding: 0.75rem;
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  border-radius: 8px;
-  font-size: 0.875rem;
-  margin: 0.5rem 0;
-}
-
 /* Responsive Design for Register Form */
 @media (max-width: 768px) {
-  .register-form-container {
-    padding: 1.25rem 0.75rem;
-  }
-
-  .form-grid {
-    gap: 1rem;
-  }
-
   .register-title {
     font-size: 1.5rem;
   }
@@ -231,17 +323,13 @@ button[disabled] {
   .register-subtitle {
     font-size: 0.875rem;
   }
+
+  .form-grid {
+    gap: 1.25rem;
+  }
 }
 
 @media (max-width: 480px) {
-  .register-form-container {
-    padding: 1rem 0.5rem;
-  }
-
-  .form-grid {
-    gap: 0.875rem;
-  }
-
   .register-title {
     font-size: 1.375rem;
   }
@@ -249,27 +337,9 @@ button[disabled] {
   .register-subtitle {
     font-size: 0.8rem;
   }
-}
-
-/* Ensure proper centering on all screen sizes */
-@media (min-width: 769px) {
-  .register-form-container {
-    padding: 2.5rem 2rem;
-  }
 
   .form-grid {
-    gap: 1.75rem;
-  }
-}
-
-/* Fix for very small screens */
-@media (max-width: 360px) {
-  .register-form-container {
-    padding: 1rem 0.5rem;
-  }
-
-  .form-grid {
-    gap: 0.875rem;
+    gap: 1rem;
   }
 }
 </style>

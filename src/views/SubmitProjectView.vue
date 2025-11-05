@@ -13,7 +13,61 @@
     <!-- Main Content -->
     <div class="submit-content">
       <div class="container">
-        <div class="content-layout">
+        <!-- Success Card -->
+        <div v-if="showSuccessCard" class="success-card-overlay">
+          <div class="success-card">
+            <div class="success-card-header">
+              <div class="success-icon">✅</div>
+              <h2 class="success-title">Project Submitted Successfully!</h2>
+              <p class="success-subtitle">
+                Your project <strong>"{{ submittedProject?.title }}"</strong> has been submitted for verification.
+              </p>
+            </div>
+
+            <div class="success-card-body">
+              <div class="next-steps">
+                <h3 class="section-title">What happens next?</h3>
+                <div class="steps-list">
+                  <div class="step-item">
+                    <div class="step-icon">1️⃣</div>
+                    <div class="step-text">
+                      <strong>Review Process</strong>
+                      <span>Your project will be reviewed by our verifiers</span>
+                    </div>
+                  </div>
+                  <div class="step-item">
+                    <div class="step-icon">2️⃣</div>
+                    <div class="step-text">
+                      <strong>Marketplace Listing</strong>
+                      <span>Once approved, it will appear in the marketplace</span>
+                    </div>
+                  </div>
+                  <div class="step-item">
+                    <div class="step-icon">3️⃣</div>
+                    <div class="step-text">
+                      <strong>Track Status</strong>
+                      <span>You can track your project status in your dashboard</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="action-buttons">
+                <UiButton variant="primary" @click="goToMarketplace" class="action-btn">
+                  🏪 Browse Marketplace
+                </UiButton>
+                <UiButton variant="outline" @click="goToDashboard" class="action-btn">
+                  📊 Go to Dashboard
+                </UiButton>
+                <UiButton variant="outline" @click="submitAnother" class="action-btn">
+                  ➕ Submit Another Project
+                </UiButton>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="content-layout">
           <!-- Project Form -->
           <div class="form-section">
             <ProjectForm @success="handleProjectSuccess" @cancel="handleProjectCancel" />
@@ -75,21 +129,41 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import ProjectForm from '@/components/ProjectForm.vue'
+import UiButton from '@/components/ui/Button.vue'
 
 const router = useRouter()
+const showSuccessCard = ref(false)
+const submittedProject = ref(null)
 
 const handleProjectSuccess = (projectData) => {
   console.log('Project submitted successfully:', projectData)
-  // The modern prompt is already shown by ProjectForm component
-  // No need to show another prompt - the user can stay on the page or navigate manually
+  submittedProject.value = projectData
+  showSuccessCard.value = true
 }
 
 const handleProjectCancel = () => {
   console.log('Project submission cancelled')
   // Navigate back to dashboard or homepage
   router.push('/')
+}
+
+const goToMarketplace = () => {
+  showSuccessCard.value = false
+  router.push('/marketplace')
+}
+
+const goToDashboard = () => {
+  showSuccessCard.value = false
+  router.push('/')
+}
+
+const submitAnother = () => {
+  showSuccessCard.value = false
+  // Reset form by reloading the component
+  window.location.reload()
 }
 </script>
 
@@ -134,6 +208,7 @@ const handleProjectCancel = () => {
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 2rem;
+  align-items: start;
 }
 
 .form-section {
@@ -141,6 +216,9 @@ const handleProjectCancel = () => {
   border-radius: 0.75rem;
   overflow: hidden;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
 }
 
 /* Information Sidebar */
@@ -273,6 +351,232 @@ const handleProjectCancel = () => {
 
   .submit-content {
     padding: 1.5rem 0;
+  }
+}
+
+/* Success Card Styles */
+.success-card-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: auto;
+  padding: 1rem 0;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.success-card {
+  background: white;
+  border-radius: 0.75rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+  max-width: 550px;
+  width: 100%;
+  overflow: hidden;
+  animation: cardSlideIn 0.4s ease-out;
+  margin: 0 auto;
+}
+
+@keyframes cardSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.success-card-header {
+  background: linear-gradient(135deg, var(--primary-color, #069e2d) 0%, var(--primary-hover, #058e3f) 100%);
+  padding: 1.5rem 1.5rem;
+  text-align: center;
+  color: white;
+}
+
+.success-icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.75rem;
+  animation: bounce 0.6s ease-out;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.success-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+  color: white;
+  line-height: 1.3;
+}
+
+.success-subtitle {
+  font-size: 1rem;
+  margin: 0;
+  opacity: 0.95;
+  line-height: 1.5;
+}
+
+.success-subtitle strong {
+  font-weight: 600;
+}
+
+.success-card-body {
+  padding: 1.5rem;
+}
+
+.next-steps {
+  margin-bottom: 1.5rem;
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+  margin: 0 0 1rem 0;
+}
+
+.steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.step-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: 0.5rem;
+  border-left: 3px solid var(--primary-color, #069e2d);
+  transition: all 0.2s ease;
+}
+
+.step-item:hover {
+  background: var(--primary-light, #e8f5e8);
+  transform: translateX(4px);
+}
+
+.step-icon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.step-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+
+.step-text strong {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+  line-height: 1.3;
+}
+
+.step-text span {
+  font-size: 0.8125rem;
+  color: var(--text-secondary, #4a5568);
+  line-height: 1.4;
+}
+
+.action-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  margin-top: 1.5rem;
+}
+
+.action-btn {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Responsive Success Card */
+@media (max-width: 768px) {
+  .success-card-overlay {
+    padding: 0.75rem;
+    max-height: calc(100vh - 150px);
+  }
+
+  .success-card {
+    max-width: 100%;
+  }
+
+  .success-card-header {
+    padding: 1.25rem 1rem;
+  }
+
+  .success-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .success-title {
+    font-size: 1.25rem;
+  }
+
+  .success-subtitle {
+    font-size: 0.9375rem;
+  }
+
+  .success-card-body {
+    padding: 1.25rem;
+  }
+
+  .section-title {
+    font-size: 1rem;
+    margin-bottom: 0.875rem;
+  }
+
+  .steps-list {
+    gap: 0.75rem;
+  }
+
+  .step-item {
+    padding: 0.625rem;
+  }
+
+  .step-icon {
+    font-size: 1.125rem;
+  }
+
+  .step-text strong {
+    font-size: 0.875rem;
+  }
+
+  .step-text span {
+    font-size: 0.75rem;
+  }
+
+  .action-buttons {
+    margin-top: 1.25rem;
+    gap: 0.5rem;
+  }
+
+  .action-btn {
+    padding: 0.625rem 1rem;
+    font-size: 0.875rem;
   }
 }
 </style>

@@ -4,11 +4,8 @@ import { useUserStore } from '@/store/userStore'
 import { projectService } from '@/services/projectService'
 import { projectWorkflowService } from '@/services/projectWorkflowService'
 import { projectApprovalService } from '@/services/projectApprovalService'
-import { useModernPrompt } from '@/composables/useModernPrompt'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
-
-const { success: showSuccessPrompt, error: showErrorPrompt, warning: showWarningPrompt } = useModernPrompt()
 
 const props = defineProps({
   project: {
@@ -34,8 +31,8 @@ const formData = ref({
   location: '',
   expected_impact: '',
   project_image: null, // Add project image field
-  estimated_credits: null, // Add estimated credits field (null for number inputs)
-  credit_price: null, // Add credit price field (null for number inputs)
+  estimated_credits: '', // Add estimated credits field
+  credit_price: '', // Add credit price field
 })
 
 // File upload state
@@ -52,10 +49,9 @@ const uploadingImage = ref(false)
 // Form state
 const loading = ref(false)
 const errors = ref({})
-const successMessage = ref('')
+const success = ref('')
 
-// Available categories
-const categories = ref(projectService.getProjectCategories())
+// Categories are now custom text input - no longer using predefined list
 
 // Form validation rules
 const validationRules = {
@@ -73,7 +69,9 @@ const validationRules = {
   },
   category: {
     required: true,
-    message: 'Please select a category',
+    minLength: 2,
+    maxLength: 50,
+    message: 'Category must be between 2 and 50 characters',
   },
   location: {
     required: true,
@@ -90,12 +88,14 @@ const validationRules = {
   estimated_credits: {
     required: true,
     min: 1,
-    message: 'Estimated credits must be at least 1',
+    max: 1000000,
+    message: 'Estimated credits must be between 1 and 1,000,000',
   },
   credit_price: {
     required: true,
     min: 0.01,
-    message: 'Credit price must be at least ₱0.01',
+    max: 100000,
+    message: 'Credit price must be between ₱0.01 and ₱100,000',
   },
 }
 
@@ -137,73 +137,61 @@ const isFormValid = computed(() => {
     const rule = validationRules[field]
     let fieldValid = true
 
-    // Check required fields - handle both string and number types
+    // Handle required validation - check for empty values (string, number, null, undefined)
     if (rule.required) {
-      // Check for empty/null/undefined/NaN (for number inputs)
+      // Check for null, undefined, empty string, or NaN
       if (value === null || value === undefined || value === '' || (typeof value === 'number' && isNaN(value))) {
-        validationResults[field] = 'required'
+        validationResults[field] = { valid: false, reason: 'required field is empty' }
         return false
       }
-      // For strings, check if empty after trim
+      // For strings, also check if trimmed value is empty
       if (typeof value === 'string' && value.trim() === '') {
-        validationResults[field] = 'empty string'
+        validationResults[field] = { valid: false, reason: 'required string field is empty after trim' }
         return false
       }
-      // For numeric fields, check if valid (not NaN and > 0)
-      if (field === 'estimated_credits' || field === 'credit_price') {
-        const numValue = typeof value === 'number' ? value : parseFloat(value)
-        if (isNaN(numValue) || numValue <= 0) {
-          validationResults[field] = `invalid number: ${value} (parsed: ${numValue})`
+      // For numbers, check if it's valid and meets minimum requirement
+      if (typeof value === 'number' && !isNaN(value)) {
+        // Also check if it's 0 or negative for fields that require positive values
+        // But only if min is defined and > 0
+        if (rule.min !== undefined && rule.min > 0 && value < rule.min) {
+          validationResults[field] = { valid: false, reason: `number is below minimum ${rule.min}` }
           return false
         }
       }
     }
 
-    // Validate numeric fields (estimated_credits, credit_price)
-    if (field === 'estimated_credits' || field === 'credit_price') {
-      // Only validate if value exists (already checked required above)
-      if (value !== null && value !== undefined && value !== '') {
-        const numValue = typeof value === 'number' ? value : parseFloat(value)
-        if (isNaN(numValue)) {
-          validationResults[field] = 'not a number'
-          return false
-        }
-        if (rule.min !== undefined && numValue < rule.min) {
-          validationResults[field] = `below minimum: ${numValue} < ${rule.min}`
-          return false
-        }
-        // Max validation removed - no upper limit for price and credits
-        // if (rule.max !== undefined && numValue > rule.max) {
-        //   validationResults[field] = `above maximum: ${numValue} > ${rule.max}`
-        //   return false
-        // }
-      }
-    }
-
-    // Validate string length fields (only for string values)
-    if (value && typeof value === 'string') {
+    // Handle string length validation (only for strings)
+    if (typeof value === 'string' && value) {
       if (rule.minLength && value.length < rule.minLength) {
-        validationResults[field] = `too short: ${value.length} < ${rule.minLength}`
+        validationResults[field] = { valid: false, reason: `string length ${value.length} is below minimum ${rule.minLength}` }
         return false
       }
       if (rule.maxLength && value.length > rule.maxLength) {
-        validationResults[field] = `too long: ${value.length} > ${rule.maxLength}`
+        validationResults[field] = { valid: false, reason: `string length ${value.length} exceeds maximum ${rule.maxLength}` }
         return false
       }
     }
 
+    // Handle numeric validation (for number fields)
+    if (typeof value === 'number' && !isNaN(value)) {
+      if (rule.min !== undefined && value < rule.min) {
+        validationResults[field] = { valid: false, reason: `number ${value} is below minimum ${rule.min}` }
+        return false
+      }
+      if (rule.max !== undefined && value > rule.max) {
+        validationResults[field] = { valid: false, reason: `number ${value} exceeds maximum ${rule.max}` }
+        return false
+      }
+    }
+
+    validationResults[field] = { valid: true }
     return true
   })
   
-  // Debug logging (only log when form is invalid to avoid spam)
+  // Log validation results for debugging
   if (!isValid) {
-    console.log('🔍 Form validation details:', {
-      isValid,
-      validationResults,
-      formData: formData.value,
-    })
-    console.log('❌ Invalid fields:', validationResults)
-    console.log('📋 Current form values:', {
+    console.log('❌ Form validation failed. Field status:', JSON.parse(JSON.stringify(validationResults)))
+    console.log('📋 Current form data:', JSON.parse(JSON.stringify({
       title: formData.value.title,
       description: formData.value.description,
       category: formData.value.category,
@@ -211,21 +199,13 @@ const isFormValid = computed(() => {
       expected_impact: formData.value.expected_impact,
       estimated_credits: formData.value.estimated_credits,
       credit_price: formData.value.credit_price,
-      project_image: formData.value.project_image ? 'set' : 'not set',
-    })
-    // Also update the errors object so the UI shows the errors
-    Object.keys(validationResults).forEach((field) => {
-      const rule = validationRules[field]
-      const value = formData.value[field]
-      if (field === 'credit_price' || field === 'estimated_credits') {
-        const numValue = typeof value === 'number' ? value : parseFloat(value)
-        // Max validation removed - no upper limit
-        // if (rule.max !== undefined && numValue > rule.max) {
-        //   errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at most ${rule.max}`
-        // } else 
-        if (rule.min !== undefined && numValue < rule.min) {
-          errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at least ${rule.min}`
-        }
+      project_image: formData.value.project_image ? 'File uploaded' : null
+    })))
+    
+    // Log which fields are failing
+    Object.keys(validationResults).forEach(field => {
+      if (!validationResults[field].valid) {
+        console.log(`  ❌ ${field}: ${validationResults[field].reason}`)
       }
     })
   }
@@ -238,38 +218,46 @@ function validateField(field) {
   const value = formData.value[field]
   const rule = validationRules[field]
 
-  if (rule.required && (!value || (typeof value === 'string' && value.trim() === ''))) {
-    errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
-    return false
-  }
-
-  // Validate numeric fields (estimated_credits, credit_price)
-  if (field === 'estimated_credits' || field === 'credit_price') {
-    const numValue = parseFloat(value)
-    if (isNaN(numValue)) {
-      errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be a valid number`
+  // Handle required validation
+  if (rule.required) {
+    if (value === null || value === undefined || value === '') {
+      errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
       return false
     }
-    if (rule.min !== undefined && numValue < rule.min) {
-      errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at least ${rule.min}`
+    // For strings, also check if trimmed value is empty
+    if (typeof value === 'string' && value.trim() === '') {
+      errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
       return false
     }
-    // Max validation removed - no upper limit for price and credits
-    // if (rule.max !== undefined && numValue > rule.max) {
-    //   errors.value[field] = rule.message || `${field.charAt(0).toUpperCase() + field.slice(1)} must be at most ${rule.max}`
-    //   return false
-    // }
+    // For numbers, check if it's a valid number (not NaN)
+    if (typeof value === 'number' && isNaN(value)) {
+      errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
+      return false
+    }
   }
 
-  // Validate string length fields
-  if (value && typeof value === 'string' && rule.minLength && value.length < rule.minLength) {
-    errors.value[field] = rule.message
-    return false
+  // Handle string length validation (only for strings)
+  if (typeof value === 'string' && value) {
+    if (rule.minLength && value.length < rule.minLength) {
+      errors.value[field] = rule.message
+      return false
+    }
+    if (rule.maxLength && value.length > rule.maxLength) {
+      errors.value[field] = rule.message
+      return false
+    }
   }
 
-  if (value && typeof value === 'string' && rule.maxLength && value.length > rule.maxLength) {
-    errors.value[field] = rule.message
-    return false
+  // Handle numeric validation (for number fields)
+  if (typeof value === 'number' && !isNaN(value)) {
+    if (rule.min !== undefined && value < rule.min) {
+      errors.value[field] = rule.message
+      return false
+    }
+    if (rule.max !== undefined && value > rule.max) {
+      errors.value[field] = rule.message
+      return false
+    }
   }
 
   // Clear error if validation passes
@@ -299,7 +287,7 @@ function validateForm() {
 
 function clearErrors() {
   errors.value = {}
-  successMessage.value = ''
+  success.value = ''
 }
 
 function resetForm() {
@@ -310,8 +298,8 @@ function resetForm() {
     location: '',
     expected_impact: '',
     project_image: null,
-    estimated_credits: null,
-    credit_price: null,
+    estimated_credits: '',
+    credit_price: '',
   }
   uploadedFiles.value = []
   fileUploadError.value = ''
@@ -461,72 +449,50 @@ async function convertImageToBase64(file) {
 }
 
 async function handleSubmit() {
+  console.log('🚀 Form submit button clicked!')
+  console.log('📋 Form data:', formData.value)
+  console.log('✅ isFormValid:', isFormValid.value)
+  
   clearErrors()
 
-  console.log('🔍 Submit button clicked - Form validation check:', {
-    isFormValid: isFormValid.value,
-    formData: formData.value,
-    errors: errors.value,
-  })
-
-  // Run validateForm to populate errors object
-  const formValidationResult = validateForm()
+  // Log validation status
+  const validationResult = validateForm()
+  console.log('🔍 validateForm() result:', validationResult)
+  console.log('❌ Current errors:', errors.value)
   
-  // Also check isFormValid computed property
-  const computedValidationResult = isFormValid.value
-
-  if (!formValidationResult || !computedValidationResult) {
-    console.warn('⚠️ Form validation failed:', {
-      validateForm: formValidationResult,
-      isFormValid: computedValidationResult,
-      errors: errors.value,
-    })
-    
-    // Build a detailed error message from the errors object
-    const errorFields = Object.keys(errors.value)
-    let errorMessage = 'Please fix the following issues:\n\n'
-    errorFields.forEach((field) => {
-      const fieldName = field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-      errorMessage += `• ${fieldName}: ${errors.value[field]}\n`
-    })
-    
-    if (errorFields.length === 0) {
-      errorMessage = 'Please check all required fields. Some fields may be invalid or missing.'
-    }
-    
-    await showErrorPrompt({
-      title: 'Validation Failed',
-      message: errorMessage || 'Please fill in all required fields correctly. Check the form for error messages.',
-      confirmText: 'OK',
-    })
+  if (!validationResult) {
+    console.warn('⚠️ Form validation failed, preventing submission')
     return
   }
 
-  console.log('✅ Form validation passed, proceeding with submission...')
+  if (!isFormValid.value) {
+    console.warn('⚠️ isFormValid is false, preventing submission')
+    // Log which fields are failing validation
+    Object.keys(validationRules).forEach((field) => {
+      const value = formData.value[field]
+      const rule = validationRules[field]
+      console.log(`  - ${field}:`, {
+        value,
+        type: typeof value,
+        required: rule.required,
+        hasValue: value !== null && value !== undefined && value !== '',
+        isString: typeof value === 'string',
+        isNumber: typeof value === 'number',
+        stringLength: typeof value === 'string' ? value.length : 'N/A',
+        passesRequired: !rule.required || (value !== null && value !== undefined && value !== '' && (typeof value !== 'string' || value.trim() !== '') && (typeof value !== 'number' || !isNaN(value))),
+      })
+    })
+    return
+  }
+  
+  console.log('✅ All validations passed, proceeding with submission...')
+
   loading.value = true
 
   try {
     // Prepare project data with files and image
-    // Convert numeric fields from strings to numbers (form inputs return strings)
-    const estimatedCredits = formData.value.estimated_credits 
-      ? parseFloat(formData.value.estimated_credits) 
-      : null
-    const creditPrice = formData.value.credit_price 
-      ? parseFloat(formData.value.credit_price) 
-      : null
-    
-    // Validate numeric fields before submission
-    if (estimatedCredits !== null && (isNaN(estimatedCredits) || estimatedCredits <= 0)) {
-      throw new Error('Estimated credits must be a positive number')
-    }
-    if (creditPrice !== null && (isNaN(creditPrice) || creditPrice <= 0)) {
-      throw new Error('Credit price must be a positive number (minimum 0.01)')
-    }
-    
     const projectData = {
       ...formData.value,
-      estimated_credits: estimatedCredits,
-      credit_price: creditPrice,
       documents: uploadedFiles.value.map((file) => ({
         name: file.name,
         size: file.size,
@@ -553,7 +519,7 @@ async function handleSubmit() {
     if (isEditMode.value) {
       // Update existing project
       await projectService.updateProject(props.project.id, projectData)
-      successMessage.value = 'Project updated successfully!'
+      success.value = 'Project updated successfully!'
     } else {
       // Submit new project - try multiple methods for reliability
       let submittedProject = null
@@ -566,54 +532,110 @@ async function handleSubmit() {
         throw new Error('Supabase client not available')
       }
 
-      // Get user ID from session (most reliable)
+      // Method 1: Try getUser() first (most reliable)
       try {
         const {
-          data: { session },
-          error: sessionError,
-        } = await supabase.auth.getSession()
-        if (session?.user && !sessionError) {
-          userId = session.user.id
-          console.log('✅ Using user ID from Supabase getSession():', userId)
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser()
+        if (user && !userError) {
+          userId = user.id
+          console.log('✅ Using user ID from Supabase getUser():', userId)
         } else {
-          console.log('getSession() failed:', sessionError)
-          throw new Error('No valid session found')
+          console.log('getUser() failed:', userError)
         }
       } catch (error) {
-        console.log('getSession() error:', error)
-        throw new Error('Unable to get user session')
+        console.log('getUser() error:', error)
+      }
+
+      // Method 2: Try getSession() if getUser() failed
+      if (!userId) {
+        try {
+          const {
+            data: { session },
+            error: sessionError,
+          } = await supabase.auth.getSession()
+          if (session?.user && !sessionError) {
+            userId = session.user.id
+            console.log('✅ Using user ID from Supabase getSession():', userId)
+          } else {
+            console.log('getSession() failed:', sessionError)
+          }
+        } catch (error) {
+          console.log('getSession() error:', error)
+        }
+      }
+
+      // Method 3: Try userStore session as fallback
+      if (!userId && userStore.session?.user?.id) {
+        userId = userStore.session.user.id
+        console.log('✅ Using user ID from userStore session:', userId)
+      }
+
+      // If we still don't have a user ID, throw an error
+      if (!userId) {
+        throw new Error('Unable to get user ID. Please log in again and try submitting the project.')
+      }
+
+      console.log('✅ Final user ID to use for project submission:', userId)
+
+      // Verify the profile exists before submitting
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('id', userId)
+          .single()
+
+        if (profileError || !profile) {
+          console.error('❌ Profile not found for user ID:', userId, profileError)
+          throw new Error(
+            'Your user profile was not found. Please contact support or try logging out and logging back in.'
+          )
+        }
+        console.log('✅ Profile verified for user ID:', userId)
+      } catch (profileCheckError) {
+        if (profileCheckError.message.includes('profile was not found')) {
+          throw profileCheckError
+        }
+        console.warn('⚠️ Could not verify profile, but continuing with submission:', profileCheckError)
       }
 
       try {
         // Try the workflow service first
         submittedProject = await projectWorkflowService.submitProject(projectData, userId)
-        console.log('Project submitted via workflow service:', submittedProject)
+        console.log('✅ Project submitted via workflow service:', submittedProject)
       } catch (workflowError) {
-        console.log('Workflow service failed, trying direct submission:', workflowError)
+        console.error('❌ Workflow service failed:', workflowError)
+        console.log('Trying direct submission as fallback...')
 
         // Fallback to direct project service
         try {
           submittedProject = await projectService.createProject(projectData, userId)
-          console.log('Project submitted via direct service:', submittedProject)
+          console.log('✅ Project submitted via direct service:', submittedProject)
         } catch (directError) {
-          console.log('Direct service failed, trying approval service:', directError)
+          console.error('❌ Direct service failed:', directError)
+          console.log('Trying approval service as final fallback...')
 
           // Final fallback to approval service
-          submittedProject = await projectApprovalService.submitProject(projectData, userId)
-          console.log('Project submitted via approval service:', submittedProject)
+          try {
+            submittedProject = await projectApprovalService.submitProject(projectData, userId)
+            console.log('✅ Project submitted via approval service:', submittedProject)
+          } catch (approvalError) {
+            console.error('❌ All submission methods failed:', {
+              workflow: workflowError.message,
+              direct: directError.message,
+              approval: approvalError.message,
+            })
+            throw new Error(
+              `Failed to submit project: ${approvalError.message || 'All submission methods failed. Please try again or contact support.'}`
+            )
+          }
         }
       }
 
-      successMessage.value =
-        'Project submitted successfully! It will be reviewed by our verification team.'
-      
-      // Show enhanced modern success prompt with better design
-      const projectTitle = formData.value.title || 'your project'
-      await showSuccessPrompt({
-        title: 'Project Submitted Successfully! 🎉',
-        message: `Your project "${projectTitle}" has been submitted for verification.\n\nNext Steps:\n• Your project will be reviewed by our verifiers\n• Once approved, it will appear in the marketplace\n• You can track your project status in your dashboard`,
-        confirmText: 'OK',
-      })
+      // Don't set success message here - let the parent component handle it
+      // success.value = 'Project submitted successfully! It will be reviewed by our verification team.'
     }
 
     // Emit success event
@@ -624,15 +646,20 @@ async function handleSubmit() {
       resetForm()
     }
   } catch (error) {
-    console.error('Error saving project:', error)
-    errors.value.general = error.message || 'Failed to save project. Please try again.'
-
-    // Show modern error prompt
-    await showErrorPrompt({
-      title: 'Submission Failed',
-      message: error.message || 'Failed to save project. Please check all fields and try again.',
-      confirmText: 'OK',
+    console.error('❌ Error saving project:', error)
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
     })
+    
+    // Check if it's an auth error
+    if (error.message && (error.message.includes('session') || error.message.includes('auth') || error.message.includes('unauthorized'))) {
+      errors.value.general = 'Your session may have expired. Please refresh the page and try again.'
+      console.warn('⚠️ Auth-related error detected during project submission')
+    } else {
+      errors.value.general = error.message || 'Failed to save project. Please try again.'
+    }
 
     // Show more detailed error information
     if (error.message) {
@@ -732,7 +759,7 @@ async function forceSubmit() {
       }
 
       console.log('Project submitted successfully:', data)
-      successMessage.value = 'Project submitted successfully!'
+      success.value = 'Project submitted successfully!'
       resetForm()
     } else {
       throw new Error('Supabase not available')
@@ -775,26 +802,35 @@ onMounted(() => {
         {{ errors.general }}
       </div>
 
-      <!-- Success Message (hidden - using modern prompt instead) -->
-      <!-- <div v-if="successMessage" class="success-message">
-        {{ successMessage }}
-      </div> -->
+      <!-- Success Message -->
+      <div v-if="success" class="success-message">
+        {{ success }}
+      </div>
 
       <!-- Project Title -->
-      <div class="form-group">
-        <label for="title" class="form-label"> Project Title * </label>
-        <UiInput
-          id="title"
-          v-model="formData.title"
-          :class="{ error: errors.title }"
-          placeholder="Enter a descriptive title for your project"
-          @blur="validateField('title')"
-          @input="clearErrors"
-        />
+      <div class="form-group title-field-enhanced">
+        <label for="title" class="form-label title-label-enhanced">
+          <span class="label-icon">📝</span>
+          <span>Project Title *</span>
+        </label>
+        <div class="title-input-wrapper">
+          <UiInput
+            id="title"
+            v-model="formData.title"
+            :class="{ error: errors.title }"
+            placeholder="Enter a descriptive title for your project"
+            @blur="validateField('title')"
+            @input="clearErrors"
+          />
+        </div>
         <div v-if="errors.title" class="field-error">
           {{ errors.title }}
         </div>
-        <div class="field-help">{{ formData.title.length }}/100 characters</div>
+        <div class="field-help title-help-enhanced">
+          <span class="help-icon">ℹ️</span>
+          <span>{{ formData.title.length }}/100 characters</span>
+          <span class="char-progress" :style="{ width: (formData.title.length / 100 * 100) + '%' }"></span>
+        </div>
       </div>
 
       <!-- Project Image Upload -->
@@ -849,19 +885,19 @@ onMounted(() => {
       <!-- Project Category -->
       <div class="form-group">
         <label for="category" class="form-label"> Project Category * </label>
-        <select
+        <UiInput
           id="category"
           v-model="formData.category"
-          :class="['form-select', { error: errors.category }]"
-          @change="validateField('category')"
-        >
-          <option value="">Select a category</option>
-          <option v-for="category in categories" :key="category" :value="category">
-            {{ category }}
-          </option>
-        </select>
+          :class="{ error: errors.category }"
+          placeholder="Enter project category (e.g., Forestry, Renewable Energy, Waste Management)"
+          @blur="validateField('category')"
+          @input="clearErrors"
+        />
         <div v-if="errors.category" class="field-error">
           {{ errors.category }}
+        </div>
+        <div class="field-help">
+          Enter a custom category that best describes your project type
         </div>
       </div>
 
@@ -922,47 +958,72 @@ onMounted(() => {
       <div class="form-group">
         <label class="form-label">Credit Information *</label>
         <div class="credit-info-grid">
-          <div class="credit-field">
-            <label for="estimated_credits" class="form-label">Estimated Credits *</label>
-            <UiInput
-              id="estimated_credits"
-              v-model.number="formData.estimated_credits"
-              type="number"
-              :class="{ error: errors.estimated_credits }"
-              placeholder="e.g., 1000"
-              min="1"
-              @blur="validateField('estimated_credits')"
-              @input="clearErrors"
-            />
+          <div class="credit-field price-field-enhanced credits-field-enhanced">
+            <label for="estimated_credits" class="form-label price-label-enhanced">
+              <span class="label-icon">📊</span>
+              <span>Estimated Credits *</span>
+            </label>
+            <div class="price-input-container-enhanced credits-input-container">
+              <div class="currency-badge credits-badge">#</div>
+              <UiInput
+                id="estimated_credits"
+                v-model.number="formData.estimated_credits"
+                type="number"
+                :class="{ error: errors.estimated_credits }"
+                placeholder="0"
+                min="1"
+                max="1000000"
+                @blur="validateField('estimated_credits')"
+                @input="clearErrors"
+              />
+              <div class="price-helper">
+                <span class="helper-text">Min: 1</span>
+              </div>
+            </div>
             <div v-if="errors.estimated_credits" class="field-error">
               {{ errors.estimated_credits }}
             </div>
-            <div class="field-help">Number of carbon credits this project will generate</div>
+            <div class="field-help price-help-enhanced">
+              <span class="help-icon">💡</span>
+              <span>Number of carbon credits this project will generate</span>
+            </div>
           </div>
 
-          <div class="credit-field">
-            <label for="credit_price" class="form-label">Price per Credit *</label>
-            <div class="price-input-container">
-              <span class="currency-symbol">₱</span>
+          <div class="credit-field price-field-enhanced">
+            <label for="credit_price" class="form-label price-label-enhanced">
+              <span class="label-icon">💰</span>
+              <span>Price per Credit *</span>
+            </label>
+            <div class="price-input-container-enhanced">
+              <div class="currency-badge">₱</div>
               <UiInput
                 id="credit_price"
                 v-model.number="formData.credit_price"
                 type="number"
                 :class="{ error: errors.credit_price }"
-                placeholder="e.g., 15.50"
+                placeholder="0.00"
                 min="0.01"
                 step="0.01"
                 @blur="validateField('credit_price')"
                 @input="clearErrors"
               />
+              <div class="price-helper">
+                <span class="helper-text">Min: ₱0.01</span>
+              </div>
             </div>
             <div v-if="errors.credit_price" class="field-error">
               {{ errors.credit_price }}
             </div>
-            <div class="field-help">Price per credit in PHP (Philippine Pesos)</div>
+            <div class="field-help price-help-enhanced">
+              <span class="help-icon">💡</span>
+              <span>Set your price per carbon credit in Philippine Pesos</span>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- Spacer to fill vertical space -->
+      <div class="form-spacer"></div>
 
       <!-- Document Upload -->
       <div class="form-group">
@@ -1051,7 +1112,29 @@ onMounted(() => {
   background: var(--bg-primary, #ffffff);
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  min-height: calc(100vh - 200px);
+  border-radius: 1rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  border: 1px solid var(--border-light, #e8f5e8);
+  overflow: hidden;
+  position: relative;
+}
+
+.project-form::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary-color, #069e2d), var(--primary-hover, #058e3f), var(--primary-color, #069e2d));
+  background-size: 200% 100%;
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .form-header {
@@ -1084,11 +1167,18 @@ onMounted(() => {
   box-shadow: none;
   flex: 1;
   overflow-y: auto;
-  max-height: calc(90vh - 120px);
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .form-group {
   margin-bottom: 24px;
+}
+
+.form-spacer {
+  flex: 1;
+  min-height: 2rem;
 }
 
 .form-label {
@@ -1180,11 +1270,15 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   justify-content: flex-end;
-  margin-top: 32px;
+  margin-top: auto;
   padding: 24px 32px 32px 32px;
-  border-top: 1px solid var(--border-color, #e2e8f0);
-  background: var(--bg-primary, #ffffff);
+  border-top: 2px solid var(--border-light, #e8f5e8);
+  background: linear-gradient(to bottom, var(--bg-primary, #ffffff), var(--bg-secondary, #f8fdf8));
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
 }
 
 /* Custom Scrollbar */
@@ -1499,6 +1593,139 @@ onMounted(() => {
   align-items: center;
 }
 
+.price-input-container-enhanced {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border: 2px solid var(--border-light, #e8f5e8);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.price-input-container-enhanced:focus-within {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--bg-primary, #ffffff);
+  box-shadow: 0 0 0 4px var(--primary-light, rgba(6, 158, 45, 0.1));
+}
+
+.currency-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  background: linear-gradient(135deg, var(--primary-color, #069e2d), var(--primary-hover, #058e3f));
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  box-shadow: 0 2px 6px rgba(6, 158, 45, 0.2);
+  flex-shrink: 0;
+}
+
+.price-helper {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-right: 0.5rem;
+}
+
+.helper-text {
+  font-size: 0.75rem;
+  color: var(--text-muted, #718096);
+  font-weight: 500;
+}
+
+.price-field-enhanced {
+  background: linear-gradient(135deg, var(--bg-secondary, #f8fdf8) 0%, var(--bg-primary, #ffffff) 100%);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 1.25rem;
+  border: 2px solid var(--border-light, #e8f5e8);
+  transition: all 0.3s ease;
+}
+
+.price-field-enhanced:hover {
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.1);
+}
+
+.price-label-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.label-icon {
+  font-size: 1.25rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}
+
+.price-help-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  background: var(--primary-light, rgba(6, 158, 45, 0.05));
+  border-radius: var(--radius-sm, 0.5rem);
+  border-left: 3px solid var(--primary-color, #069e2d);
+}
+
+.help-icon {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.credits-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.5rem;
+  height: 2.5rem;
+  background: linear-gradient(135deg, var(--primary-color, #069e2d), var(--primary-hover, #058e3f));
+  color: white;
+  font-weight: 700;
+  font-size: 1.125rem;
+  border-radius: var(--radius-sm, 0.5rem);
+  box-shadow: 0 2px 6px rgba(6, 158, 45, 0.2);
+  flex-shrink: 0;
+}
+
+.credits-field-enhanced {
+  background: linear-gradient(135deg, var(--bg-secondary, #f8fdf8) 0%, var(--bg-primary, #ffffff) 100%);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 1.25rem;
+  border: 2px solid var(--border-light, #e8f5e8);
+  transition: all 0.3s ease;
+}
+
+.credits-field-enhanced:hover {
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.1);
+}
+
+.credits-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border: 2px solid var(--border-light, #e8f5e8);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.credits-input-container:focus-within {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--bg-primary, #ffffff);
+  box-shadow: 0 0 0 4px var(--primary-light, rgba(6, 158, 45, 0.1));
+}
+
 .currency-symbol {
   position: absolute;
   left: 12px;
@@ -1540,5 +1767,78 @@ onMounted(() => {
     grid-template-columns: 1fr;
     gap: 16px;
   }
+
+  .price-input-container-enhanced {
+    flex-wrap: wrap;
+  }
+
+  .price-helper {
+    width: 100%;
+    margin-left: 0;
+    margin-top: 0.5rem;
+  }
+}
+
+/* Enhanced Title Field Styles */
+.title-field-enhanced {
+  background: linear-gradient(135deg, var(--bg-secondary, #f8fdf8) 0%, var(--bg-primary, #ffffff) 100%);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 1.25rem;
+  border: 2px solid var(--border-light, #e8f5e8);
+  transition: all 0.3s ease;
+}
+
+.title-field-enhanced:hover {
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.1);
+}
+
+.title-label-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.title-input-wrapper {
+  position: relative;
+}
+
+.title-input-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-color, #069e2d), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.title-input-wrapper:focus-within::after {
+  opacity: 1;
+}
+
+.title-help-enhanced {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: var(--radius-sm, 0.5rem);
+  position: relative;
+  overflow: hidden;
+}
+
+.char-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary-color, #069e2d), var(--primary-hover, #058e3f));
+  transition: width 0.3s ease;
+  opacity: 0.3;
 }
 </style>

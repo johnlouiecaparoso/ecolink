@@ -1,18 +1,18 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
-import ModernPrompt from '@/components/ui/ModernPrompt.vue'
-import { useModernPrompt } from '@/composables/useModernPrompt'
+import ConnectionIndicator from '@/components/ui/ConnectionIndicator.vue'
 import { usePreferencesStore } from '@/store/preferencesStore'
 import { useUserStore } from '@/store/userStore'
 // import { useErrorStore } from '@/store/errorStore' // Temporarily disabled
 import { getSupabase } from '@/services/supabaseClient'
 
-const { promptState, handleConfirm, handleCancel, handleClose } = useModernPrompt()
-
 const route = useRoute()
+
+// Track if app has been initially loaded to prevent showing loading screen on tab switches
+const isInitialized = ref(false)
 
 const showHeader = computed(() => {
   // Don't show header on auth pages
@@ -21,7 +21,8 @@ const showHeader = computed(() => {
 
 const isAppReady = computed(() => {
   const userStore = useUserStore()
-  return !userStore.loading
+  // Only show loading screen during initial load, not on subsequent session checks
+  return isInitialized.value || !userStore.loading
 })
 
 // Initialize stores and auth inside onMounted to avoid Pinia issues
@@ -48,22 +49,52 @@ onMounted(async () => {
         try {
           console.log('🔄 Auth state change:', event, session ? 'has session' : 'no session')
 
-          // Add timeout to prevent hanging
+          // If we have a session from the event, use it directly instead of fetching
+          if (session && session.user) {
+            console.log('✅ Using session from auth state change event')
+            userStore.session = session
+            userStore.loading = false
+            // Fetch profile in background (don't await)
+            userStore.fetchUserProfile().catch((err) => {
+              console.error('Profile fetch failed:', err)
+            })
+            return
+          }
+
+          // If no session in event, try to fetch it (but don't clear on timeout)
+          // Add timeout to prevent hanging (increased to 15 seconds for slower connections)
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Auth state change timeout')), 3000),
+            setTimeout(() => reject(new Error('Auth state change timeout')), 15000),
           )
 
-          await Promise.race([userStore.fetchSession(), timeoutPromise])
+          // Don't show loading screen when refreshing session in background
+          await Promise.race([userStore.fetchSession(false), timeoutPromise])
         } catch (error) {
-          // Timeout errors are expected and not critical - just log as debug
-          if (error.message?.includes('timeout')) {
-            console.debug('⏱️ Auth state change timed out (non-critical):', error.message)
-          } else {
-            console.error('Error in auth state change:', error)
+          console.error('Error in auth state change:', error)
+          // IMPORTANT: Don't clear session on timeout - session might still be valid
+          // Only clear if we explicitly got a sign out event or no session
+          // Check if we still have a valid session in storage before clearing
+          try {
+            const { data: { session: storedSession } } = await supabase.auth.getSession()
+            if (storedSession && storedSession.user) {
+              console.log('✅ Session still valid in storage, keeping it')
+              userStore.session = storedSession
+              userStore.loading = false
+              return
+            }
+          } catch (checkError) {
+            console.error('Error checking stored session:', checkError)
           }
-          // Clear the session on error and continue
-          userStore.session = null
-          userStore.loading = false
+          
+          // Only clear if we really don't have a session
+          if (event === 'SIGNED_OUT' || !session) {
+            console.log('⚠️ Sign out event or no session, clearing...')
+            userStore.session = null
+            userStore.loading = false
+          } else {
+            console.log('⚠️ Timeout but session might still be valid, keeping current session')
+            userStore.loading = false
+          }
         }
       })
 
@@ -73,7 +104,7 @@ onMounted(async () => {
         try {
           console.log('📡 Fetching initial session in App.vue...')
           const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Initial session fetch timeout')), 3000),
+            setTimeout(() => reject(new Error('Initial session fetch timeout')), 10000),
           )
 
           await Promise.race([userStore.fetchSession(), timeoutPromise])
@@ -90,12 +121,7 @@ onMounted(async () => {
             console.log('ℹ️ No active session found')
           }
         } catch (error) {
-          // Timeout errors are expected and not critical - just log as debug
-          if (error.message?.includes('timeout')) {
-            console.debug('⏱️ Initial session fetch timed out (non-critical):', error.message)
-          } else {
-            console.error('Initial session fetch failed:', error)
-          }
+          console.error('Initial session fetch failed:', error)
           // Continue without session - app should still work
           userStore.loading = false
         }
@@ -112,12 +138,16 @@ onMounted(async () => {
       userStore.loading = false
     }
 
+    // Mark app as initialized so loading screen won't show on tab switches
+    isInitialized.value = true
     console.log('✅ App initialization completed')
   } catch (error) {
     console.error('❌ Failed to initialize app:', error)
     // Ensure loading state is cleared even on error
     const userStore = useUserStore()
     userStore.loading = false
+    // Still mark as initialized to prevent stuck loading screen
+    isInitialized.value = true
   }
 })
 </script>
@@ -138,22 +168,11 @@ onMounted(async () => {
       <Header v-if="showHeader" />
       <router-view />
 
+      <!-- Connection Status Indicator (Hidden in production) -->
+      <!-- <ConnectionIndicator /> -->
+
       <!-- Global Toast Notifications -->
       <div id="toast-container" class="toast-container"></div>
-
-      <!-- Modern Prompt Component -->
-      <ModernPrompt
-        :is-open="promptState.isOpen"
-        :type="promptState.type"
-        :title="promptState.title"
-        :message="promptState.message"
-        :confirm-text="promptState.confirmText"
-        :cancel-text="promptState.cancelText"
-        :show-cancel="promptState.showCancel"
-        @confirm="handleConfirm"
-        @cancel="handleCancel"
-        @close="handleClose"
-      />
 
       <!-- Global Error Notifications -->
       <!-- Error notifications temporarily disabled during Pinia fix -->

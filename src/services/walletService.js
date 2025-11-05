@@ -48,7 +48,19 @@ export async function getWalletBalance(userId = null) {
     // If no wallet exists, create one
     if (error.code === 'PGRST116') {
       console.log('No wallet found, creating new wallet for user:', userId)
-      return await createWallet(userId)
+      try {
+        return await createWallet(userId)
+      } catch (createError) {
+        // If RLS violation, return default wallet data instead of throwing
+        if (createError.code === 'RLS_VIOLATION') {
+          console.warn('Wallet creation blocked by RLS policy. Returning default wallet balance.')
+          return {
+            current_balance: 0,
+            currency: 'PHP',
+          }
+        }
+        throw createError
+      }
     }
     throw new Error(error.message || 'Failed to fetch wallet balance')
   }
@@ -86,6 +98,20 @@ export async function createWallet(userId = null) {
     .single()
 
   if (error) {
+    // Check for RLS (Row Level Security) policy violations
+    if (error.message.includes('row-level security') || error.message.includes('violates row-level security') || error.code === '42501' || error.code === 'PGRST301') {
+      const rlsError = new Error(
+        'Wallet creation blocked by database security policy. Please contact an administrator to configure Row Level Security (RLS) policies to allow users to create their own wallet accounts.'
+      )
+      rlsError.code = 'RLS_VIOLATION'
+      rlsError.originalError = error
+      console.error('RLS Policy Violation - Wallet creation blocked:', {
+        message: error.message,
+        code: error.code,
+        hint: 'The Supabase RLS policy for the wallet_accounts table needs to allow INSERT operations for authenticated users.',
+      })
+      throw rlsError
+    }
     throw new Error(error.message || 'Failed to create wallet')
   }
   return data

@@ -95,6 +95,8 @@ export class CreditOwnershipService {
    * @param {number} quantity - Number of credits to add
    * @param {string} ownershipType - Type of ownership (purchased, earned, etc.)
    * @param {string} transactionId - Associated transaction ID
+   * @param {string} projectCreditId - Project Credit ID (required by credit_ownership table)
+   * @param {number} purchasePrice - Purchase price per credit (optional, but required if purchase_price column exists)
    * @returns {Promise<Object>} Updated ownership record
    */
   async addCreditsToPortfolio(
@@ -103,6 +105,8 @@ export class CreditOwnershipService {
     quantity,
     ownershipType = 'purchased',
     transactionId = null,
+    projectCreditId = null,
+    purchasePrice = null,
   ) {
     if (!this.supabase) {
       throw new Error('Supabase client not available')
@@ -125,17 +129,37 @@ export class CreditOwnershipService {
         // Update existing ownership
         const newQuantity = existingOwnership.quantity + quantity
 
-        const { data: updatedOwnership, error: updateError } = await this.supabase
+        // Try update with updated_at first, fallback without it
+        let updateData = { quantity: newQuantity }
+        
+        // Try with updated_at first
+        let { data: updatedOwnership, error: updateError } = await this.supabase
           .from('credit_ownership')
           .update({
-            quantity: newQuantity,
+            ...updateData,
             updated_at: new Date().toISOString(),
           })
           .eq('id', existingOwnership.id)
           .select()
           .single()
-
-        if (updateError) {
+        
+        // If updated_at column doesn't exist, try without it
+        if (updateError && updateError.message?.includes('updated_at')) {
+          console.warn('⚠️ updated_at column not found, updating without it')
+          const { data: updatedWithoutTimestamp, error: updateErrorWithoutTimestamp } = await this.supabase
+            .from('credit_ownership')
+            .update(updateData)
+            .eq('id', existingOwnership.id)
+            .select()
+            .single()
+          
+          if (updateErrorWithoutTimestamp) {
+            throw new Error(`Failed to update credit ownership: ${updateErrorWithoutTimestamp.message}`)
+          }
+          
+          updatedOwnership = updatedWithoutTimestamp
+          updateError = null
+        } else if (updateError) {
           throw new Error(`Failed to update credit ownership: ${updateError.message}`)
         }
 
@@ -143,26 +167,114 @@ export class CreditOwnershipService {
         console.log('✅ Updated existing credit ownership')
       } else {
         // Create new ownership record
-        const { data: newOwnership, error: createError } = await this.supabase
-          .from('credit_ownership')
-          .insert({
-            user_id: userId,
-            project_id: projectId,
-            quantity: quantity,
+        // Use minimal required fields only - let database handle timestamps
+        const minimalInsertData = {
+          user_id: userId,
+          project_id: projectId,
+          quantity: quantity,
+        }
+        
+        // Add project_credit_id if provided (required by some schema versions)
+        if (projectCreditId) {
+          minimalInsertData.project_credit_id = projectCreditId
+        }
+        
+        // Add optional fields only if they exist in schema
+        // Note: transaction_id may have foreign key constraints, so only add if it's a valid UUID
+        // If transaction_id is not a valid UUID or doesn't exist in credit_transactions, skip it
+        if (transactionId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(transactionId)) {
+          // Only add if it's a valid UUID (likely from credit_transactions table)
+          // Skip for non-UUID transaction IDs (like purchase IDs from other tables)
+          minimalInsertData.transaction_id = transactionId
+        }
+        
+        // Add purchase_price if provided (required by some schema versions)
+        if (purchasePrice !== null && purchasePrice !== undefined) {
+          minimalInsertData.purchase_price = purchasePrice
+        }
+        
+        // Try with all optional fields first
+        let insertAttempts = [
+          // Attempt 1: With all optional fields (including project_credit_id, purchase_price)
+          {
+            ...minimalInsertData,
             ownership_type: ownershipType,
-            transaction_id: transactionId,
+            purchase_price: purchasePrice || 0,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          })
-          .select()
-          .single()
+          },
+          // Attempt 2: Without ownership_type, but with purchase_price
+          {
+            ...minimalInsertData,
+            purchase_price: purchasePrice || 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+          // Attempt 3: Without timestamps, but with purchase_price
+          {
+            ...minimalInsertData,
+            ownership_type: ownershipType,
+            purchase_price: purchasePrice || 0,
+          },
+          // Attempt 4: With purchase_price but minimal other fields
+          {
+            ...minimalInsertData,
+            purchase_price: purchasePrice || 0,
+          },
+          // Attempt 5: Minimal only (fallback if purchase_price column doesn't exist)
+          minimalInsertData,
+        ]
+        
+        // If project_credit_id is required but not provided, try to find it
+        if (!projectCreditId && projectId) {
+          try {
+            const { data: projectCredit } = await this.supabase
+              .from('project_credits')
+              .select('id')
+              .eq('project_id', projectId)
+              .limit(1)
+              .single()
+            
+            if (projectCredit) {
+              minimalInsertData.project_credit_id = projectCredit.id
+              // Update all attempts with project_credit_id
+              insertAttempts = insertAttempts.map(attempt => ({
+                ...attempt,
+                project_credit_id: projectCredit.id
+              }))
+              console.log('✅ Found project_credit_id:', projectCredit.id)
+            }
+          } catch (findErr) {
+            console.warn('⚠️ Could not find project_credit_id for project:', projectId)
+          }
+        }
+        
+        let newOwnership = null
+        let createError = null
+        
+        for (let attempt = 0; attempt < insertAttempts.length; attempt++) {
+          const { data: ownershipData, error: errorData } = await this.supabase
+            .from('credit_ownership')
+            .insert(insertAttempts[attempt])
+            .select()
+            .single()
 
-        if (createError) {
-          throw new Error(`Failed to create credit ownership: ${createError.message}`)
+          if (!errorData && ownershipData) {
+            newOwnership = ownershipData
+            createError = null
+            console.log(`✅ Created new credit ownership (attempt ${attempt + 1}/${insertAttempts.length})`)
+            break
+          } else {
+            createError = errorData
+            console.warn(`⚠️ Attempt ${attempt + 1} failed:`, errorData?.message)
+          }
+        }
+
+        if (!newOwnership) {
+          throw new Error(`Failed to create credit ownership after ${insertAttempts.length} attempts: ${createError?.message || 'Unknown error'}`)
         }
 
         result = newOwnership
-        console.log('✅ Created new credit ownership')
       }
 
       // Log the action

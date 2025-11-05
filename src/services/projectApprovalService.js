@@ -489,6 +489,8 @@ export class ProjectApprovalService {
     }
 
     try {
+      // Fetch all projects from Supabase - this gets fresh data from the database
+      // Deleted projects will NOT appear here because they are physically removed
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -499,7 +501,12 @@ export class ProjectApprovalService {
         throw new Error(error.message || 'Failed to fetch projects')
       }
 
-      return data || []
+      const projects = data || []
+      console.log(`📊 Fetched ${projects.length} projects from Supabase database (deleted projects are not included)`)
+      
+      // Return only projects that actually exist in the database
+      // Since Supabase physically deletes records, any project in this array exists in the database
+      return projects
     } catch (error) {
       console.error('Error fetching projects:', error)
       throw error

@@ -12,6 +12,8 @@ export const useUserStore = defineStore('user', {
     loading: false,
     role: ROLES.GENERAL_USER,
     permissions: [],
+    _profileFetchPromise: null,
+    _profileFetchInProgress: false,
   }),
   getters: {
     isAuthenticated: (state) => !!state.session?.user,
@@ -82,6 +84,36 @@ export const useUserStore = defineStore('user', {
       }
     },
     async fetchUserProfile() {
+      if (!this.session?.user?.id) return
+
+      // Prevent duplicate concurrent fetches
+      if (this._profileFetchInProgress && this._profileFetchPromise) {
+        console.log('🔄 Profile fetch already in progress, waiting for existing request...')
+        try {
+          await this._profileFetchPromise
+          return // Profile already loaded by concurrent request
+        } catch (err) {
+          // If the concurrent request failed, continue with new fetch
+          console.warn('⚠️ Concurrent profile fetch failed, starting new fetch')
+        }
+      }
+
+      // Mark as in progress and create promise
+      this._profileFetchInProgress = true
+      this._profileFetchPromise = this._performProfileFetch()
+        .finally(() => {
+          this._profileFetchInProgress = false
+          this._profileFetchPromise = null
+        })
+
+      try {
+        await this._profileFetchPromise
+      } catch (err) {
+        // Error already handled in _performProfileFetch
+      }
+    },
+
+    async _performProfileFetch() {
       if (!this.session?.user?.id) return
 
       try {
@@ -159,49 +191,143 @@ export const useUserStore = defineStore('user', {
         }
 
         // For real users, fetch from Supabase
-        // Add timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Profile fetch timeout')), 10000),
-        )
+        // Add timeout to prevent hanging (increased to 20 seconds for slower connections)
+        // Use AbortController for better cancellation
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => {
+          controller.abort()
+        }, 20000)
 
-        const profile = await Promise.race([getProfile(this.session.user.id), timeoutPromise])
-
-        this.profile = profile
-        // Normalize role - ensure it matches ROLES constants exactly
-        const roleFromProfile = profile.role || ROLES.GENERAL_USER
-        // Convert to lowercase and ensure it matches expected format
-        const normalizedRole =
-          typeof roleFromProfile === 'string'
-            ? roleFromProfile.toLowerCase().trim()
-            : ROLES.GENERAL_USER
-
-        this.role = normalizedRole
-        this.updatePermissions()
-
-        // Debug logging
-        if (import.meta.env.DEV) {
-          console.log('✅ User profile loaded successfully:', {
-            profileId: profile.id,
-            roleFromProfile: profile.role,
-            normalizedRole: normalizedRole,
-            isAdmin: roleService.isAdmin(normalizedRole),
-            isVerifier: roleService.isVerifier(normalizedRole),
-            isProjectDeveloper: roleService.isProjectDeveloper(normalizedRole),
-            ROLES_ADMIN: ROLES.ADMIN,
-            ROLES_VERIFIER: ROLES.VERIFIER,
-            ROLES_PROJECT_DEVELOPER: ROLES.PROJECT_DEVELOPER,
+        try {
+          // Fetch profile with timeout
+          const profilePromise = getProfile(this.session.user.id)
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+              reject(new Error('Profile fetch timeout'))
+            }, 20000)
           })
+
+          const profile = await Promise.race([profilePromise, timeoutPromise])
+          clearTimeout(timeoutId)
+          
+          // Handle case where profile is null (RLS blocked creation)
+          if (!profile) {
+            console.warn('⚠️ Profile is null (likely blocked by RLS policy). Using default values.')
+            this.profile = null
+            this.role = ROLES.GENERAL_USER
+            this.updatePermissions()
+            return
+          }
+
+          this.profile = profile
+          // Normalize role - ensure it matches ROLES constants exactly
+          const roleFromProfile = profile.role || ROLES.GENERAL_USER
+          // Convert to lowercase and ensure it matches expected format
+          const normalizedRole =
+            typeof roleFromProfile === 'string'
+              ? roleFromProfile.toLowerCase().trim()
+              : ROLES.GENERAL_USER
+
+          this.role = normalizedRole
+          this.updatePermissions()
+
+          // Debug logging
+          if (import.meta.env.DEV) {
+            console.log('✅ User profile loaded successfully:', {
+              profileId: profile.id,
+              roleFromProfile: profile.role,
+              normalizedRole: normalizedRole,
+              isAdmin: roleService.isAdmin(normalizedRole),
+              isVerifier: roleService.isVerifier(normalizedRole),
+              isProjectDeveloper: roleService.isProjectDeveloper(normalizedRole),
+              ROLES_ADMIN: ROLES.ADMIN,
+              ROLES_VERIFIER: ROLES.VERIFIER,
+              ROLES_PROJECT_DEVELOPER: ROLES.PROJECT_DEVELOPER,
+            })
+          }
+          return
+        } catch (timeoutError) {
+          clearTimeout(timeoutId)
+          
+          // If it's a timeout, log it as a warning (not error) since we handle it gracefully
+          if (timeoutError.message === 'Profile fetch timeout') {
+            console.warn('⚠️ Profile fetch timed out after 20 seconds. Continuing without profile.')
+            console.warn('💡 This may be due to slow network or database connection.')
+            console.warn('💡 Profile will be loaded in background once available.')
+            this.profile = null
+            this.role = ROLES.GENERAL_USER
+            this.updatePermissions()
+            
+            // Try to fetch profile in background with retry logic
+            this._retryProfileFetch(3, 2000) // 3 retries, 2 second delay
+            return
+          }
+          // Re-throw if it's not a timeout
+          throw timeoutError
         }
+
       } catch (error) {
-        console.error('Error fetching user profile:', error)
-        console.log('Continuing without profile - user can still use the app')
+        // Handle RLS violations with specific messaging
+        if (error.code === 'RLS_VIOLATION' || error.message?.includes('row-level security')) {
+          console.warn('⚠️ Profile fetch blocked by RLS policy:', error.message)
+          if (import.meta.env.DEV) {
+            console.warn('💡 To fix: Configure Supabase RLS policies to allow users to read/insert their own profiles.')
+          }
+        } else if (error.message === 'Profile fetch timeout') {
+          // Already handled in inner try-catch, just return
+          return
+        } else {
+          // Only log as warning if it's not a timeout (already logged as warning above)
+          console.warn('⚠️ Profile fetch error (non-critical):', error.message)
+        }
 
         // Set default values and continue
         this.profile = null
         this.role = ROLES.GENERAL_USER
         this.updatePermissions()
+        
+        // Try to fetch profile in background with retry logic (only if not timeout)
+        if (error.message !== 'Profile fetch timeout') {
+          this._retryProfileFetch(3, 2000) // 3 retries, 2 second delay
+        }
+      }
+    },
 
-        // Don't throw error - let the app continue to work
+    // Retry profile fetch with exponential backoff
+    async _retryProfileFetch(maxRetries = 3, initialDelay = 2000) {
+      if (!this.session?.user?.id) {
+        return
+      }
+
+      // Don't retry if another fetch is already in progress
+      if (this._profileFetchInProgress) {
+        return
+      }
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const delay = initialDelay * Math.pow(2, attempt - 1) // Exponential backoff: 2s, 4s, 8s
+        
+        try {
+          await new Promise(resolve => setTimeout(resolve, delay))
+          
+          console.log(`🔄 Retrying profile fetch (attempt ${attempt}/${maxRetries})...`)
+          const profile = await getProfile(this.session.user.id)
+          
+          if (profile) {
+            this.profile = profile
+            this.role = profile.role || ROLES.GENERAL_USER
+            this.updatePermissions()
+            console.log(`✅ Profile loaded successfully after ${attempt} retry attempt(s)`)
+            return
+          }
+        } catch (retryError) {
+          if (attempt === maxRetries) {
+            console.warn(`⚠️ Profile fetch failed after ${maxRetries} retry attempts`)
+            console.warn('💡 User will continue with default profile settings')
+          } else {
+            console.warn(`⚠️ Profile fetch retry ${attempt} failed, will retry in ${delay}ms...`)
+          }
+        }
       }
     },
 
@@ -297,34 +423,33 @@ export const useUserStore = defineStore('user', {
     async logout() {
       const userId = this.session?.user?.id
 
-      try {
-        // Log logout action before clearing data
-        if (userId) {
-          await logUserAction('LOGOUT_SUCCESS', 'user', userId, null, {
-            timestamp: new Date().toISOString(),
-          })
+      // Clear local state immediately (don't wait for async operations)
+      this.clearUserData()
+      this.session = null
+      this.profile = null
+      this.role = ROLES.GENERAL_USER
+      this.permissions = []
+      this.loading = false
+
+      // Do background cleanup (fire and forget - non-blocking)
+      Promise.resolve().then(async () => {
+        try {
+          // Log logout action (non-blocking)
+          if (userId) {
+            logUserAction('LOGOUT_SUCCESS', 'user', userId, null, {
+              timestamp: new Date().toISOString(),
+            }).catch((err) => {
+              console.warn('Failed to log logout action:', err)
+            })
+          }
+
+          // Sign out from Supabase (non-blocking)
+          await signOut()
+        } catch (error) {
+          console.error('Background logout cleanup error:', error)
+          // Ignore - we've already cleared local state
         }
-
-        // Sign out from Supabase
-        await signOut()
-
-        // Clear all user data
-        this.clearUserData()
-
-        // Force clear any remaining session data
-        this.clearLocalStorage()
-
-        // Reset to initial state
-        this.session = null
-        this.profile = null
-        this.role = ROLES.GENERAL_USER
-        this.permissions = []
-        this.loading = false
-      } catch (error) {
-        console.error('Error during logout:', error)
-        // Even if signOut fails, clear local data
-        this.clearUserData()
-      }
+      })
     },
   },
 })

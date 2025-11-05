@@ -101,6 +101,9 @@ export class RoleService {
         'view_project_details',
         'add_verification_notes',
         'view_verification_history',
+        'view_own_profile',
+        'edit_own_profile',
+        'view_own_transactions',
       ],
       [ROLES.PROJECT_DEVELOPER]: [
         'create_projects',
@@ -149,6 +152,7 @@ export class RoleService {
       '/wallet': ['manage_wallet'],
       '/certificates': ['view_certificates'],
       '/receipts': ['view_receipts'],
+      '/profile': ['view_own_profile'], // Profile is accessible to all authenticated users
     }
 
     // Find matching route (supports dynamic routes)
@@ -158,7 +162,8 @@ export class RoleService {
       }
     }
 
-    // Default permissions for unknown routes
+    // Default permissions for unknown routes - allow if user is authenticated
+    // This prevents blocking access to routes that might not be in the list
     return ['view_own_profile']
   }
 

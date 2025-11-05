@@ -17,7 +17,7 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
               />
             </div>
           </div>
-          <div>
+          <div class="brand-text">
             <h1 class="brand-title">ECOLINK</h1>
             <p class="brand-subtitle">Join the network accelerating climate-positive projects.</p>
           </div>
@@ -40,37 +40,14 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
 <style scoped>
 /* Enhanced Auth Layout with Modern Styling */
 .auth-layout {
-  min-height: 100vh;
+  height: 100vh;
   display: grid;
-  grid-template-columns: 1.2fr 1fr;
-  background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-primary) 50%, #f0f8f0 100%);
+  grid-template-columns: 1fr 1fr;
+  background: #ffffff;
   position: relative;
   overflow: hidden;
 }
 
-/* Animated background pattern */
-.auth-layout::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(16,185,129,0.1)"/><circle cx="75" cy="75" r="1" fill="rgba(16,185,129,0.1)"/><circle cx="50" cy="10" r="0.5" fill="rgba(16,185,129,0.05)"/><circle cx="10" cy="60" r="0.5" fill="rgba(16,185,129,0.05)"/><circle cx="90" cy="40" r="0.5" fill="rgba(16,185,129,0.05)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-  opacity: 0.6;
-  animation: float 20s ease-in-out infinite;
-  z-index: 0;
-}
-
-@keyframes float {
-  0%,
-  100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-  50% {
-    transform: translateY(-10px) rotate(1deg);
-  }
-}
 
 /* Mobile responsive */
 @media (max-width: 768px) {
@@ -85,29 +62,13 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3rem 2rem;
-  background: linear-gradient(
-    135deg,
-    var(--primary-color) 0%,
-    var(--primary-hover) 50%,
-    var(--primary-dark) 100%
-  );
+  padding: 2rem;
+  background: var(--primary-color, #069e2d);
   color: white;
   position: relative;
   overflow: hidden;
   z-index: 1;
-}
-
-.auth-hero::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="0.5" fill="white" opacity="0.1"/><circle cx="10" cy="60" r="0.5" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="0.5" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
-  opacity: 0.3;
-  animation: float 15s ease-in-out infinite;
+  height: 100%;
 }
 
 .hero-card {
@@ -118,10 +79,15 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
 
 .brand {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  text-align: center;
-  gap: 2rem;
+  gap: 1.5rem;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
 .brand-badge {
@@ -132,61 +98,23 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
 
 /* Enhanced Logo Styling */
 .auth-logo-container {
-  width: 6rem !important;
-  height: 6rem !important;
-  min-width: 6rem !important;
-  min-height: 6rem !important;
-  max-width: 6rem !important;
-  max-height: 6rem !important;
+  width: 5rem !important;
+  height: 5rem !important;
+  min-width: 5rem !important;
+  min-height: 5rem !important;
+  max-width: 5rem !important;
+  max-height: 5rem !important;
   border-radius: 50% !important;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(209, 250, 229, 0.9);
   padding: 0.5rem;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.2),
-    0 0 0 1px rgba(255, 255, 255, 0.1);
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  background: rgba(209, 250, 229, 0.7);
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   aspect-ratio: 1;
-  backdrop-filter: blur(10px);
   position: relative;
-}
-
-.auth-logo-container::before {
-  content: '';
-  position: absolute;
-  top: -2px;
-  left: -2px;
-  right: -2px;
-  bottom: -2px;
-  background: linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0.1),
-    rgba(255, 255, 255, 0.3)
-  );
-  border-radius: 50%;
-  z-index: -1;
-  animation: rotate 3s linear infinite;
-}
-
-@keyframes rotate {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.auth-logo-container:hover {
-  transform: scale(1.08) translateY(-2px);
-  box-shadow:
-    0 12px 40px rgba(0, 0, 0, 0.3),
-    0 0 0 1px rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
 }
 
 .auth-logo-image {
@@ -200,38 +128,21 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
 }
 
 .brand-title {
-  font-size: 3.5rem;
-  font-weight: 800;
+  font-size: 3rem;
+  font-weight: 700;
   margin: 0;
-  letter-spacing: -0.05em;
-  text-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, #ffffff 0%, rgba(255, 255, 255, 0.9) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: fadeInUp 0.8s ease-out;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .brand-subtitle {
-  font-size: 1.25rem;
+  font-size: 1rem;
   margin: 0;
-  opacity: 0.9;
+  color: #ffffff;
   font-weight: 400;
-  line-height: 1.6;
-  max-width: 28rem;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  animation: fadeInUp 0.8s ease-out 0.2s both;
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* Enhanced Auth Panel */
@@ -241,8 +152,8 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   justify-content: center;
   padding: 2rem 1.5rem;
   background: #ffffff;
-  min-height: 100vh;
-  overflow-y: auto;
+  height: 100%;
+  overflow: hidden;
   position: relative;
   z-index: 1;
 }
@@ -251,51 +162,28 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
 .panel-card {
   width: 100%;
   max-width: 480px;
-  background: rgba(255, 255, 255, 0.98);
-  border-radius: 28px;
-  box-shadow:
-    0 25px 60px rgba(0, 0, 0, 0.08),
-    0 12px 30px rgba(6, 158, 45, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  overflow: hidden;
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+  overflow-x: hidden;
   position: relative;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0;
+  padding: 2rem;
   display: flex;
   flex-direction: column;
-}
-
-.panel-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 5px;
-  background: linear-gradient(90deg, #10b981 0%, #22c55e 50%, #16a34a 100%);
-  border-radius: 28px 28px 0 0;
-}
-
-.panel-card:hover {
-  transform: translateY(-4px);
-  box-shadow:
-    0 35px 80px rgba(0, 0, 0, 0.12),
-    0 18px 40px rgba(6, 158, 45, 0.18);
+  max-height: 100%;
+  box-sizing: border-box;
 }
 
 /* Enhanced Footer */
 .panel-footer {
-  padding: 1.5rem 2rem 2rem 2rem;
+  padding: 1rem 0 0 0;
   text-align: center;
-  border-top: 1px solid rgba(229, 231, 235, 0.3);
-  background: rgba(249, 250, 251, 0.5);
   margin-top: auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 
@@ -303,49 +191,23 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   color: #6b7280;
   font-size: 0.875rem;
   margin: 0;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .muted-link {
-  color: #10b981;
+  color: var(--primary-color, #069e2d);
   text-decoration: none;
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.875rem;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  position: relative;
-  overflow: hidden;
+  transition: color 0.2s ease;
   line-height: 1.5;
-  white-space: nowrap;
-}
-
-.muted-link::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
 .muted-link:hover {
-  color: #059669;
-  background: rgba(16, 185, 129, 0.15);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.25);
-}
-
-.muted-link:hover::before {
-  left: 100%;
+  color: var(--primary-hover, #058e3f);
 }
 
 /* Mobile responsive adjustments */
@@ -356,18 +218,27 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   }
 
   .auth-hero {
-    padding: 2rem 1rem;
-    min-height: 200px;
+    padding: 1.5rem 1rem;
+    min-height: auto;
+    height: auto;
   }
 
   .auth-panel {
     padding: 1rem;
-    min-height: auto;
+    height: auto;
+    overflow: hidden;
   }
 
   .panel-card {
     max-width: 100%;
-    border-radius: 24px;
+    border-radius: 16px;
+    padding: 1.5rem;
+  }
+
+  .brand {
+    flex-direction: column;
+    text-align: center;
+    gap: 1rem;
   }
 
   .brand-title {
@@ -375,7 +246,7 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   }
 
   .brand-subtitle {
-    font-size: 1rem;
+    font-size: 0.875rem;
   }
 
   .auth-logo-container {
@@ -388,7 +259,7 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   }
 
   .panel-footer {
-    padding: 1rem 1.5rem 1.5rem 1.5rem;
+    padding: 1rem 0 0 0;
     gap: 0.5rem;
     flex-direction: column;
   }
@@ -404,7 +275,8 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   }
 
   .panel-card {
-    border-radius: 20px;
+    border-radius: 16px;
+    padding: 1.25rem;
   }
 
   .brand-title {
@@ -421,7 +293,7 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   }
 
   .panel-footer {
-    padding: 0.75rem 1rem 1rem 1rem;
+    padding: 0.75rem 0 0 0;
     gap: 0.5rem;
     flex-direction: column;
   }

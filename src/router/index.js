@@ -71,11 +71,11 @@ const router = createRouter({
         requiresProjectDeveloper: true,
       },
     },
+    // Buy Credits route removed - redirecting to marketplace
+    // Marketplace has all the functionality for buying credits
     {
       path: '/buy-credits',
-      name: 'buy-credits',
-      component: () => import('@/views/BuyCreditsView.vue'),
-      meta: { requiresAuth: true },
+      redirect: '/marketplace',
     },
     {
       path: '/credit-portfolio',
@@ -220,7 +220,7 @@ router.beforeEach(async (to, from, next) => {
     } else {
       // Wait for existing fetch to complete
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Auth check timeout')), 3000),
+        setTimeout(() => reject(new Error('Auth check timeout')), 5000),
       )
 
       try {
