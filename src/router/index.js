@@ -373,4 +373,7 @@ router.beforeEach(async (to, from, next) => {
   }
 })
 
+// Router guard is temporarily disabled to fix Pinia initialization issues
+// Authentication will be handled at the component level for now
+
 export default router
