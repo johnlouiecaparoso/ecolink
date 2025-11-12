@@ -80,16 +80,13 @@ async function handleSubmit() {
       <!-- Full Name Input -->
       <div class="form-field">
         <label for="name" class="form-label">
-          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
-          </svg>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">account_circle</span>
           Full name
         </label>
         <UiInput
           id="name"
           type="text"
-          placeholder="Jane Doe"
+          placeholder="Full Name"
           v-model="name"
           :error="nameError"
           @input="nameError = ''"
@@ -100,13 +97,13 @@ async function handleSubmit() {
       <!-- Email Input -->
       <div class="form-field">
         <label for="email" class="form-label">
-          <span class="label-icon">@</span>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">mail</span>
           Email Address
         </label>
         <UiInput
           id="email"
           type="email"
-          placeholder="you@ecolink.io"
+          placeholder="Email"
           v-model="email"
           :error="emailError"
           @input="emailError = ''"
@@ -117,10 +114,7 @@ async function handleSubmit() {
       <!-- Password Input -->
       <div class="form-field">
         <label for="password" class="form-label">
-          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">lock</span>
           Password
         </label>
         <UiInput
@@ -137,10 +131,7 @@ async function handleSubmit() {
       <!-- Confirm Password Input -->
       <div class="form-field">
         <label for="confirm" class="form-label">
-          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">lock_reset</span>
           Confirm password
         </label>
         <UiInput
@@ -157,7 +148,8 @@ async function handleSubmit() {
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
       <UiButton type="submit" :loading="loading" block class="create-account-button">
-        Create Account
+        <span class="material-symbols-outlined" aria-hidden="true">person_add</span>
+        <span>Create Account</span>
       </UiButton>
     </form>
   </div>
@@ -227,15 +219,12 @@ async function handleSubmit() {
 }
 
 .label-icon {
-  width: 16px;
-  height: 16px;
-  color: #6b7280;
-  flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 500;
+  margin-right: 0.5rem;
+  color: #6b7280;
+  font-size: 1.25rem;
 }
 
 /* Specific styling for UiInput components */
@@ -276,7 +265,16 @@ async function handleSubmit() {
 }
 
 .create-account-button {
-  margin-top: 0.25rem;
+  margin-top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.create-account-button .material-symbols-outlined {
+  font-size: 1.35rem;
 }
 
 .create-account-button :deep(.ui-btn) {

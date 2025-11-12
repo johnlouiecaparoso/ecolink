@@ -119,7 +119,7 @@ let profileWatcher = null
 
 onMounted(() => {
   loadUserProfile()
-  
+
   // Watch for profile updates in the store and refresh
   profileWatcher = store.$subscribe((mutation, state) => {
     if (state.profile && state.profile.id && state.profile.avatar_url) {

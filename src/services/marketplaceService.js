@@ -7,6 +7,13 @@ import { realPaymentService } from './realPaymentService.js'
 import { creditOwnershipService } from '@/services/creditOwnershipService'
 import { getCurrentUserId } from '@/utils/authHelper'
 
+const isDev = import.meta.env?.DEV ?? false
+const MARKETPLACE_CACHE_TTL = 60000 // 60 seconds
+
+let cachedMarketplaceListings = []
+let lastMarketplaceFetch = 0
+let cleanupTriggered = false
+
 /**
  * Get all active marketplace listings with project details
  * Real data implementation with proper error handling
@@ -19,88 +26,153 @@ async function cleanupOrphanedRecords() {
   const supabase = getSupabase()
   if (!supabase) return
 
+  // Add timeout protection - cleanup should not block marketplace loading
+  const cleanupTimeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Cleanup timeout')), 10000) // 10 second timeout for cleanup
+  )
+
   try {
-    console.log('🧹 Checking for orphaned records...')
+    console.log('[Cleanup] Checking for orphaned records...')
 
-    // Get all project_credits
-    const { data: allCredits, error: creditsError } = await supabase
-      .from('project_credits')
-      .select('id, project_id')
+    // Race cleanup against timeout - if it takes too long, skip it
+    await Promise.race([
+      (async () => {
+        // Get all project_credits
+        const { data: allCredits, error: creditsError } = await supabase
+          .from('project_credits')
+          .select('id, project_id')
+          .limit(1000) // Limit to prevent huge queries
 
-    if (creditsError || !allCredits || allCredits.length === 0) {
-      return
-    }
+        if (creditsError || !allCredits || allCredits.length === 0) {
+          return
+        }
 
-    // Get all project IDs from credits
-    const creditProjectIds = [...new Set(allCredits.map((c) => c.project_id).filter(Boolean))]
+        // Get all project IDs from credits
+        const creditProjectIds = [...new Set(allCredits.map((c) => c.project_id).filter(Boolean))]
 
-    if (creditProjectIds.length === 0) {
-      return
-    }
+        if (creditProjectIds.length === 0) {
+          return
+        }
 
-    // Check which projects actually exist
-    const { data: existingProjects, error: projectsError } = await supabase
-      .from('projects')
-      .select('id')
-      .in('id', creditProjectIds)
+        // Check which projects actually exist
+        const { data: existingProjects, error: projectsError } = await supabase
+          .from('projects')
+          .select('id')
+          .in('id', creditProjectIds)
 
-    if (projectsError) {
-      console.warn('⚠️ Error checking existing projects:', projectsError)
-      return
-    }
+        if (projectsError) {
+          console.warn('Warning: Error checking existing projects:', projectsError)
+          return
+        }
 
-    const existingProjectIds = new Set(existingProjects?.map((p) => p.id) || [])
-    const orphanedProjectIds = creditProjectIds.filter((id) => !existingProjectIds.has(id))
+        const existingProjectIds = new Set(existingProjects?.map((p) => p.id) || [])
+        const orphanedProjectIds = creditProjectIds.filter((id) => !existingProjectIds.has(id))
 
-    if (orphanedProjectIds.length === 0) {
-      console.log('✅ No orphaned records found')
-      return
-    }
+        if (orphanedProjectIds.length === 0) {
+          console.log('[Cleanup] No orphaned records found')
+          return
+        }
 
-    console.log(`🧹 Found ${orphanedProjectIds.length} orphaned project references`)
+        console.log(`[Cleanup] Found ${orphanedProjectIds.length} orphaned project references`)
 
-    // Find orphaned credits
-    const orphanedCredits = allCredits.filter((c) => orphanedProjectIds.includes(c.project_id))
-    const orphanedCreditIds = orphanedCredits.map((c) => c.id)
+        // Find orphaned credits
+        const orphanedCredits = allCredits.filter((c) => orphanedProjectIds.includes(c.project_id))
+        const orphanedCreditIds = orphanedCredits.map((c) => c.id)
 
-    if (orphanedCreditIds.length === 0) {
-      return
-    }
+        if (orphanedCreditIds.length === 0) {
+          return
+        }
 
-    console.log(
-      `🧹 Cleaning up ${orphanedCreditIds.length} orphaned project_credits and their listings...`,
-    )
+        console.log(
+          `[Cleanup] Removing ${orphanedCreditIds.length} orphaned project_credits and their listings`,
+        )
 
-    // Delete orphaned credit_listings first
-    const { error: listingsError, count: deletedListings } = await supabase
-      .from('credit_listings')
-      .delete({ count: 'exact' })
-      .in('project_credit_id', orphanedCreditIds)
+        // Delete orphaned credit_listings first
+        const { error: listingsError, count: deletedListings } = await supabase
+          .from('credit_listings')
+          .delete({ count: 'exact' })
+          .in('project_credit_id', orphanedCreditIds)
 
-    if (listingsError) {
-      console.warn('⚠️ Error cleaning up orphaned credit_listings:', listingsError)
-    } else {
-      console.log(`✅ Cleaned up ${deletedListings || 0} orphaned credit_listings`)
-    }
+        if (listingsError) {
+          console.warn('Warning: Error cleaning up orphaned credit_listings:', listingsError)
+        } else {
+          console.log(`[Cleanup] Removed ${deletedListings || 0} orphaned credit_listings`)
+        }
 
-    // Delete orphaned project_credits
-    const { error: creditsDeleteError, count: deletedCredits } = await supabase
-      .from('project_credits')
-      .delete({ count: 'exact' })
-      .in('id', orphanedCreditIds)
+        // Delete orphaned project_credits
+        const { error: creditsDeleteError, count: deletedCredits } = await supabase
+          .from('project_credits')
+          .delete({ count: 'exact' })
+          .in('id', orphanedCreditIds)
 
-    if (creditsDeleteError) {
-      console.warn('⚠️ Error cleaning up orphaned project_credits:', creditsDeleteError)
-    } else {
-      console.log(`✅ Cleaned up ${deletedCredits || 0} orphaned project_credits`)
-    }
+        if (creditsDeleteError) {
+          console.warn('Warning: Error cleaning up orphaned project_credits:', creditsDeleteError)
+        } else {
+          console.log(`[Cleanup] Removed ${deletedCredits || 0} orphaned project_credits`)
+        }
 
-    console.log(
-      `✅ Cleanup complete: Removed ${deletedListings || 0} listings and ${deletedCredits || 0} credits`,
-    )
+        console.log(
+          `[Cleanup] Completed removal of ${deletedListings || 0} listings and ${deletedCredits || 0} credits`,
+        )
+      })(),
+      cleanupTimeout,
+    ])
   } catch (error) {
-    console.error('❌ Error during orphaned records cleanup:', error)
+    // If it's a timeout, just log and continue - don't block marketplace loading
+    if (error.message?.includes('timeout') || error.message?.includes('Cleanup timeout')) {
+      console.warn('Warning: Cleanup timed out, continuing with marketplace load...')
+    } else {
+      console.error('Error during orphaned records cleanup:', error)
+    }
   }
+}
+
+function triggerCleanupOnce() {
+  if (cleanupTriggered) {
+    return
+  }
+  cleanupTriggered = true
+    cleanupOrphanedRecords().catch((err) => {
+    if (isDev) {
+      console.warn('Warning: Orphaned records cleanup failed (non-critical):', err?.message || err)
+    }
+  })
+}
+
+function applyMarketplaceFilters(sourceListings = [], filters = {}) {
+  const { forceRefresh: _forceRefresh, ...criteria } = filters || {}
+  let filtered = [...sourceListings]
+
+  if (criteria.category && criteria.category !== 'all') {
+    filtered = filtered.filter((listing) => listing.category === criteria.category)
+  }
+
+  if (criteria.country) {
+    const searchLocation = criteria.country.toLowerCase()
+    filtered = filtered.filter((listing) =>
+      listing.location?.toLowerCase().includes(searchLocation),
+    )
+  }
+
+  if (criteria.minPrice) {
+    filtered = filtered.filter((listing) => listing.price_per_credit >= criteria.minPrice)
+  }
+
+  if (criteria.maxPrice) {
+    filtered = filtered.filter((listing) => listing.price_per_credit <= criteria.maxPrice)
+  }
+
+  if (criteria.search) {
+    const term = criteria.search.toLowerCase()
+    filtered = filtered.filter(
+      (listing) =>
+        listing.project_title?.toLowerCase().includes(term) ||
+        listing.project_description?.toLowerCase().includes(term) ||
+        listing.location?.toLowerCase().includes(term),
+    )
+  }
+
+  return filtered
 }
 
 export async function getMarketplaceListings(filters = {}) {
@@ -111,395 +183,114 @@ export async function getMarketplaceListings(filters = {}) {
     return []
   }
 
-  try {
-    // Clean up orphaned records before fetching (runs automatically)
-    await cleanupOrphanedRecords()
+  triggerCleanupOnce()
 
-    console.log('🔍 Fetching marketplace listings with filters:', filters)
+  const now = Date.now()
+  const forceRefresh = Boolean(filters?.forceRefresh)
+  const cacheIsFresh =
+    !forceRefresh &&
+    cachedMarketplaceListings.length > 0 &&
+    now - lastMarketplaceFetch < MARKETPLACE_CACHE_TTL
 
-    // Step 1: Get credit listings - try active first, then all if needed for debugging
-    let { data: listings, error: listingsError } = await supabase
-      .from('credit_listings')
-      .select('*')
-      .eq('status', 'active')
-
-    if (listingsError) {
-      console.error('❌ Error fetching active credit listings:', listingsError)
-      // Try without status filter to see if there are any listings
-      const { data: allListings, error: allError } = await supabase
-        .from('credit_listings')
-        .select('*')
-
-      if (!allError && allListings && allListings.length > 0) {
-        console.warn(
-          '⚠️ Found listings with non-active status:',
-          allListings.map((l) => ({ id: l.id, status: l.status, price: l.price_per_credit })),
-        )
-      }
-      throw listingsError
+  if (cacheIsFresh) {
+    if (isDev) {
+      console.log('Marketplace cache hit, serving cached listings')
     }
+    return applyMarketplaceFilters(cachedMarketplaceListings, filters)
+  }
 
-    console.log('✅ Found', listings?.length || 0, 'active credit listings')
-
-    // Debug: Log listing details if found
-    if (listings && listings.length > 0) {
-      console.log(
-        '📋 Listing details:',
-        listings.map((l) => ({
-          id: l.id,
-          project_credit_id: l.project_credit_id,
-          price_per_credit: l.price_per_credit,
-          status: l.status,
-          quantity: l.quantity,
-        })),
+  const { data, error } = await supabase
+    .from('credit_listings')
+    .select(
+      `
+      id,
+      created_at,
+      quantity,
+      price_per_credit,
+      currency,
+      seller_id,
+      status,
+      project_credit_id,
+      project_credits:project_credits (
+        id,
+        project_id,
+        price_per_credit,
+        currency,
+        total_credits,
+        credits_available,
+        vintage_year,
+        verification_standard,
+        projects:projects!inner(
+          id,
+          title,
+          description,
+          category,
+          location,
+          project_image,
+          image_name,
+          image_type,
+          credit_price,
+          estimated_credits,
+          status
+        )
       )
-      // Log full details for each listing
-      listings.forEach((l, index) => {
-        console.log(`📋 Listing ${index + 1}:`, {
-          id: l.id,
-          project_credit_id: l.project_credit_id,
-          price_per_credit: l.price_per_credit,
-          status: l.status,
-          quantity: l.quantity,
-          seller_id: l.seller_id,
-          currency: l.currency,
-        })
-      })
-    }
-
-    // If no active listings found, check if there are any listings at all (for debugging)
-    if (!listings || listings.length === 0) {
-      const { data: allListings, error: allError } = await supabase
-        .from('credit_listings')
-        .select('id, status, price_per_credit, project_credit_id')
-
-      if (!allError && allListings && allListings.length > 0) {
-        console.warn(
-          '⚠️ Found listings but none are active:',
-          allListings.map((l) => ({
-            id: l.id,
-            status: l.status,
-            price: l.price_per_credit,
-          })),
-        )
-      }
-      return []
-    }
-
-    // Step 2: Get project credits for these listings
-    const listingIds = listings.map((l) => l.project_credit_id).filter(Boolean)
-    const { data: credits, error: creditsError } = await supabase
-      .from('project_credits')
-      .select('*')
-      .in('id', listingIds)
-
-    if (creditsError) {
-      console.error('❌ Error fetching project credits:', creditsError)
-      throw creditsError
-    }
-
-    console.log('✅ Found', credits?.length || 0, 'project credits')
-
-    // Debug: Log credit details
-    if (credits && credits.length > 0) {
-      console.log(
-        '💳 Credit details:',
-        credits.map((c) => ({
-          id: c.id,
-          project_id: c.project_id,
-          price_per_credit: c.price_per_credit,
-          currency: c.currency,
-        })),
-      )
-      // Log full details for each credit
-      credits.forEach((c, index) => {
-        console.log(`💳 Credit ${index + 1}:`, {
-          id: c.id,
-          project_id: c.project_id,
-          price_per_credit: c.price_per_credit,
-          currency: c.currency,
-          total_credits: c.total_credits,
-          available_credits: c.available_credits,
-        })
-      })
-    }
-
-    // Step 3: Get projects for these credits
-    const projectIds = credits?.map((c) => c.project_id).filter(Boolean) || []
-    console.log('🔍 Looking for projects with IDs:', projectIds)
-    console.log('🔍 About to query projects table...')
-
-    if (!projectIds || projectIds.length === 0) {
-      console.warn('⚠️ No project IDs found from credits! Credits data:', credits)
-      return []
-    }
-
-    let projects = null
-
-    try {
-      console.log('🔍 Executing projects query now...')
-      const { data: projectsData, error: projectsError } = await supabase
-        .from('projects')
-        .select('*')
-        .in('id', projectIds)
-        .eq('status', 'approved') // Only approved projects
-
-      projects = projectsData
-
-      console.log('🔍 Projects query completed. Error:', projectsError)
-      console.log('🔍 Projects data:', projects)
-      console.log('🔍 Projects count:', projects?.length || 0)
-
-      if (projectsError) {
-        console.error('❌ Error fetching projects:', projectsError)
-        throw projectsError
-      }
-
-      // Step 3.5: Clean up orphaned records - filter out credits/listings for deleted projects
-      const validProjectIds = projects?.map((p) => p.id) || []
-      const orphanedProjectIds = projectIds.filter((id) => !validProjectIds.includes(id))
-
-      if (orphanedProjectIds.length > 0) {
-        console.warn(
-          `⚠️ Found ${orphanedProjectIds.length} orphaned project references (projects deleted but credits/listings still exist):`,
-          orphanedProjectIds,
-        )
-
-        // Clean up orphaned project_credits
-        const orphanedCredits =
-          credits?.filter((c) => orphanedProjectIds.includes(c.project_id)) || []
-        if (orphanedCredits.length > 0) {
-          console.log(`🧹 Cleaning up ${orphanedCredits.length} orphaned project_credits...`)
-          const orphanedCreditIds = orphanedCredits.map((c) => c.id)
-
-          // Delete orphaned credit_listings first
-          try {
-            const { error: cleanupListingsError } = await supabase
-              .from('credit_listings')
-              .delete()
-              .in('project_credit_id', orphanedCreditIds)
-
-            if (cleanupListingsError) {
-              console.warn('⚠️ Could not cleanup orphaned credit_listings:', cleanupListingsError)
-            } else {
-              console.log(
-                `✅ Cleaned up orphaned credit_listings for ${orphanedCreditIds.length} credits`,
-              )
-            }
-          } catch (cleanupErr) {
-            console.warn('⚠️ Error cleaning up orphaned credit_listings:', cleanupErr)
-          }
-
-          // Delete orphaned project_credits
-          try {
-            const { error: cleanupCreditsError } = await supabase
-              .from('project_credits')
-              .delete()
-              .in('id', orphanedCreditIds)
-
-            if (cleanupCreditsError) {
-              console.warn('⚠️ Could not cleanup orphaned project_credits:', cleanupCreditsError)
-            } else {
-              console.log(`✅ Cleaned up ${orphanedCredits.length} orphaned project_credits`)
-            }
-          } catch (cleanupErr) {
-            console.warn('⚠️ Error cleaning up orphaned project_credits:', cleanupErr)
-          }
-        }
-
-        // Filter out orphaned credits from our data
-        credits = credits?.filter((c) => validProjectIds.includes(c.project_id)) || []
-        console.log(`✅ Filtered out orphaned credits, remaining: ${credits.length}`)
-      }
-
-      console.log('✅ Found', projects?.length || 0, 'approved projects')
-    } catch (err) {
-      console.error('❌ Exception in projects query:', err)
-      throw err
-    }
-
-    // If no approved projects found, try without status filter to see what's there
-    if (!projects || projects.length === 0) {
-      console.warn('⚠️ No approved projects found! Checking all projects with these IDs...')
-      const { data: allProjects, error: allError } = await supabase
-        .from('projects')
-        .select('id, title, status, credit_price')
-        .in('id', projectIds)
-
-      if (allError) {
-        console.error('❌ Error checking all projects:', allError)
-      }
-
-      if (allProjects && allProjects.length > 0) {
-        console.warn(
-          '⚠️ Found projects but not approved:',
-          allProjects.map((p) => ({
-            id: p.id,
-            title: p.title,
-            status: p.status,
-            credit_price: p.credit_price,
-          })),
-        )
-        // Use all projects if none are approved (for debugging)
-        console.warn('⚠️ Using non-approved projects for debugging...')
-        // Don't actually use them, just log
-      } else {
-        console.error('❌ No projects found at all with these IDs:', projectIds)
-        return []
-      }
-    }
-
-    // Debug: Log project details
-    if (projects && projects.length > 0) {
-      console.log(
-        '📁 Project details:',
-        projects.map((p) => ({
-          id: p.id,
-          title: p.title,
-          status: p.status,
-          credit_price: p.credit_price,
-        })),
-      )
-      // Log each project individually
-      projects.forEach((p, index) => {
-        console.log(`📁 Project ${index + 1}:`, {
-          id: p.id,
-          title: p.title,
-          status: p.status,
-          credit_price: p.credit_price,
-          estimated_credits: p.estimated_credits,
-        })
-      })
-    } else {
-      console.error('❌ No approved projects found! This is why listings are not showing.')
-      console.error('❌ Project IDs we were looking for:', projectIds)
-      return []
-    }
-
-    // Step 4: Get seller names
-    const sellerIds = [...new Set(listings.map((l) => l.seller_id).filter(Boolean))]
-    const { data: sellers } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', sellerIds)
-
-    const sellerMap = new Map(sellers?.map((seller) => [seller.id, seller.full_name]) || [])
-
-    // Step 5: Combine the data and deduplicate by project_credit_id
-    const projectCreditMap = new Map()
-
-    console.log(
-      '🔄 Starting to process',
-      listings.length,
-      'listings with',
-      credits?.length || 0,
-      'credits and',
-      projects?.length || 0,
-      'projects',
+    `,
     )
+    .eq('status', 'active')
 
-    listings.forEach((listing) => {
-      console.log(`\n🔍 Processing listing ${listing.id}:`)
-      console.log('  - Listing project_credit_id:', listing.project_credit_id)
-      console.log('  - Listing price_per_credit:', listing.price_per_credit)
+  if (error) {
+    console.error('Error fetching marketplace listings:', error)
+    return []
+  }
 
-      const credit = credits?.find((c) => c.id === listing.project_credit_id)
-      console.log(
-        '  - Found credit:',
-        credit
-          ? { id: credit.id, project_id: credit.project_id, price: credit.price_per_credit }
-          : 'NOT FOUND',
-      )
+  let sellerMap = new Map()
+  if (data?.length) {
+    const sellerIds = [...new Set(data.map((listing) => listing.seller_id).filter(Boolean))]
+    if (sellerIds.length > 0) {
+      const { data: sellers, error: sellerError } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', sellerIds)
 
-      const project = projects?.find((p) => p.id === credit?.project_id)
-      console.log(
-        '  - Found project:',
-        project
-          ? {
-              id: project.id,
-              title: project.title,
-              status: project.status,
-              credit_price: project.credit_price,
-            }
-          : 'NOT FOUND',
-      )
-
-      if (!credit || !project) {
-        console.warn('⚠️ Skipping listing due to missing data:', {
-          listing_id: listing.id,
-          has_credit: !!credit,
-          has_project: !!project,
-          project_credit_id: listing.project_credit_id,
-          credit_project_id: credit?.project_id,
-          available_credit_ids: credits?.map((c) => c.id),
-          available_project_ids: projects?.map((p) => p.id),
-        })
-        return // Skip if missing data
+      if (!sellerError && sellers) {
+        sellerMap = new Map(sellers.map((seller) => [seller.id, seller.full_name]))
+      } else if (sellerError) {
+        console.warn('Warning: Failed to load seller profiles:', sellerError)
       }
+    }
+  }
 
-      // Debug: Log price sources
-      // PRIORITY: project.credit_price (developer-set) > credit.price_per_credit > listing.price_per_credit
-      // We prioritize project.credit_price because it's the source of truth set by the developer
-      const finalPrice =
-        project.credit_price || credit.price_per_credit || listing.price_per_credit || 0
-      console.log(`💰 Price sources for listing ${listing.id} (${project.title}):`, {
-        listing_price: listing.price_per_credit,
-        credit_price: credit.price_per_credit,
-        project_credit_price: project.credit_price,
-        will_use: finalPrice,
-        source: project.credit_price
-          ? 'project.credit_price'
-          : credit.price_per_credit
-            ? 'credit.price_per_credit'
-            : 'listing.price_per_credit',
-      })
+  const dedupeMap = new Map()
 
-      const key = listing.project_credit_id
+  for (const listing of data || []) {
+    const credit = listing.project_credits
+    const project = credit?.projects
 
-      // If we already have this project_credit_id, keep the most recent listing
-      if (
-        !projectCreditMap.has(key) ||
-        new Date(listing.created_at) > new Date(projectCreditMap.get(key).listed_at)
-      ) {
-        // Prioritize price from project_credits (source of truth), then project.credit_price, then listing
-        // This ensures we show the developer-set price, not a default/mock value
-        const pricePerCredit = finalPrice
+    if (!credit || !project || project.status !== 'approved') {
+      continue
+    }
 
-        // Debug log to help identify price source issues
-        if (listing.price_per_credit && listing.price_per_credit !== pricePerCredit) {
-          console.log(
-            `💰 Price correction for ${project.title}: listing.price=${listing.price_per_credit}, using correct price=${pricePerCredit} (from ${credit.price_per_credit ? 'project_credits' : 'project.credit_price'})`,
-          )
-        }
+    const cacheKey = listing.project_credit_id || credit.id
+    const existing = dedupeMap.get(cacheKey)
+    if (existing && new Date(listing.created_at) <= new Date(existing.listed_at)) {
+      continue
+    }
 
-        // CRITICAL: Calculate available quantity respecting developer-set limit
-        // Priority: project_credits.credits_available > project.estimated_credits > listing.quantity
-        // This ensures we show the actual available credits, not exceeding developer's limit
-        let availableQuantity = listing.quantity
-
-        // If developer set estimated_credits, use that as the maximum limit
-        if (project.estimated_credits && project.estimated_credits > 0) {
-          // Use the minimum of listing quantity and developer limit
-          availableQuantity = Math.min(listing.quantity, project.estimated_credits)
-        }
-
-        // If project_credits has credits_available, use that (it's the most accurate)
+    let availableQuantity = listing.quantity ?? 0
+    if (project.estimated_credits) {
+      availableQuantity = Math.min(availableQuantity, project.estimated_credits)
+    }
         if (credit.credits_available !== null && credit.credits_available !== undefined) {
-          availableQuantity = Math.min(
-            availableQuantity,
-            credit.credits_available,
-            project.estimated_credits || Infinity,
-          )
-        }
+      availableQuantity = Math.min(availableQuantity, credit.credits_available)
+    }
 
-        console.log('📊 Available quantity calculation:', {
-          listing_quantity: listing.quantity,
-          project_estimated_credits: project.estimated_credits,
-          credit_credits_available: credit.credits_available,
-          final_available_quantity: availableQuantity,
-        })
+    const pricePerCredit =
+      project.credit_price ??
+      credit.price_per_credit ??
+      listing.price_per_credit ??
+      0
 
-        projectCreditMap.set(key, {
+    dedupeMap.set(cacheKey, {
           listing_id: listing.id,
           project_id: project.id,
           project_title: project.title,
@@ -508,76 +299,32 @@ export async function getMarketplaceListings(filters = {}) {
           location: project.location,
           vintage_year: credit.vintage_year,
           verification_standard: credit.verification_standard,
-          available_quantity: availableQuantity, // Use calculated available quantity
+      available_quantity: availableQuantity,
           price_per_credit: pricePerCredit,
           currency: listing.currency || credit.currency || 'PHP',
           seller_id: listing.seller_id,
-          seller_name: sellerMap.get(listing.seller_id) || 'Unknown Seller',
+      seller_name: sellerMap.get(listing.seller_id) || 'Unknown Seller',
           listed_at: listing.created_at,
           project_image: project.project_image,
           image_name: project.image_name,
           image_type: project.image_type,
-          estimated_credits: project.estimated_credits, // Developer-set limit
+      estimated_credits: project.estimated_credits,
           credit_price: project.credit_price,
-          // Store additional data for reference
           project_credits_available: credit.credits_available,
           project_credits_total: credit.total_credits,
         })
       }
-    })
 
-    const transformedListings = Array.from(projectCreditMap.values())
+  const transformedListings = Array.from(dedupeMap.values())
 
-    console.log('✅ Transformed', transformedListings.length, 'listings for marketplace')
+  cachedMarketplaceListings = transformedListings
+  lastMarketplaceFetch = now
 
-    // Debug: Log final prices for each listing
-    if (transformedListings.length > 0) {
-      console.log(
-        '💰 Final listing prices:',
-        transformedListings.map((l) => ({
-          title: l.project_title,
-          price_per_credit: l.price_per_credit,
-          currency: l.currency,
-        })),
-      )
-    }
-
-    // Apply client-side filters
-    let filtered = [...transformedListings]
-
-    if (filters.category && filters.category !== 'all') {
-      filtered = filtered.filter((listing) => listing.category === filters.category)
-    }
-
-    if (filters.country) {
-      filtered = filtered.filter((listing) =>
-        listing.location.toLowerCase().includes(filters.country.toLowerCase()),
-      )
-    }
-
-    if (filters.minPrice) {
-      filtered = filtered.filter((listing) => listing.price_per_credit >= filters.minPrice)
-    }
-
-    if (filters.maxPrice) {
-      filtered = filtered.filter((listing) => listing.price_per_credit <= filters.maxPrice)
-    }
-
-    if (filters.search) {
-      const searchTerm = filters.search.toLowerCase()
-      filtered = filtered.filter(
-        (listing) =>
-          listing.project_title?.toLowerCase().includes(searchTerm) ||
-          listing.project_description?.toLowerCase().includes(searchTerm) ||
-          listing.location?.toLowerCase().includes(searchTerm),
-      )
-    }
-
-    return filtered
-  } catch (error) {
-    console.error('❌ Error in getMarketplaceListings:', error)
-    return []
+  if (isDev) {
+    console.log(`Loaded ${transformedListings.length} marketplace listings from Supabase`)
   }
+
+  return applyMarketplaceFilters(transformedListings, filters)
 }
 
 /**
@@ -756,10 +503,10 @@ export async function purchaseCredits(listingId, purchaseData) {
 
     // Get current user ID using helper (works for test accounts too)
     const userId = await getCurrentUserId()
-    console.log('🔍 getCurrentUserId result:', userId)
+    console.log('getCurrentUserId result:', userId)
 
     if (!userId) {
-      console.error('❌ No user ID found')
+      console.error('No user ID found')
       throw new Error('User not authenticated')
     }
 
@@ -845,7 +592,7 @@ export async function purchaseCredits(listingId, purchaseData) {
       )
     }
 
-    console.log('✅ Purchase quantity validated:', {
+    console.log('Purchase quantity validated:', {
       requested: purchaseData.quantity,
       listing_quantity: listing.quantity,
       developer_limit: project?.estimated_credits,
@@ -854,7 +601,7 @@ export async function purchaseCredits(listingId, purchaseData) {
       actual_available: actualAvailable,
     })
 
-    console.log('💰 Purchase details:', {
+    console.log('Purchase details:', {
       quantity: purchaseData.quantity,
       listing_price_per_credit: listing.price_per_credit,
       project_credit_price: project?.credit_price,
@@ -918,7 +665,7 @@ export async function purchaseCredits(listingId, purchaseData) {
         status: 'completed',
         paymentMethod: 'wallet',
       }
-      console.log('✅ Wallet payment processed successfully')
+      console.log('Wallet payment processed successfully')
     } else if (purchaseData.paymentMethod === 'demo') {
       // Demo mode - instant completion
       paymentResult = {
@@ -1018,12 +765,12 @@ export async function purchaseCredits(listingId, purchaseData) {
     // Don't throw error if purchase record creation fails - purchase already succeeded
     // Wallet is deducted and credits are added, so the purchase is valid
     if (purchaseError) {
-      console.warn('⚠️ Error creating purchase record (non-critical):', purchaseError)
-      console.warn('⚠️ Purchase was successful - wallet deducted, credits added')
-      console.warn('⚠️ This is a tracking issue only, purchase transaction completed successfully')
+      console.warn('Warning: Error creating purchase record (non-critical):', purchaseError)
+      console.warn('Warning: Purchase was successful - wallet deducted, credits added')
+      console.warn('Warning: This is a tracking issue only, purchase transaction completed successfully')
       // Continue execution - purchase is valid even without purchase record
     } else {
-      console.log('✅ Purchase record created:', purchase.id)
+      console.log('Purchase record created:', purchase.id)
     }
 
     // Add credits to user's portfolio using real service
@@ -1043,9 +790,9 @@ export async function purchaseCredits(listingId, purchaseData) {
         projectCreditId,
         purchasePrice,
       )
-      console.log('✅ Credits added to user portfolio')
-    } catch (ownershipError) {
-      console.error('❌ Error adding credits to portfolio:', ownershipError)
+    console.log('Credits added to user portfolio')
+  } catch (ownershipError) {
+    console.error('Error adding credits to portfolio:', ownershipError)
       // Continue - purchase is still valid, but ownership might need manual fix
     }
 
@@ -1061,7 +808,7 @@ export async function purchaseCredits(listingId, purchaseData) {
       .eq('id', listingId)
 
     if (updateError) {
-      console.error('❌ Error updating listing quantity:', updateError)
+    console.error('Error updating listing quantity:', updateError)
       // Continue - purchase is still valid
     }
 
@@ -1092,11 +839,11 @@ export async function purchaseCredits(listingId, purchaseData) {
 
       if (!transactionError && transaction) {
         transactionId = transaction.id
-        console.log('✅ Credit transaction created:', transactionId)
+        console.log('Credit transaction created:', transactionId)
       } else {
-        console.error('❌ CRITICAL: Failed to create credit_transaction:', transactionError)
+        console.error('CRITICAL: Failed to create credit_transaction:', transactionError)
         // Try to create transaction with minimal required fields
-        console.log('🔄 Attempting to create transaction with minimal fields...')
+        console.log('Attempting to create transaction with minimal fields...')
         const { data: minimalTransaction, error: minimalError } = await supabase
           .from('credit_transactions')
           .insert({
@@ -1116,10 +863,10 @@ export async function purchaseCredits(listingId, purchaseData) {
 
         if (!minimalError && minimalTransaction) {
           transactionId = minimalTransaction.id
-          console.log('✅ Credit transaction created with minimal fields:', transactionId)
+          console.log('Credit transaction created with minimal fields:', transactionId)
         } else {
           console.error(
-            '❌ CRITICAL: Failed to create transaction even with minimal fields:',
+            'CRITICAL: Failed to create transaction even with minimal fields:',
             minimalError,
           )
           throw new Error(
@@ -1128,9 +875,9 @@ export async function purchaseCredits(listingId, purchaseData) {
         }
       }
     } catch (transError) {
-      console.error('❌ CRITICAL ERROR creating credit transaction:', transError)
+      console.error('CRITICAL ERROR creating credit transaction:', transError)
       // Don't throw - purchase is still valid, but user should be notified
-      console.error('⚠️ Purchase completed but transaction record failed. History may not show.')
+      console.error('Warning: Purchase completed but transaction record failed. History may not show.')
     }
 
     // Generate certificate automatically when credits are purchased
@@ -1140,20 +887,20 @@ export async function purchaseCredits(listingId, purchaseData) {
         const { generateCreditCertificate } = await import('@/services/certificateService')
         const certificate = await generateCreditCertificate(transactionId, 'purchase')
         console.log(
-          '✅ Purchase certificate generated automatically:',
+          'Purchase certificate generated automatically:',
           certificate?.certificate_number,
         )
-        console.log('✅ Certificate will appear in certificate dashboard and retire dashboard')
+        console.log('Certificate will appear in certificate dashboard and retire dashboard')
       } catch (certError) {
-        console.error('❌ Error generating certificate:', certError)
+        console.error('Error generating certificate:', certError)
         console.error(
-          '⚠️ Certificate generation failed. Purchase completed but certificate may be missing.',
+          'Warning: Certificate generation failed. Purchase completed but certificate may be missing.',
         )
         // Continue - certificate generation failure shouldn't break purchase
       }
     } else {
-      console.error('❌ CRITICAL: Cannot generate certificate - no transactionId available')
-      console.error('⚠️ Purchase completed but certificate will not be generated.')
+      console.error('CRITICAL: Cannot generate certificate - no transactionId available')
+      console.error('Warning: Purchase completed but certificate will not be generated.')
     }
 
     // Generate receipt automatically when credits are purchased
@@ -1161,9 +908,9 @@ export async function purchaseCredits(listingId, purchaseData) {
       try {
         const { generateReceipt } = await import('@/services/receiptService')
         const receipt = await generateReceipt(transactionId)
-        console.log('✅ Receipt generated automatically:', receipt?.receiptNumber)
+        console.log('Receipt generated automatically:', receipt?.receiptNumber)
       } catch (receiptError) {
-        console.error('❌ Error generating receipt:', receiptError)
+        console.error('Error generating receipt:', receiptError)
         // Continue - receipt generation failure shouldn't break purchase
       }
     }
@@ -1177,7 +924,7 @@ export async function purchaseCredits(listingId, purchaseData) {
         payment_method: purchaseData.paymentMethod,
       })
     } catch (logError) {
-      console.warn('⚠️ Error logging purchase action:', logError)
+      console.warn('Warning: Error logging purchase action:', logError)
       // Continue - logging failure shouldn't break purchase
     }
 
@@ -1186,14 +933,14 @@ export async function purchaseCredits(listingId, purchaseData) {
       try {
         await notifyCreditPurchased(purchase.id, user.id)
       } catch (emailError) {
-        console.warn('⚠️ Failed to send purchase notification:', emailError)
+        console.warn('Warning: Failed to send purchase notification:', emailError)
         // Continue - email failure shouldn't break purchase
       }
     } else {
-      console.log('ℹ️ Skipping email notification - purchase record not created')
+      console.log('Skipping email notification - purchase record not created')
     }
 
-    console.log('✅ Credit purchase completed successfully')
+    console.log('Credit purchase completed successfully')
 
     return {
       success: true,
@@ -1210,7 +957,7 @@ export async function purchaseCredits(listingId, purchaseData) {
       },
     }
   } catch (error) {
-    console.error('❌ Error in purchaseCredits:', error)
+    console.error('Error in purchaseCredits:', error)
     throw error
   }
 }
@@ -1222,7 +969,7 @@ export async function purchaseCredits(listingId, purchaseData) {
  */
 async function processPayment(paymentData) {
   try {
-    console.log('💳 Processing real payment:', paymentData)
+    console.log('Processing real payment:', paymentData)
 
     // Use real payment service based on method
     if (paymentData.method === 'gcash') {
@@ -1233,7 +980,7 @@ async function processPayment(paymentData) {
       throw new Error(`Unsupported payment method: ${paymentData.method}`)
     }
   } catch (error) {
-    console.error('❌ Payment processing error:', error)
+    console.error('Payment processing error:', error)
     return {
       success: false,
       error: error.message,
@@ -1316,11 +1063,11 @@ export async function retireCredits(userId, projectId, quantity, reason) {
       const { generateRetirementCertificate } = await import('@/services/certificateService')
       const certificate = await generateRetirementCertificate(retirement.id, userId)
       console.log(
-        '✅ Retirement certificate generated automatically:',
+        'Retirement certificate generated automatically:',
         certificate?.certificate_number,
       )
     } catch (certError) {
-      console.error('❌ Error generating retirement certificate:', certError)
+      console.error('Error generating retirement certificate:', certError)
       // Continue - certificate generation failure shouldn't break retirement
     }
 

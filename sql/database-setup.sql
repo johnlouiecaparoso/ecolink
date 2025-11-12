@@ -25,9 +25,7 @@ CREATE TABLE IF NOT EXISTS projects (
   description TEXT,
   category TEXT,
   location TEXT,
-  expected_impact TEXT,
-  user_id UUID REFERENCES profiles(id),
-  status TEXT DEFAULT 'pending',
+  status TEXT DEFAULT 'active',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -166,70 +164,9 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
--- 18. Create credit_transactions table for marketplace transactions
-CREATE TABLE IF NOT EXISTS credit_transactions (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  buyer_id UUID REFERENCES profiles(id) NOT NULL,
-  seller_id UUID REFERENCES profiles(id) NOT NULL,
-  project_credits_id UUID REFERENCES project_credits(id) NOT NULL,
-  quantity INTEGER NOT NULL,
-  price_per_credit DECIMAL(10,2) NOT NULL,
-  total_amount DECIMAL(12,2) NOT NULL,
-  currency TEXT DEFAULT 'PHP',
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'cancelled', 'failed')),
-  payment_method TEXT,
-  platform_fee_percentage DECIMAL(5,2) DEFAULT 2.5,
-  certificate_number TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  completed_at TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 19. Create receipts table for transaction receipts
-CREATE TABLE IF NOT EXISTS receipts (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  transaction_id UUID REFERENCES credit_transactions(id) NOT NULL,
-  receipt_number TEXT NOT NULL UNIQUE,
-  buyer_id UUID REFERENCES profiles(id) NOT NULL,
-  seller_id UUID REFERENCES profiles(id) NOT NULL,
-  receipt_data JSONB NOT NULL,
-  status TEXT DEFAULT 'issued' CHECK (status IN ('issued', 'downloaded', 'void')),
-  issued_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  downloaded_at TIMESTAMP WITH TIME ZONE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- 20. Enable RLS on new tables
-ALTER TABLE credit_transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE receipts ENABLE ROW LEVEL SECURITY;
-
--- 21. Create RLS policies for credit_transactions
-CREATE POLICY "Users can view their own transactions" ON credit_transactions
-  FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
-
-CREATE POLICY "Users can insert transactions as buyer" ON credit_transactions
-  FOR INSERT WITH CHECK (auth.uid() = buyer_id);
-
--- 22. Create RLS policies for receipts
-CREATE POLICY "Users can view their own receipts" ON receipts
-  FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
-
-CREATE POLICY "System can insert receipts" ON receipts
-  FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Users can update receipt download status" ON receipts
-  FOR UPDATE USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
-
--- 23. Create indexes for better performance
+-- 18. Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_credit_listings_status ON credit_listings(status);
 CREATE INDEX IF NOT EXISTS idx_credit_certificates_buyer ON credit_certificates(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_profiles_email ON profiles(email);
 CREATE INDEX IF NOT EXISTS idx_profiles_role ON profiles(role);
-CREATE INDEX IF NOT EXISTS idx_credit_transactions_buyer ON credit_transactions(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_credit_transactions_seller ON credit_transactions(seller_id);
-CREATE INDEX IF NOT EXISTS idx_credit_transactions_status ON credit_transactions(status);
-CREATE INDEX IF NOT EXISTS idx_receipts_buyer ON receipts(buyer_id);
-CREATE INDEX IF NOT EXISTS idx_receipts_seller ON receipts(seller_id);
-CREATE INDEX IF NOT EXISTS idx_receipts_transaction ON receipts(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_receipts_number ON receipts(receipt_number);

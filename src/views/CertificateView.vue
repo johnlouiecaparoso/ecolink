@@ -23,7 +23,13 @@
 
         <!-- Error State -->
         <div v-else-if="error" class="error-state">
-          <div class="error-icon">⚠️</div>
+          <div class="error-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+              <path d="M12 9v4.5" stroke-linecap="round" />
+              <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+            </svg>
+          </div>
           <h3>Unable to load certificates</h3>
           <p>{{ error }}</p>
           <button class="btn btn-primary" @click="loadCertificates">Try Again</button>
@@ -33,7 +39,9 @@
         <div v-else>
           <!-- Empty State -->
           <div v-if="certificates.length === 0" class="empty-state">
-            <div class="empty-icon">📜</div>
+            <div class="empty-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">contract</span>
+            </div>
             <h3>No certificates yet</h3>
             <p>Purchase carbon credits to receive certificates</p>
             <button class="btn btn-primary" @click="$router.push('/marketplace')">
@@ -41,140 +49,178 @@
             </button>
           </div>
 
-          <!-- Certificates Grid -->
-          <div v-else class="certificates-grid">
-            <div v-for="certificate in certificates" :key="certificate.id" class="certificate-card">
-              <div class="certificate-header">
-                <div class="certificate-icon">🏆</div>
-                <div class="certificate-info">
-                  <h3 class="certificate-title">{{ certificate.project_title }}</h3>
-                  <p class="certificate-location">📍 {{ certificate.project_location }}</p>
-                  <span class="certificate-number">Cert #{{ certificate.certificate_number }}</span>
+          <!-- Certificates List + Detail View -->
+          <div v-else class="certificates-layout">
+            <div class="certificate-list">
+              <button
+                v-for="certificate in certificates"
+                :key="certificate.id"
+                class="certificate-list-item"
+                :class="{ active: certificate.id === selectedCertificate?.id }"
+                @click="openCertificateDetail(certificate)"
+              >
+                <span class="certificate-list-title">
+                  {{ certificate.project_title || certificate.certificate_data?.project_title || 'Untitled Certificate' }}
+                </span>
+              </button>
+            </div>
+
+            <div class="certificate-detail-area">
+              <div v-if="selectedCertificate" class="certificate-card">
+                <div class="certificate-header">
+                  <div class="certificate-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">award_star</span>
+                  </div>
+                  <div class="certificate-info">
+                    <h3 class="certificate-title">{{ selectedCertificate.project_title }}</h3>
+                    <p class="certificate-location">
+                      <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                      <span>{{ selectedCertificate.project_location }}</span>
+                    </p>
+                    <span class="certificate-number">Cert #{{ selectedCertificate.certificate_number }}</span>
+                  </div>
+                </div>
+
+                <div class="certificate-details">
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Beneficiary:</span>
+                    <span class="detail-value highlight-value">{{
+                      selectedCertificate.beneficiary_name ||
+                        selectedCertificate.certificate_data?.beneficiary_name ||
+                        'Not specified'
+                    }}</span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.project_description || selectedCertificate.certificate_data?.project_description"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Project Description:</span>
+                    <span class="detail-value description-value">{{
+                      selectedCertificate.project_description ||
+                      selectedCertificate.certificate_data?.project_description
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Tonnes of CO₂ Retired:</span>
+                    <span class="detail-value highlight-value">{{
+                      (selectedCertificate.tonnes_co2 ||
+                       selectedCertificate.certificate_data?.tonnes_co2 ||
+                       selectedCertificate.credits_quantity || 0).toLocaleString()
+                    }} tonnes CO₂</span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.purpose || selectedCertificate.certificate_data?.purpose"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">{{
+                      selectedCertificate.certificate_type === 'retirement' ? 'Purpose of Retirement:' : 'Purpose:'
+                    }}</span>
+                    <span class="detail-value">{{
+                      selectedCertificate.purpose || selectedCertificate.certificate_data?.purpose
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Transaction ID:</span>
+                    <span class="detail-value transaction-id">{{
+                      selectedCertificate.transaction_id_ref ||
+                      selectedCertificate.certificate_data?.transaction_id_ref ||
+                      selectedCertificate.transaction_id ||
+                      'N/A'
+                    }}</span>
+                  </div>
+
+                  <div
+                    v-if="
+                      selectedCertificate.wallet_address ||
+                      selectedCertificate.certificate_data?.wallet_address ||
+                      selectedCertificate.payment_reference ||
+                      selectedCertificate.certificate_data?.payment_reference
+                    "
+                    class="detail-row verification-row"
+                  >
+                    <span class="detail-label">✓ Onchain Verification:</span>
+                    <span class="detail-value verification-value">
+                      {{ selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address ? 'Verified via wallet' : 'Verified via payment reference' }}
+                    </span>
+                  </div>
+
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Purchase Date & Time:</span>
+                    <span class="detail-value highlight-value">{{
+                      formatDate(
+                        selectedCertificate.purchase_date ||
+                          selectedCertificate.purchase_datetime ||
+                          selectedCertificate.certificate_data?.purchase_date ||
+                          selectedCertificate.certificate_data?.purchase_datetime ||
+                          selectedCertificate.timestamp ||
+                          selectedCertificate.issued_at,
+                      )
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Certificate Issued:</span>
+                    <span class="detail-value">
+                      {{ formatDate(selectedCertificate.issued_at || selectedCertificate.timestamp) }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Wallet Address:</span>
+                    <span class="detail-value wallet-address">{{
+                      selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Category:</span>
+                    <span class="detail-value">{{ selectedCertificate.project_category }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Credits:</span>
+                    <span class="detail-value">{{
+                      selectedCertificate.credits_quantity.toLocaleString()
+                    }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Vintage Year:</span>
+                    <span class="detail-value">{{ selectedCertificate.vintage_year }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Standard:</span>
+                    <span class="detail-value">{{ selectedCertificate.verification_standard }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value" :class="selectedCertificate.status">
+                      {{ selectedCertificate.status === 'active' ? 'Active' : 'Inactive' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="certificate-actions">
+                  <button class="btn btn-primary btn-sm" @click="downloadCertificate(selectedCertificate)">
+                    Download PDF
+                  </button>
+                  <button class="btn btn-outline btn-sm" @click="verifyCertificate(selectedCertificate)">
+                    Verify
+                  </button>
                 </div>
               </div>
 
-              <div class="certificate-details">
-                <!-- Beneficiary Name (prominently displayed) -->
-                <div class="detail-row highlight-row">
-                  <span class="detail-label">Beneficiary:</span>
-                  <span class="detail-value highlight-value">{{ 
-                    certificate.beneficiary_name || 
-                    certificate.certificate_data?.beneficiary_name || 
-                    'Not specified' 
-                  }}</span>
+              <div v-else class="certificate-placeholder">
+                <div class="placeholder-icon" aria-hidden="true">
+                  <span class="material-symbols-outlined">description</span>
                 </div>
-                
-                <!-- Project Description -->
-                <div v-if="certificate.project_description || certificate.certificate_data?.project_description" class="detail-row">
-                  <span class="detail-label">Project Description:</span>
-                  <span class="detail-value description-value">{{
-                    certificate.project_description || 
-                    certificate.certificate_data?.project_description
-                  }}</span>
-                </div>
-                
-                <!-- Tonnes of CO₂ Retired -->
-                <div class="detail-row highlight-row">
-                  <span class="detail-label">Tonnes of CO₂ Retired:</span>
-                  <span class="detail-value highlight-value">{{
-                    (certificate.tonnes_co2 || 
-                     certificate.certificate_data?.tonnes_co2 || 
-                     certificate.credits_quantity || 0).toLocaleString()
-                  }} tonnes CO₂</span>
-                </div>
-                
-                <!-- Purpose -->
-                <div v-if="certificate.purpose || certificate.certificate_data?.purpose" class="detail-row">
-                  <span class="detail-label">{{ 
-                    certificate.certificate_type === 'retirement' ? 'Purpose of Retirement:' : 'Purpose:' 
-                  }}</span>
-                  <span class="detail-value">{{
-                    certificate.purpose || certificate.certificate_data?.purpose
-                  }}</span>
-                </div>
-                
-                <!-- Transaction ID -->
-                <div class="detail-row">
-                  <span class="detail-label">Transaction ID:</span>
-                  <span class="detail-value transaction-id">{{
-                    certificate.transaction_id_ref || 
-                    certificate.certificate_data?.transaction_id_ref || 
-                    certificate.transaction_id || 
-                    'N/A'
-                  }}</span>
-                </div>
-                
-                <!-- Onchain Verification -->
-                <div v-if="certificate.wallet_address || certificate.certificate_data?.wallet_address || certificate.payment_reference || certificate.certificate_data?.payment_reference" class="detail-row verification-row">
-                  <span class="detail-label">✓ Onchain Verification:</span>
-                  <span class="detail-value verification-value">
-                    {{ certificate.wallet_address || certificate.certificate_data?.wallet_address ? 'Verified via wallet' : 'Verified via payment reference' }}
-                  </span>
-                </div>
-                
-      <!-- Purchase Date & Time -->
-      <div class="detail-row highlight-row">
-        <span class="detail-label">Purchase Date & Time:</span>
-        <span class="detail-value highlight-value">{{
-          formatDate(
-            certificate.purchase_date || 
-            certificate.purchase_datetime || 
-            certificate.certificate_data?.purchase_date || 
-            certificate.certificate_data?.purchase_datetime || 
-            certificate.timestamp || 
-            certificate.issued_at
-          )
-        }}</span>
-      </div>
-      
-      <!-- Certificate Issued (for reference) -->
-      <div class="detail-row">
-        <span class="detail-label">Certificate Issued:</span>
-        <span class="detail-value">{{ formatDate(certificate.issued_at || certificate.timestamp) }}</span>
-      </div>
-                
-                <!-- Wallet Address -->
-                <div v-if="certificate.wallet_address || certificate.certificate_data?.wallet_address" class="detail-row">
-                  <span class="detail-label">Wallet Address:</span>
-                  <span class="detail-value wallet-address">{{
-                    certificate.wallet_address || certificate.certificate_data?.wallet_address
-                  }}</span>
-                </div>
-                
-                <!-- Additional Details -->
-                <div class="detail-row">
-                  <span class="detail-label">Category:</span>
-                  <span class="detail-value">{{ certificate.project_category }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Credits:</span>
-                  <span class="detail-value">{{
-                    certificate.credits_quantity.toLocaleString()
-                  }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Vintage Year:</span>
-                  <span class="detail-value">{{ certificate.vintage_year }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Standard:</span>
-                  <span class="detail-value">{{ certificate.verification_standard }}</span>
-                </div>
-                <div class="detail-row">
-                  <span class="detail-label">Status:</span>
-                  <span class="detail-value" :class="certificate.status">
-                    {{ certificate.status === 'active' ? 'Active' : 'Inactive' }}
-                  </span>
-                </div>
-              </div>
-
-              <div class="certificate-actions">
-                <button class="btn btn-primary btn-sm" @click="downloadCertificate(certificate)">
-                  Download PDF
-                </button>
-                <button class="btn btn-outline btn-sm" @click="verifyCertificate(certificate)">
-                  Verify
-                </button>
+                <h3>Select a certificate</h3>
+                <p>Choose a certificate from the list to view details.</p>
               </div>
             </div>
           </div>
@@ -185,62 +231,128 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getUserCertificates } from '@/services/certificateService'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 // Data
 const certificates = ref([])
 const loading = ref(false)
 const error = ref('')
+const selectedCertificate = ref(null)
 
 // Methods
 async function loadCertificates() {
   if (!userStore.session?.user?.id) {
     error.value = 'Please log in to view your certificates'
+    loading.value = false
     return
   }
 
   loading.value = true
   error.value = ''
 
+  // Add timeout protection to prevent infinite loading
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+  )
+
   try {
-    const data = await getUserCertificates(userStore.session.user.id)
+    const data = await Promise.race([
+      getUserCertificates(userStore.session.user.id),
+      timeoutPromise,
+    ])
     certificates.value = data || []
-    console.log('✅ Certificates loaded:', certificates.value.length)
+    console.log('Certificates loaded:', certificates.value.length)
+
+    const certParam = route.query.cert ? String(route.query.cert) : null
+    if (certParam && certificates.value.length > 0) {
+      const matchedCertificate =
+        certificates.value.find(
+          (cert) =>
+            String(cert.certificate_number) === certParam || String(cert.id) === certParam,
+        ) || null
+      if (matchedCertificate) {
+        openCertificateDetail(matchedCertificate, false)
+      }
+    } else if (!selectedCertificate.value && certificates.value.length > 0) {
+      openCertificateDetail(certificates.value[0], false)
+    }
     
     // If no certificates found, try generating missing ones for existing purchases
     if (certificates.value.length === 0) {
-      console.log('🔄 No certificates found, checking for missing certificates...')
+      console.log('No certificates found, checking for missing entries...')
       try {
         const { generateMissingCertificates } = await import('@/services/certificateService')
-        const result = await generateMissingCertificates(userStore.session.user.id)
+        // Add timeout for certificate generation
+        const genTimeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Certificate generation timeout')), 30000)
+        )
+        const result = await Promise.race([
+          generateMissingCertificates(userStore.session.user.id),
+          genTimeoutPromise,
+        ])
         if (result.generated > 0) {
-          console.log(`✅ Generated ${result.generated} missing certificates, reloading...`)
-          // Reload certificates after generation
-          const reloadedData = await getUserCertificates(userStore.session.user.id)
+          console.log(`Generated ${result.generated} missing certificates, reloading...`)
+          // Reload certificates after generation with timeout
+          const reloadTimeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Reload timeout')), 30000)
+          )
+          const reloadedData = await Promise.race([
+            getUserCertificates(userStore.session.user.id),
+            reloadTimeoutPromise,
+          ])
           certificates.value = reloadedData || []
-          console.log('✅ Certificates reloaded after generation:', certificates.value.length)
+          console.log('Certificates reloaded after generation:', certificates.value.length)
+          if (certificates.value.length > 0) {
+            openCertificateDetail(certificates.value[0], false)
+          }
         }
       } catch (genErr) {
-        console.warn('⚠️ Could not generate missing certificates:', genErr)
+        console.warn('Could not generate missing certificates:', genErr)
+        // Don't fail the whole load if generation fails
       }
     }
   } catch (err) {
-    console.error('❌ Error loading certificates:', err)
-    error.value = 'Failed to load certificates. Please try again.'
+    console.error('Error loading certificates:', err)
+    if (err.message?.includes('timeout')) {
+      error.value = 'Request timed out. Please check your connection and try again.'
+    } else {
+      error.value = 'Failed to load certificates. Please try again.'
+    }
+    certificates.value = []
   } finally {
     loading.value = false
   }
 }
 
+function openCertificateDetail(certificate, shouldUpdateRoute = true) {
+  selectedCertificate.value = certificate
+
+  if (!shouldUpdateRoute) return
+
+  const certIdentifier = certificate.certificate_number || certificate.id
+  const updatedQuery = { ...route.query }
+
+  if (certIdentifier) {
+    updatedQuery.cert = certIdentifier
+  } else {
+    delete updatedQuery.cert
+  }
+
+  router.replace({
+    query: updatedQuery,
+  })
+}
+
 async function downloadCertificate(certificate) {
   try {
-    console.log('🔄 Starting certificate download:', certificate.certificate_number)
+    console.log('Starting certificate download:', certificate.certificate_number)
     
     if (!certificate || !certificate.certificate_number) {
       throw new Error('Invalid certificate data')
@@ -257,22 +369,22 @@ async function downloadCertificate(certificate) {
           .eq('id', certificate.transaction_id)
           .single()
         transaction = data
-        console.log('✅ Transaction data loaded for certificate')
+        console.log('Transaction data loaded for certificate')
       }
     } catch (err) {
-      console.warn('⚠️ Could not load transaction data (non-critical):', err)
+      console.warn('Could not load transaction data (non-critical):', err)
     }
 
     // Use PDF generation service if available, otherwise fallback
     try {
-      console.log('🔄 Attempting PDF generation...')
+      console.log('Attempting PDF generation...')
       const { generateCertificatePDF } = await import('@/services/certificatePdfService')
       const filename = await generateCertificatePDF(certificate, transaction)
-      console.log('✅ Certificate PDF downloaded:', filename)
+      console.log('Certificate PDF downloaded:', filename)
       alert('Certificate downloaded successfully!')
     } catch (pdfError) {
-      console.error('❌ PDF generation error:', pdfError)
-      console.log('🔄 Falling back to text certificate...')
+      console.error('PDF generation error:', pdfError)
+      console.log('Falling back to text certificate...')
       
       // Fallback: Create a comprehensive text-based certificate
       const beneficiaryName = certificate.beneficiary_name || 
@@ -358,14 +470,64 @@ For verification, visit: https://ecolink.com/verify
       a.click()
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
-      console.log('✅ Text certificate downloaded as fallback')
+      console.log('Text certificate downloaded as fallback')
       alert('Certificate downloaded as text file (PDF generation unavailable)')
     }
   } catch (err) {
-    console.error('❌ Error downloading certificate:', err)
+    console.error('Error downloading certificate:', err)
     alert(`Failed to download certificate: ${err.message || 'Unknown error'}. Please try again.`)
   }
 }
+
+watch(
+  certificates,
+  (newCertificates) => {
+    if (newCertificates.length === 0) {
+      selectedCertificate.value = null
+      return
+    }
+
+    if (
+      selectedCertificate.value &&
+      !newCertificates.some((cert) => cert.id === selectedCertificate.value.id)
+    ) {
+      selectedCertificate.value = null
+    }
+  },
+  { immediate: false },
+)
+
+watch(
+  () => route.query.cert,
+  (newCert) => {
+    const certParam = newCert ? String(newCert) : null
+
+    if (!certParam) {
+      if (!selectedCertificate.value && certificates.value.length > 0) {
+        selectedCertificate.value = certificates.value[0]
+      }
+      return
+    }
+
+    if (
+      selectedCertificate.value &&
+      (String(selectedCertificate.value.certificate_number) === certParam ||
+        String(selectedCertificate.value.id) === certParam)
+    ) {
+      return
+    }
+
+    const matchedCertificate =
+      certificates.value.find(
+        (cert) =>
+          String(cert.certificate_number) === certParam || String(cert.id) === certParam,
+      ) || null
+
+    if (matchedCertificate) {
+      openCertificateDetail(matchedCertificate, false)
+    }
+  },
+)
 
 function verifyCertificate(certificate) {
   // Open verification in new tab or show verification modal
@@ -460,8 +622,20 @@ onMounted(() => {
 }
 
 .error-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: #dc2626;
+  margin: 0 auto 1rem;
+}
+
+.error-icon svg {
+  width: 1.9rem;
+  height: 1.9rem;
 }
 
 /* Empty State */
@@ -471,8 +645,19 @@ onMounted(() => {
 }
 
 .empty-icon {
-  font-size: 4rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 1rem;
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
   margin-bottom: 1rem;
+}
+
+.empty-icon .material-symbols-outlined {
+  font-size: 2.2rem;
 }
 
 .empty-state h3 {
@@ -486,11 +671,60 @@ onMounted(() => {
   margin: 0 0 2rem 0;
 }
 
-/* Certificates Grid */
-.certificates-grid {
+/* Certificates Layout */
+.certificates-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: minmax(220px, 320px) 1fr;
   gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.certificate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border: 1px solid var(--border-color, #d1e7dd);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.certificate-list-item {
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 0.875rem;
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-light, #e8f5e8);
+  border-radius: 0.5rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a1a1a);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+}
+
+.certificate-list-item:hover {
+  border-color: var(--primary-color, #069e2d);
+  color: var(--primary-color, #069e2d);
+  transform: translateX(4px);
+}
+
+.certificate-list-item.active {
+  background: var(--primary-light, #e8f5e8);
+  border-color: var(--primary-color, #069e2d);
+  color: var(--primary-color, #069e2d);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.15);
+}
+
+.certificate-list-title {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.certificate-detail-area {
+  min-height: 400px;
 }
 
 .certificate-card {
@@ -506,6 +740,37 @@ onMounted(() => {
   transform: translateY(-2px);
 }
 
+.certificate-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border: 1px dashed var(--border-color, #d1e7dd);
+  border-radius: 0.75rem;
+  padding: 2rem;
+  min-height: 360px;
+  text-align: center;
+  color: var(--text-muted, #718096);
+}
+
+.placeholder-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  margin-bottom: 0.75rem;
+}
+
+.placeholder-icon .material-symbols-outlined {
+  font-size: 2rem;
+}
+
 .certificate-header {
   display: flex;
   align-items: flex-start;
@@ -516,7 +781,18 @@ onMounted(() => {
 }
 
 .certificate-icon {
-  font-size: 2.5rem;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+}
+
+.certificate-icon .material-symbols-outlined {
+  font-size: 1.9rem;
 }
 
 .certificate-info {
@@ -531,9 +807,16 @@ onMounted(() => {
 }
 
 .certificate-location {
-  color: var(--text-muted, #718096);
-  font-size: 0.875rem;
-  margin: 0 0 0.5rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+  margin: 0.25rem 0;
+}
+
+.certificate-location .material-symbols-outlined {
+  font-size: 1.05rem;
 }
 
 .certificate-number {
@@ -670,12 +953,20 @@ onMounted(() => {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .certificates-grid {
+  .container {
+    padding: 0 1rem;
+  }
+
+  .certificates-layout {
     grid-template-columns: 1fr;
   }
 
-  .container {
-    padding: 0 1rem;
+  .certificate-list {
+    max-height: none;
+  }
+
+  .certificate-list-item {
+    transform: none !important;
   }
 }
 </style>
