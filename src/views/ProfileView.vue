@@ -308,21 +308,18 @@
                   <div class="settings-section">
                     <h3 class="section-title">Account Status</h3>
                     <div class="status-list">
-                      <div class="status-item">
+                      <div
+                        v-for="status in accountStatusItems"
+                        :key="status.key"
+                        class="status-item"
+                      >
                         <div class="status-info">
-                          <span class="status-label">Account Verification</span>
-                          <span class="status-description">Your account is fully verified</span>
+                          <span class="status-label">{{ status.label }}</span>
+                          <span class="status-description">{{ status.description }}</span>
                         </div>
-                        <div class="status-badge verified">Verified</div>
-                      </div>
-                      <div class="status-item">
-                        <div class="status-info">
-                          <span class="status-label">KYC Status</span>
-                          <span class="status-description"
-                            >Know Your Customer verification complete</span
-                          >
+                        <div class="status-badge" :class="status.badgeClass">
+                          {{ status.badgeLabel }}
                         </div>
-                        <div class="status-badge verified">Complete</div>
                       </div>
                     </div>
                   </div>
@@ -496,12 +493,198 @@ export default {
       savingNotifications: false,
       uploadingPhoto: false,
       photoError: '',
+      latestProfile: null,
     }
+  },
+  computed: {
+    accountStatusItems() {
+      const user = this.store.session?.user || null
+      const profile = this.store.profile || this.latestProfile || {}
+
+      const emailIndicators = [
+        user?.email_confirmed_at,
+        user?.confirmed_at,
+        user?.user_metadata?.email_confirmed_at,
+        user?.user_metadata?.email_verified,
+        user?.user_metadata?.email_confirmed,
+        user?.user_metadata?.verified,
+      ]
+
+      const identityVerified =
+        Array.isArray(user?.identities) &&
+        user.identities.some((identity) => {
+          const data = identity?.identity_data
+          if (!data) return false
+
+          const indicators = [
+            data.email_verified,
+            data.email_confirmed,
+            data.email_confirmed_at,
+          ]
+
+          return indicators.some((value) => {
+            if (value === null || value === undefined) return false
+            if (typeof value === 'boolean') return value
+            if (typeof value === 'string') {
+              const normalized = value.trim().toLowerCase()
+              if (!normalized || normalized === 'false' || normalized === '0') {
+                return false
+              }
+              return true
+            }
+            return true
+          })
+        })
+
+      const emailVerified =
+        emailIndicators.some((value) => {
+          if (value === null || value === undefined) return false
+          if (typeof value === 'boolean') return value
+          if (typeof value === 'string') {
+            const normalized = value.trim().toLowerCase()
+            if (!normalized || normalized === 'false' || normalized === '0') {
+              return false
+            }
+            return true
+          }
+          return true
+        }) || identityVerified
+
+      const accountStatus = emailVerified
+        ? {
+            key: 'account-verification',
+            label: 'Account Verification',
+            description: 'Your email address has been verified.',
+            badgeLabel: 'VERIFIED',
+            badgeClass: 'verified',
+          }
+        : {
+            key: 'account-verification',
+            label: 'Account Verification',
+            description: 'Verify your email address to unlock all account features.',
+            badgeLabel: 'PENDING',
+            badgeClass: 'pending',
+          }
+
+      const normalizeKycLevel = (raw) => {
+        if (raw === null || raw === undefined) {
+          return 0
+        }
+
+        if (typeof raw === 'number') {
+          return Number.isNaN(raw) ? 0 : raw
+        }
+
+        if (typeof raw === 'string') {
+          const numericValue = Number(raw)
+          if (!Number.isNaN(numericValue)) {
+            return numericValue
+          }
+
+          const normalized = raw.trim().toLowerCase()
+
+          if (['verified', 'complete', 'approved', 'level2', 'level_2'].includes(normalized)) {
+            return 2
+          }
+
+          if (['full', 'level3', 'level_3', 'admin'].includes(normalized)) {
+            return 3
+          }
+
+          if (
+            [
+              'submitted',
+              'in_review',
+              'in-review',
+              'pending',
+              'processing',
+              'level1',
+              'level_1',
+            ].includes(normalized)
+          ) {
+            return 1
+          }
+
+          if (['rejected', 'denied', 'failed'].includes(normalized)) {
+            return -1
+          }
+
+          return 0
+        }
+
+        return 0
+      }
+
+      const rawKycLevel =
+        profile?.kyc_level ??
+        profile?.kycLevel ??
+        profile?.kyc_status ??
+        profile?.kycStatus ??
+        0
+
+      let kycLevel = normalizeKycLevel(rawKycLevel)
+      if (kycLevel > 3) {
+        kycLevel = 3
+      } else if (kycLevel < -1) {
+        kycLevel = -1
+      }
+
+      const kycMap = {
+        [-1]: {
+          description:
+            'Your verification was rejected. Update your documents and contact support to resubmit.',
+          badgeLabel: 'REJECTED',
+          badgeClass: 'failed',
+        },
+        0: {
+          description: 'Submit your verification details to unlock more features.',
+          badgeLabel: 'PENDING',
+          badgeClass: 'pending',
+        },
+        1: {
+          description:
+            'We are reviewing your documents. You will be notified once approval is complete.',
+          badgeLabel: 'LEVEL 1',
+          badgeClass: 'in-progress',
+        },
+        2: {
+          description:
+            'Enhanced verification complete. You now have access to advanced platform features.',
+          badgeLabel: 'LEVEL 2',
+          badgeClass: 'verified',
+        },
+        3: {
+          description: 'Full verification complete. Administrative privileges are enabled.',
+          badgeLabel: 'LEVEL 3',
+          badgeClass: 'verified',
+        },
+      }
+
+      const kycConfig = kycMap[kycLevel] || kycMap[0]
+
+      const kycStatus = {
+        key: 'kyc-status',
+        label: 'KYC Status',
+        description: kycConfig.description,
+        badgeLabel: kycConfig.badgeLabel,
+        badgeClass: kycConfig.badgeClass,
+      }
+
+      return [accountStatus, kycStatus]
+    },
+  },
+  watch: {
+    'store.profile'(newProfile) {
+      this.latestProfile = newProfile || null
+    },
   },
   async mounted() {
     // Ensure store has latest profile data from Supabase
     if (this.store.isAuthenticated && this.store.session?.user?.id) {
       await this.store.fetchUserProfile()
+    }
+    if (this.store.profile) {
+      this.latestProfile = this.store.profile
     }
     // Load profile data (which always uses Supabase)
     await this.loadProfile()
@@ -521,6 +704,7 @@ export default {
         }
 
         const profile = await getProfile(userId)
+        this.latestProfile = profile || null
 
         // Handle null profile (when RLS blocks creation)
         if (!profile) {
@@ -593,6 +777,7 @@ export default {
         }
 
         // Profile exists - proceed normally
+        this.store.profile = profile
         // Update user profile display
         this.userProfile = {
           initials: getUserInitials(profile.full_name),
@@ -802,6 +987,7 @@ export default {
 
             // Update store profile and refresh from Supabase
             this.store.profile = updatedProfile
+            this.latestProfile = updatedProfile
             await this.store.fetchUserProfile()
 
             this.isEditing = false
@@ -835,6 +1021,7 @@ export default {
 
         // Update store profile and refresh from Supabase
         this.store.profile = updatedProfile
+        this.latestProfile = updatedProfile
         // Refresh profile from Supabase to ensure we have latest data
         await this.store.fetchUserProfile()
 
@@ -903,6 +1090,7 @@ export default {
         // Update store profile
         if (this.store.profile) {
           this.store.profile.notification_preferences = notificationPreferences
+          this.latestProfile = this.store.profile
         }
 
         console.log('Notification settings saved to Supabase')
@@ -1664,6 +1852,21 @@ export default {
 .status-badge.verified {
   background: var(--primary-light);
   color: var(--primary-color);
+}
+
+.status-badge.pending {
+  background: var(--color-warning-light, #fef3c7);
+  color: var(--color-warning, #b45309);
+}
+
+.status-badge.in-progress {
+  background: var(--color-info-light, #dbeafe);
+  color: var(--color-info, #1d4ed8);
+}
+
+.status-badge.failed {
+  background: var(--color-error-light, #fee2e2);
+  color: var(--color-error, #b91c1c);
 }
 
 /* Notification Settings */
