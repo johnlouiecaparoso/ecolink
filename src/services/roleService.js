@@ -6,7 +6,13 @@ import { ROLES } from '@/constants/roles'
  */
 export class RoleService {
   constructor() {
-    this.supabase = getSupabase()
+    // Silently get Supabase - errors are already logged in supabaseClient
+    try {
+      this.supabase = getSupabase()
+    } catch (err) {
+      // Supabase not available - service will work in limited mode
+      this.supabase = null
+    }
   }
 
   /**

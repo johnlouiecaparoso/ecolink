@@ -134,7 +134,8 @@ onMounted(async () => {
         )
       }
     } else {
-      console.warn('⚠️ Supabase client not available')
+      // Supabase errors are already logged in supabaseClient
+      // Only show this if it's a different issue
       userStore.loading = false
     }
 
@@ -297,7 +298,7 @@ onMounted(async () => {
   --info-light: #d1ecf1;
 
   /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-size-sm: 0.875rem;
   --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
@@ -327,6 +328,8 @@ body {
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   line-height: 1.5;
+  font-optical-sizing: auto;
+  font-variation-settings: "wdth" 100;
   color: var(--text-primary);
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   -webkit-font-smoothing: antialiased;

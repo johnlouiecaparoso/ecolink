@@ -34,8 +34,18 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Only intercept static assets
-  if (url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/)) {
+  // Don't interfere with manifest.json - let browser handle it directly
+  if (url.pathname.includes('/manifest.json')) {
+    return
+  }
+
+  // Don't interfere with Google Fonts - let browser handle them directly
+  if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) {
+    return
+  }
+
+  // Only intercept static assets (excluding fonts from external domains)
+  if (url.pathname.match(/\.(css|js|png|jpg|jpeg|gif|svg|ico)$/)) {
     event.respondWith(
       fetch(event.request, {
         cache: 'no-cache',

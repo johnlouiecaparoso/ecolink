@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="container">
         <h1 class="page-title">Admin Dashboard</h1>
-        <p class="page-description">Manage users, projects, and system settings</p>
+        <p class="page-description">Oversee platform access, roles, and core settings</p>
       </div>
     </div>
     <div class="admin-stats">
@@ -13,27 +13,16 @@
         <p class="stat-number">{{ loading ? '...' : stats.totalUsers }}</p>
       </div>
       <div class="stat-card">
-        <h3>Active Projects</h3>
-        <p class="stat-number">{{ loading ? '...' : stats.activeProjects }}</p>
+        <h3>Pending Role Applications</h3>
+        <p class="stat-number">{{ loading ? '...' : stats.pendingRoleApplications }}</p>
       </div>
       <div class="stat-card">
-        <h3>Pending Projects</h3>
-        <p class="stat-number">{{ loading ? '...' : stats.pendingProjects }}</p>
-      </div>
-      <div class="stat-card">
-        <h3>Total Credits</h3>
-        <p class="stat-number">{{ loading ? '...' : stats.totalCredits.toLocaleString() }}</p>
+        <h3>Administrators</h3>
+        <p class="stat-number">{{ loading ? '...' : stats.totalAdmins }}</p>
       </div>
     </div>
 
     <div class="admin-content">
-      <!-- Project Approval Section -->
-      <div class="admin-section">
-        <h2>Project Approval</h2>
-        <p>Review and approve pending projects for marketplace listing.</p>
-        <ProjectApprovalPanel />
-      </div>
-
       <!-- Admin Tools Section -->
       <div class="admin-section">
         <h2>Admin Tools</h2>
@@ -41,42 +30,45 @@
 
         <div class="admin-tools-grid">
           <router-link to="/admin/users" class="admin-tool-card">
-            <div class="tool-icon">👥</div>
+            <div class="tool-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">group</span>
+            </div>
             <h3>User Management</h3>
             <p>Manage user accounts, roles, and permissions</p>
           </router-link>
 
-          <router-link to="/admin/database" class="admin-tool-card">
-            <div class="tool-icon">🗄️</div>
-            <h3>Database Management</h3>
-            <p>Manage database tables, data, and relationships</p>
+          <router-link to="/admin/role-applications" class="admin-tool-card">
+            <div class="tool-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">build</span>
+            </div>
+            <h3>Specialist Applications</h3>
+            <p>Review project developer and verifier requests</p>
           </router-link>
 
           <router-link to="/admin/audit-logs" class="admin-tool-card">
-            <div class="tool-icon">📋</div>
+            <div class="tool-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">assignment</span>
+            </div>
             <h3>Audit Logs</h3>
             <p>View system activity and user actions</p>
           </router-link>
         </div>
       </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { projectApprovalService } from '@/services/projectApprovalService'
-import { getPlatformOverview, getCreditStats } from '@/services/analyticsService'
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { diagnoseAdminDashboard } from '@/utils/diagnoseAdminDashboard'
 import { debugAdminQueries } from '@/utils/debugAdminQueries'
-import ProjectApprovalPanel from './ProjectApprovalPanel.vue'
 
 const stats = ref({
   totalUsers: 0,
-  activeProjects: 0,
-  pendingProjects: 0,
-  totalCredits: 0,
+  pendingRoleApplications: 0,
+  totalAdmins: 0,
 })
 
 const loading = ref(true)
@@ -85,7 +77,7 @@ onMounted(async () => {
   await loadStats()
 
   // If stats are all zero, run diagnostics
-  if (stats.value.totalUsers === 0 && stats.value.activeProjects === 0) {
+  if (stats.value.totalUsers === 0 && stats.value.pendingRoleApplications === 0) {
     console.warn('⚠️ All stats are zero, running diagnostics...')
     console.log(
       '💡 You can also run debugAdminQueries() or diagnoseAdminDashboard() in console manually',
@@ -125,114 +117,45 @@ async function loadStats() {
       console.error('Supabase client not initialized in AdminDashboard')
       stats.value = {
         totalUsers: 0,
-        activeProjects: 0,
-        pendingProjects: 0,
-        totalCredits: 0,
+        pendingRoleApplications: 0,
+        totalAdmins: 0,
       }
       return
     }
 
-    // Fetch real-time data from multiple sources in parallel
-    const [platformOverview, creditStatsData, projectsResult, creditsResult] = await Promise.all([
-      getPlatformOverview().catch((error) => {
-        console.error('Error fetching platform overview:', error)
-        return {
-          totalUsers: 0,
-          activeProjects: 0,
-          totalTransactions: 0,
-          totalCreditsSold: 0,
-        }
-      }),
-      getCreditStats().catch((error) => {
-        console.error('Error fetching credit stats:', error)
-        return { totalCreditsSold: 0 }
-      }),
-      projectApprovalService.getAllProjects().catch((error) => {
-        console.error('Error fetching all projects:', error)
-        return []
-      }),
+    const [
+      { count: totalUsersCount, error: totalUsersError },
+      { count: adminCount, error: adminError },
+      { count: pendingRoleApplicationsCount, error: pendingRoleApplicationsError },
+    ] = await Promise.all([
+      supabase.from('profiles').select('id', { count: 'exact', head: true }),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'admin'),
       supabase
-        .from('project_credits')
-        .select('total_credits')
-        .then((result) => {
-          if (result.error) {
-            console.error('Error fetching project credits:', result.error)
-            return { data: null, error: result.error }
-          }
-          return result
-        })
-        .catch((error) => {
-          console.error('Error in project_credits query:', error)
-          return { data: null, error }
-        }),
+        .from('role_applications')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending'),
     ])
 
-    // Calculate total users from profiles - try multiple sources
-    stats.value.totalUsers = platformOverview.totalUsers || 0
-    console.log('Total users from platform overview:', stats.value.totalUsers)
-
-    // If platform overview returned 0, try direct query as fallback
-    if (stats.value.totalUsers === 0) {
-      console.log('⚠️ Platform overview returned 0 users, trying direct query...')
-      try {
-        // Direct query to profiles table
-        const { count: directCount, error: directError } = await supabase
-          .from('profiles')
-          .select('*', { count: 'exact', head: true })
-
-        if (!directError && directCount !== null) {
-          stats.value.totalUsers = directCount
-          console.log('✅ Direct query succeeded, user count:', directCount)
-        } else if (directError) {
-          console.error('❌ Direct query failed:', directError)
-          // Try selecting data and counting
-          const { data: profilesData, error: profilesError } = await supabase
-            .from('profiles')
-            .select('id')
-
-          if (!profilesError && profilesData) {
-            stats.value.totalUsers = profilesData.length
-            console.log('✅ Data select succeeded, user count:', profilesData.length)
-          } else {
-            console.error('❌ Data select also failed:', profilesError)
-          }
-        }
-      } catch (fallbackError) {
-        console.error('❌ Fallback query exception:', fallbackError)
-      }
+    if (totalUsersError) {
+      console.error('Error counting users:', totalUsersError)
+    }
+    if (adminError) {
+      console.error('Error counting admin users:', adminError)
+    }
+    if (pendingRoleApplicationsError) {
+      console.error('Error counting pending role applications:', pendingRoleApplicationsError)
     }
 
-    // Get project counts from real data
-    const allProjects = Array.isArray(projectsResult) ? projectsResult : []
-    stats.value.activeProjects = allProjects.filter((p) => p.status === 'approved').length
-    stats.value.pendingProjects = allProjects.filter((p) => p.status === 'pending').length
-    console.log('Projects loaded:', {
-      total: allProjects.length,
-      active: stats.value.activeProjects,
-      pending: stats.value.pendingProjects,
-    })
-
-    // Calculate total credits from project_credits table (sum of all credits)
-    if (creditsResult.data && !creditsResult.error) {
-      stats.value.totalCredits = creditsResult.data.reduce(
-        (sum, credit) => sum + (parseInt(credit.total_credits) || 0),
-        0,
-      )
-      console.log('Total credits from project_credits:', stats.value.totalCredits)
-    } else {
-      // Fallback to total credits sold if project_credits unavailable
-      stats.value.totalCredits =
-        creditStatsData.totalCreditsSold || platformOverview.totalCreditsSold || 0
-      console.log('Total credits from fallback:', stats.value.totalCredits)
-    }
+    stats.value.totalUsers = totalUsersCount || 0
+    stats.value.totalAdmins = adminCount || 0
+    stats.value.pendingRoleApplications = pendingRoleApplicationsCount || 0
   } catch (error) {
     console.error('Error loading admin stats:', error)
     // Set defaults on error
     stats.value = {
       totalUsers: 0,
-      activeProjects: 0,
-      pendingProjects: 0,
-      totalCredits: 0,
+      pendingRoleApplications: 0,
+      totalAdmins: 0,
     }
   } finally {
     loading.value = false
@@ -354,8 +277,19 @@ async function loadStats() {
 }
 
 .tool-icon {
-  font-size: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
   margin-bottom: 1rem;
+  border-radius: 8px;
+  background: #e6f4f1;
+  color: var(--primary-color, #0f766e);
+}
+
+.tool-icon .material-symbols-outlined {
+  font-size: 28px;
 }
 
 .admin-tool-card h3 {

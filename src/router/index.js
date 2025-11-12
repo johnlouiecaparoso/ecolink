@@ -37,7 +37,7 @@ const router = createRouter({
       name: 'marketplace',
       component: () => import('@/views/MarketplaceViewEnhanced.vue'),
     },
-    { path: '/retire', name: 'retire', component: () => import('@/views/RetireView.vue') },
+    { path: '/retire', redirect: '/wallet' },
     {
       path: '/mobile-test',
       name: 'mobile-test',
@@ -71,11 +71,11 @@ const router = createRouter({
         requiresProjectDeveloper: true,
       },
     },
-    // Buy Credits route removed - redirecting to marketplace
-    // Marketplace has all the functionality for buying credits
     {
       path: '/buy-credits',
-      redirect: '/marketplace',
+      name: 'buy-credits',
+      component: () => import('@/views/BuyCreditsView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/credit-portfolio',
@@ -99,6 +99,15 @@ const router = createRouter({
       path: '/admin/users',
       name: 'admin-users',
       component: () => import('@/components/admin/UserManagement.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+      },
+    },
+    {
+      path: '/admin/role-applications',
+      name: 'admin-role-applications',
+      component: () => import('@/components/admin/RoleApplications.vue'),
       meta: {
         requiresAuth: true,
         requiresAdmin: true,
@@ -220,7 +229,7 @@ router.beforeEach(async (to, from, next) => {
     } else {
       // Wait for existing fetch to complete
       const timeout = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Auth check timeout')), 5000),
+        setTimeout(() => reject(new Error('Auth check timeout')), 3000),
       )
 
       try {
@@ -372,8 +381,5 @@ router.beforeEach(async (to, from, next) => {
     }
   }
 })
-
-// Router guard is temporarily disabled to fix Pinia initialization issues
-// Authentication will be handled at the component level for now
 
 export default router

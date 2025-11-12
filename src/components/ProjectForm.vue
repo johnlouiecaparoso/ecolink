@@ -807,78 +807,51 @@ onMounted(() => {
         {{ success }}
       </div>
 
-      <!-- Project Title -->
-      <div class="form-group title-field-enhanced">
-        <label for="title" class="form-label title-label-enhanced">
-          <span class="label-icon">📝</span>
-          <span>Project Title *</span>
-        </label>
-        <div class="title-input-wrapper">
+      <div class="form-subsection">
+        <div class="subsection-header">
+          <h4 class="subsection-title">Project Details *</h4>
+        </div>
+        <div class="project-title-card">
+          <label class="project-title-label" for="project-title">
+            <span class="material-symbols-outlined credit-card-icon" aria-hidden="true">description</span>
+            <span>Project Title *</span>
+          </label>
           <UiInput
-            id="title"
-            v-model="formData.title"
-            :class="{ error: errors.title }"
+            id="project-title"
+            type="text"
             placeholder="Enter a descriptive title for your project"
-            @blur="validateField('title')"
-            @input="clearErrors"
+            v-model="formData.title"
+            :error="errors.title"
+            @input="clearFieldError('title')"
           />
-        </div>
-        <div v-if="errors.title" class="field-error">
-          {{ errors.title }}
-        </div>
-        <div class="field-help title-help-enhanced">
-          <span class="help-icon">ℹ️</span>
-          <span>{{ formData.title.length }}/100 characters</span>
-          <span class="char-progress" :style="{ width: (formData.title.length / 100 * 100) + '%' }"></span>
+          <div class="project-title-hint">
+            <span class="material-symbols-outlined help-icon" aria-hidden="true">info</span>
+            <span>{{ formData.title.length }}/100 characters</span>
+          </div>
         </div>
       </div>
 
-      <!-- Project Image Upload -->
-      <div class="form-group">
-        <label class="form-label">Project Image (Optional)</label>
-        <div class="project-image-upload-section">
-          <!-- Image Preview -->
-          <div v-if="projectImagePreview" class="image-preview-container">
-            <img :src="projectImagePreview" alt="Project preview" class="image-preview" />
-            <button
-              type="button"
-              class="remove-image-btn"
-              @click="removeProjectImage"
-              :disabled="loading"
-              title="Remove image"
-            >
-              ✕
-            </button>
+      <div class="form-subsection optional">
+        <div class="subsection-header">
+          <h4 class="subsection-title">Project Image (Optional)</h4>
+        </div>
+        <div class="upload-dropzone" :class="{ dragging: isDraggingImage }" @dragover.prevent="handleImageDragOver" @dragleave.prevent="handleImageDragLeave" @drop.prevent="handleImageDrop">
+          <div v-if="uploadingImage" class="upload-loading">
+            <div class="loading-spinner"></div>
+            <span>Uploading image...</span>
           </div>
-
-          <!-- Upload Area -->
-          <div v-else class="image-upload-area">
-            <input
-              type="file"
-              id="project-image-upload"
-              ref="projectImageInput"
-              accept="image/jpeg,image/png,image/webp"
-              class="image-input"
-              @change="handleProjectImageUpload"
-              :disabled="uploadingImage"
-            />
-            <label for="project-image-upload" class="image-upload-label">
-              <div class="upload-icon">📷</div>
-              <div class="upload-text">
-                <strong>Click to upload project image</strong>
-                <span>or drag and drop image here</span>
-              </div>
-              <div class="upload-restrictions">JPEG, PNG, WebP up to 5MB</div>
-            </label>
-          </div>
-
-          <!-- Image error message -->
-          <div v-if="projectImageError" class="image-upload-error">
-            {{ projectImageError }}
-          </div>
-
-          <!-- Upload progress -->
-          <div v-if="uploadingImage" class="upload-progress">Processing image...</div>
+          <template v-else>
+            <div v-if="projectImagePreview" class="image-preview">
+              <img :src="projectImagePreview" alt="Project preview" />
+              <button type="button" class="remove-image" @click="removeProjectImage">Remove</button>
+            </div>
+            <div v-else class="upload-placeholder">
+              <span class="material-symbols-outlined upload-icon" aria-hidden="true">add_photo_alternate</span>
+              <p class="upload-title">Click to upload project image</p>
+              <p class="upload-subtitle">or drag and drop image here</p>
+              <p class="upload-hint">JPEG, PNG, WebP up to 5MB</p>
+            </div>
+          </template>
         </div>
       </div>
 
@@ -954,140 +927,96 @@ onMounted(() => {
         <div class="field-help">{{ formData.expected_impact.length }}/500 characters</div>
       </div>
 
-      <!-- Credit Information -->
-      <div class="form-group">
-        <label class="form-label">Credit Information *</label>
-        <div class="credit-info-grid">
-          <div class="credit-field price-field-enhanced credits-field-enhanced">
-            <label for="estimated_credits" class="form-label price-label-enhanced">
-              <span class="label-icon">📊</span>
-              <span>Estimated Credits *</span>
-            </label>
-            <div class="price-input-container-enhanced credits-input-container">
-              <div class="currency-badge credits-badge">#</div>
+      <div class="form-subsection">
+        <div class="subsection-header">
+          <h4 class="subsection-title">Credit Information *</h4>
+        </div>
+        <div class="credit-grid">
+          <div class="credit-card">
+            <div class="credit-card-header">
+              <span class="material-symbols-outlined credit-card-icon" aria-hidden="true">insights</span>
+              <span class="credit-card-title">Estimated Credits *</span>
+            </div>
+            <div class="credit-field">
+              <div class="prefix">#</div>
               <UiInput
-                id="estimated_credits"
-                v-model.number="formData.estimated_credits"
                 type="number"
-                :class="{ error: errors.estimated_credits }"
-                placeholder="0"
                 min="1"
-                max="1000000"
-                @blur="validateField('estimated_credits')"
-                @input="clearErrors"
+                step="1"
+                v-model.number="formData.estimated_credits"
+                placeholder="0"
+                :error="errors.estimated_credits"
+                @input="clearFieldError('estimated_credits')"
               />
-              <div class="price-helper">
-                <span class="helper-text">Min: 1</span>
-              </div>
+              <div class="field-hint">Min: 1</div>
             </div>
-            <div v-if="errors.estimated_credits" class="field-error">
-              {{ errors.estimated_credits }}
-            </div>
-            <div class="field-help price-help-enhanced">
-              <span class="help-icon">💡</span>
+            <div class="help-card">
+              <span class="material-symbols-outlined help-icon" aria-hidden="true">lightbulb</span>
               <span>Number of carbon credits this project will generate</span>
             </div>
           </div>
 
-          <div class="credit-field price-field-enhanced">
-            <label for="credit_price" class="form-label price-label-enhanced">
-              <span class="label-icon">💰</span>
-              <span>Price per Credit *</span>
-            </label>
-            <div class="price-input-container-enhanced">
-              <div class="currency-badge">₱</div>
+          <div class="credit-card">
+            <div class="credit-card-header">
+              <span class="material-symbols-outlined credit-card-icon" aria-hidden="true">payments</span>
+              <span class="credit-card-title">Price per Credit *</span>
+            </div>
+            <div class="credit-field">
+              <div class="prefix">₱</div>
               <UiInput
-                id="credit_price"
-                v-model.number="formData.credit_price"
                 type="number"
-                :class="{ error: errors.credit_price }"
-                placeholder="0.00"
                 min="0.01"
                 step="0.01"
-                @blur="validateField('credit_price')"
-                @input="clearErrors"
+                v-model.number="formData.credit_price"
+                placeholder="0.00"
+                :error="errors.credit_price"
+                @input="clearFieldError('credit_price')"
               />
-              <div class="price-helper">
-                <span class="helper-text">Min: ₱0.01</span>
-              </div>
+              <div class="field-hint">Min: ₱0.01</div>
             </div>
-            <div v-if="errors.credit_price" class="field-error">
-              {{ errors.credit_price }}
-            </div>
-            <div class="field-help price-help-enhanced">
-              <span class="help-icon">💡</span>
+            <div class="help-card">
+              <span class="material-symbols-outlined help-icon" aria-hidden="true">lightbulb</span>
               <span>Set your price per carbon credit in Philippine Pesos</span>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Spacer to fill vertical space -->
-      <div class="form-spacer"></div>
-
-      <!-- Document Upload -->
-      <div class="form-group">
-        <label class="form-label">Project Documents (Optional)</label>
-        <div class="file-upload-section">
-          <div class="file-upload-area">
-            <input
-              type="file"
-              id="file-upload"
-              ref="fileInput"
-              multiple
-              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              class="file-input"
-              @change="handleFileUpload"
-              :disabled="uploadingFiles"
-            />
-            <label for="file-upload" class="file-upload-label">
-              <div class="upload-icon">📁</div>
-              <div class="upload-text">
-                <strong>Click to upload documents</strong>
-                <span>or drag and drop files here</span>
-              </div>
-              <div class="upload-restrictions">
-                PDF, DOC, DOCX, JPEG, PNG up to 10MB each (max 5 files)
-              </div>
-            </label>
+      <div class="form-subsection optional">
+        <div class="subsection-header">
+          <h4 class="subsection-title">Project Documents (Optional)</h4>
+        </div>
+        <div
+          class="upload-dropzone"
+          :class="{ dragging: isDraggingFiles }"
+          @dragover.prevent="handleFileDragOver"
+          @dragleave.prevent="handleFileDragLeave"
+          @drop.prevent="handleFileDrop"
+        >
+          <div v-if="uploadingFiles" class="upload-loading">
+            <div class="loading-spinner"></div>
+            <span>Uploading documents...</span>
           </div>
-
-          <!-- File error message -->
-          <div v-if="fileUploadError" class="file-upload-error">
-            {{ fileUploadError }}
-          </div>
-
-          <!-- Upload progress -->
-          <div v-if="uploadingFiles" class="upload-progress">Uploading files...</div>
-
-          <!-- Uploaded files list -->
-          <div v-if="uploadedFiles.length > 0" class="uploaded-files">
-            <h4>Uploaded Documents ({{ uploadedFiles.length }}/{{ fileUploadConfig.maxFiles }})</h4>
-            <div class="file-list">
-              <div v-for="file in uploadedFiles" :key="file.id" class="file-item">
-                <div class="file-info">
-                  <div class="file-icon">
-                    {{
-                      file.type.includes('pdf') ? '📄' : file.type.includes('image') ? '🖼️' : '📝'
-                    }}
-                  </div>
-                  <div class="file-details">
-                    <div class="file-name">{{ file.name }}</div>
-                    <div class="file-size">{{ formatFileSize(file.size) }}</div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  class="remove-file-btn"
-                  @click="removeFile(file.id)"
-                  :disabled="loading"
-                  title="Remove file"
-                >
-                  ✕
+          <template v-else>
+            <div v-if="uploadedFiles.length" class="uploaded-files">
+              <div v-for="file in uploadedFiles" :key="file.name" class="uploaded-file">
+                <span class="material-symbols-outlined document-icon" aria-hidden="true">
+                  {{ file.type.includes('pdf') ? 'picture_as_pdf' : file.type.includes('image') ? 'image' : 'description' }}
+                </span>
+                <span class="file-name">{{ file.name }}</span>
+                <button type="button" class="remove-file" @click="removeFile(file.name)">
+                  <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
             </div>
-          </div>
+            <div v-else class="upload-placeholder">
+              <span class="material-symbols-outlined upload-icon" aria-hidden="true">folder</span>
+              <p class="upload-title">Click to upload documents</p>
+              <p class="upload-subtitle">or drag and drop files here</p>
+              <p class="upload-hint">PDF, DOC, DOCX, JPEG, PNG up to 10MB each (max 5 files)</p>
+            </div>
+          </template>
+          <div v-if="fileUploadError" class="upload-error">{{ fileUploadError }}</div>
         </div>
       </div>
 
@@ -1840,5 +1769,243 @@ onMounted(() => {
   background: linear-gradient(90deg, var(--primary-color, #069e2d), var(--primary-hover, #058e3f));
   transition: width 0.3s ease;
   opacity: 0.3;
+}
+
+.form-subsection {
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.subsection-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.subsection-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+  margin-left: 8px;
+}
+
+.project-title-card {
+  background: linear-gradient(135deg, var(--bg-secondary, #f8fdf8) 0%, var(--bg-primary, #ffffff) 100%);
+  border-radius: var(--radius-md, 0.625rem);
+  padding: 1.25rem;
+  border: 2px solid var(--border-light, #e8f5e8);
+  transition: all 0.3s ease;
+}
+
+.project-title-card:hover {
+  border-color: var(--primary-color, #069e2d);
+  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.1);
+}
+
+.project-title-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.project-title-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+}
+
+.upload-dropzone {
+  position: relative;
+  border: 2px dashed var(--border-color, #d1e7dd);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 24px 16px;
+  text-align: center;
+  background: var(--bg-secondary, #f8fdf8);
+  transition: all 0.2s ease;
+  cursor: pointer;
+  min-height: 150px; /* Ensure a minimum height for the dropzone */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--primary-light, rgba(6, 158, 45, 0.05));
+}
+
+.upload-dropzone.dragging {
+  border-color: var(--primary-color, #069e2d);
+  background: var(--primary-light, rgba(6, 158, 45, 0.1));
+  box-shadow: 0 0 10px rgba(6, 158, 45, 0.2);
+}
+
+.upload-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md, 0.5rem);
+  z-index: 10;
+}
+
+.loading-spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: var(--primary-color, #069e2d);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 10px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.upload-placeholder {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #6b7280;
+}
+
+.upload-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  margin-bottom: 0.75rem;
+  color: var(--primary-color, #069e2d);
+}
+
+.document-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: var(--primary-color, #069e2d);
+  margin-right: 0.75rem;
+}
+
+.remove-file {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remove-file:hover {
+  background: var(--ecolink-error-bg);
+  color: var(--ecolink-error);
+}
+
+.remove-file:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.credit-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.credit-card {
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid rgba(5, 150, 105, 0.12);
+  box-shadow: 0 10px 30px rgba(6, 158, 45, 0.12);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.credit-card-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.credit-card-icon {
+  font-size: 1.6rem;
+  color: var(--primary-color, #069e2d);
+}
+
+.credit-card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.credit-field {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.credit-field .prefix {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--primary-color, #069e2d);
+  font-weight: 600;
+}
+
+.credit-field .ui-input {
+  width: 100%;
+}
+
+.field-hint {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-top: -0.25rem;
+}
+
+.help-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(16, 185, 129, 0.12);
+  color: #04773b;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.help-icon {
+  font-size: 1.2rem;
+  color: inherit;
 }
 </style>

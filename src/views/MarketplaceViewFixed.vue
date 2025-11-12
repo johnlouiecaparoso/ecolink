@@ -98,7 +98,13 @@
 
             <!-- Error State -->
             <div v-else-if="error" class="error-state">
-              <div class="error-icon">⚠️</div>
+              <div class="error-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+                  <path d="M12 9v4.5" stroke-linecap="round" />
+                  <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
               <h3>Error Loading Marketplace</h3>
               <p>{{ error }}</p>
               <button @click="loadMarketplaceData" class="retry-button">Retry</button>
@@ -106,7 +112,9 @@
 
             <!-- Empty State -->
             <div v-else-if="filteredListings.length === 0" class="empty-state">
-              <div class="empty-icon">🌱</div>
+              <div class="empty-icon" aria-hidden="true">
+                <span class="material-symbols-outlined">forest</span>
+              </div>
               <h3>No Credit Listings Found</h3>
               <p v-if="listings.length === 0">
                 No carbon credits are currently available for purchase.
@@ -149,58 +157,20 @@
 
                   <div class="project-details">
                     <div class="detail-item">
-                      <svg
-                        class="detail-icon"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                        ></path>
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        ></path>
-                      </svg>
-                      <span>{{ listing.location }}</span>
+                      <span class="material-symbols-outlined detail-icon" aria-hidden="true">location_on</span>
+                      <span class="detail-text">{{ listing.location }}</span>
                     </div>
                     <div class="detail-item">
-                      <svg
-                        class="detail-icon"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                        ></path>
-                      </svg>
-                      <span>{{ formatNumber(listing.available_quantity) }} credits available</span>
+                      <span class="material-symbols-outlined detail-icon" aria-hidden="true">category</span>
+                      <span class="detail-text">{{ listing.category }}</span>
                     </div>
                     <div class="detail-item">
-                      <svg
-                        class="detail-icon"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="2"
-                          d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                        ></path>
-                      </svg>
-                      <span>{{ listing.verification_standard }} Verified</span>
+                      <span class="material-symbols-outlined detail-icon" aria-hidden="true">inventory_2</span>
+                      <span class="detail-text">{{ formatNumber(listing.available_quantity) }} credits available</span>
+                    </div>
+                    <div class="detail-item">
+                      <span class="material-symbols-outlined detail-icon" aria-hidden="true">verified</span>
+                      <span class="detail-text">{{ listing.verification_standard }} Verified</span>
                     </div>
                   </div>
 
@@ -721,15 +691,19 @@ export default {
 .detail-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  gap: 0.35rem;
 }
 
 .detail-icon {
-  width: 1rem;
-  height: 1rem;
+  font-size: 1.05rem;
   color: var(--text-muted);
+}
+
+.detail-text {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  line-height: 1.4;
 }
 
 .seller-info {
@@ -793,9 +767,31 @@ export default {
   text-align: center;
 }
 
-.error-icon {
-  font-size: 3rem;
+.error-icon,
+.empty-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.error-icon {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.empty-icon {
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--primary-color, #069e2d);
+}
+
+.error-icon svg,
+.empty-icon .material-symbols-outlined {
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .retry-button {

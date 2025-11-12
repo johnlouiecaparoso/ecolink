@@ -1,8 +1,8 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
-import { getAllProjects, updateProjectStatus } from '@/services/projectService'
+import { getAllProjects, updateProjectStatus, deleteProject } from '@/services/projectService'
 import { generateProjectCertificate } from '@/services/certificateService'
 import { notifyProjectApproved, notifyProjectRejected } from '@/services/emailService'
 import UiButton from '@/components/ui/Button.vue'
@@ -21,6 +21,7 @@ const selectedProject = ref(null)
 const showVerificationModal = ref(false)
 const verificationNotes = ref('')
 const verificationAction = ref('')
+const activeProjectId = ref(null)
 
 // Computed properties
 const filteredProjects = computed(() => {
@@ -44,6 +45,10 @@ const filteredProjects = computed(() => {
 
   return filtered
 })
+
+const activeProject = computed(() =>
+  filteredProjects.value.find((project) => project.id === activeProjectId.value) || null,
+)
 
 const projectStats = computed(() => {
   const stats = {
@@ -163,6 +168,27 @@ async function handleVerification() {
   }
 }
 
+async function handleDeleteProject(project) {
+  if (!project?.id) return
+
+  const shouldDelete = window.confirm(
+    `Delete "${project.title}"? This action cannot be undone and will remove all associated data.`,
+  )
+
+  if (!shouldDelete) {
+    return
+  }
+
+  try {
+    await deleteProject(project.id, true)
+    await loadProjects()
+    error.value = ''
+  } catch (err) {
+    console.error('Error deleting project:', err)
+    error.value = err?.message || 'Failed to delete project'
+  }
+}
+
 function getStatusBadgeClass(status) {
   switch (status) {
     case 'pending':
@@ -207,6 +233,21 @@ function clearFilters() {
 onMounted(() => {
   loadProjects()
 })
+
+watch(
+  filteredProjects,
+  (projectList) => {
+    if (projectList.length === 0) {
+      activeProjectId.value = null
+      return
+    }
+
+    if (!projectList.some((project) => project.id === activeProjectId.value)) {
+      activeProjectId.value = projectList[0].id
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -272,69 +313,111 @@ onMounted(() => {
         </div>
 
         <div v-else-if="filteredProjects.length === 0" class="empty-state">
-          <div class="empty-icon">📋</div>
+          <div class="empty-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">inventory</span>
+          </div>
           <h3>No Projects Found</h3>
           <p v-if="projects.length === 0">No projects have been submitted for verification yet.</p>
           <p v-else>No projects match your current filters. Try adjusting your search criteria.</p>
         </div>
 
-        <div v-else class="projects-grid">
-          <div v-for="project in filteredProjects" :key="project.id" class="project-card">
-            <div class="project-header">
-              <h3 class="project-title">{{ project.title }}</h3>
+        <div v-else class="projects-layout">
+          <aside class="project-list">
+            <button
+              v-for="project in filteredProjects"
+              :key="project.id"
+              :class="['project-list-item', { active: project.id === activeProjectId }]"
+              @click="activeProjectId = project.id"
+            >
+              <span class="project-list-title">{{ project.title }}</span>
               <span :class="['status-badge', getStatusBadgeClass(project.status)]">
                 {{ getStatusLabel(project.status) }}
               </span>
-            </div>
+            </button>
+          </aside>
 
-            <div class="project-meta">
-              <span class="project-category">{{ project.category }}</span>
-              <span class="project-location">📍 {{ project.location }}</span>
-            </div>
+          <section v-if="activeProject" class="project-detail">
+            <header class="detail-header">
+              <h2 class="detail-title">{{ activeProject.title }}</h2>
+              <span :class="['status-badge', getStatusBadgeClass(activeProject.status)]">
+                {{ getStatusLabel(activeProject.status) }}
+              </span>
+            </header>
 
-            <p class="project-description">
-              {{ project.description.substring(0, 150)
-              }}{{ project.description.length > 150 ? '...' : '' }}
-            </p>
-
-            <div class="project-footer">
-              <span class="project-date">Submitted {{ formatDate(project.created_at) }}</span>
-              <div class="project-actions">
-                <UiButton
-                  v-if="project.status === 'pending'"
-                  size="small"
-                  variant="outline"
-                  @click="openVerificationModal(project, 'under_review')"
-                >
-                  Start Review
-                </UiButton>
-                <UiButton
-                  v-if="project.status === 'under_review'"
-                  size="small"
-                  @click="openVerificationModal(project, 'approved')"
-                >
-                  Approve
-                </UiButton>
-                <UiButton
-                  v-if="project.status === 'under_review'"
-                  size="small"
-                  variant="outline"
-                  @click="openVerificationModal(project, 'rejected')"
-                  class="reject-btn"
-                >
-                  Reject
-                </UiButton>
-                <UiButton
-                  v-if="project.status === 'approved' || project.status === 'rejected'"
-                  size="small"
-                  variant="outline"
-                  @click="openVerificationModal(project, 'under_review')"
-                >
-                  Re-review
-                </UiButton>
+            <div class="detail-meta">
+              <div class="meta-item">
+                <span class="material-symbols-outlined" aria-hidden="true">category</span>
+                <span>{{ activeProject.category || 'Uncategorized' }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                <span>{{ activeProject.location || 'No location provided' }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+                <span>Submitted {{ formatDate(activeProject.created_at) }}</span>
               </div>
             </div>
-          </div>
+
+            <p class="detail-description">{{ activeProject.description }}</p>
+
+            <div class="detail-actions">
+              <UiButton
+                v-if="activeProject.status === 'pending'"
+                size="small"
+                variant="outline"
+                @click="openVerificationModal(activeProject, 'under_review')"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">flag</span>
+                <span>Start Review</span>
+              </UiButton>
+
+              <UiButton
+                v-if="activeProject.status === 'under_review'"
+                size="small"
+                @click="openVerificationModal(activeProject, 'approved')"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">done_all</span>
+                <span>Approve Project</span>
+              </UiButton>
+
+              <UiButton
+                v-if="activeProject.status === 'under_review'"
+                size="small"
+                variant="outline"
+                class="reject-btn"
+                @click="openVerificationModal(activeProject, 'rejected')"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+                <span>Reject Project</span>
+              </UiButton>
+
+              <UiButton
+                v-if="activeProject.status === 'approved' || activeProject.status === 'rejected'"
+                size="small"
+                variant="outline"
+                @click="openVerificationModal(activeProject, 'under_review')"
+              >
+                <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+                <span>Re-review</span>
+              </UiButton>
+
+              <UiButton size="small" variant="danger" @click="handleDeleteProject(activeProject)">
+                <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+                <span>Delete Project</span>
+              </UiButton>
+            </div>
+          </section>
+
+          <section v-else class="project-detail empty-detail">
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">
+                <span class="material-symbols-outlined">assignment</span>
+              </div>
+              <h3>Select a Project</h3>
+              <p>Choose a project from the list to view verification details.</p>
+            </div>
+          </section>
         </div>
       </div>
     </main>
@@ -354,7 +437,9 @@ onMounted(() => {
                     : 'Update Status'
             }}
           </h2>
-          <button class="close-btn" @click="closeVerificationModal">×</button>
+          <button class="close-btn" @click="closeVerificationModal" aria-label="Close verification modal">
+            <span aria-hidden="true">×</span>
+          </button>
         </div>
 
         <div class="modal-content">
@@ -378,17 +463,33 @@ onMounted(() => {
         </div>
 
         <div class="modal-actions">
-          <UiButton variant="outline" @click="closeVerificationModal">Cancel</UiButton>
+          <UiButton variant="outline" @click="closeVerificationModal">
+            <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            <span>Cancel</span>
+          </UiButton>
           <UiButton @click="handleVerification" :disabled="!verificationNotes.trim()">
-            {{
-              verificationAction === 'approved'
-                ? 'Approve Project'
-                : verificationAction === 'rejected'
-                  ? 'Reject Project'
-                  : verificationAction === 'under_review'
-                    ? 'Start Review'
-                    : 'Update Status'
-            }}
+            <span class="material-symbols-outlined" aria-hidden="true">
+              {{
+                verificationAction === 'approved'
+                  ? 'done_all'
+                  : verificationAction === 'rejected'
+                    ? 'cancel'
+                    : verificationAction === 'under_review'
+                      ? 'flag'
+                      : 'task_alt'
+              }}
+            </span>
+            <span>
+              {{
+                verificationAction === 'approved'
+                  ? 'Approve Project'
+                  : verificationAction === 'rejected'
+                    ? 'Reject Project'
+                    : verificationAction === 'under_review'
+                      ? 'Start Review'
+                      : 'Update Status'
+              }}
+            </span>
           </UiButton>
         </div>
       </div>
@@ -428,7 +529,6 @@ onMounted(() => {
 
 .page-content {
   padding: 40px 24px;
-  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -546,79 +646,124 @@ onMounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  margin: 0 auto 16px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
 }
 
-.empty-state h3 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
+.empty-icon .material-symbols-outlined {
+  font-size: 1.8rem;
+}
+
+.projects-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 24px;
+  align-items: stretch;
+}
+
+.project-list {
+  display: flex;
+  flex-direction: column;
+  background: var(--ecolink-surface);
+  border: 1px solid var(--ecolink-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.project-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.project-list-item + .project-list-item {
+  border-top: 1px solid var(--ecolink-border);
+}
+
+.project-list-item:hover,
+.project-list-item.active {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.project-list-title {
+  flex: 1;
   font-weight: 600;
   color: var(--ecolink-text);
 }
 
-.projects-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
-}
-
-.project-card {
+.project-detail {
   background: var(--ecolink-surface);
   border: 1px solid var(--ecolink-border);
   border-radius: var(--radius);
   padding: 24px;
-  transition: all 0.2s;
-}
-
-.project-card:hover {
-  border-color: var(--ecolink-primary);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.project-header {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.project-detail.empty-detail {
+  align-items: center;
+  justify-content: center;
+  min-height: 360px;
+}
+
+.detail-header {
+  display: flex;
   align-items: flex-start;
-  margin-bottom: 12px;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.project-title {
+.detail-title {
+  font-size: 24px;
+  font-weight: 700;
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
   color: var(--ecolink-text);
-  flex: 1;
 }
 
-.status-badge {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  white-space: nowrap;
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  color: var(--ecolink-muted);
+  font-size: 14px;
 }
 
-.badge-pending {
-  background: #fef3c7;
-  color: #92400e;
+.detail-meta .meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-.badge-under-review {
-  background: #dbeafe;
-  color: #1e40af;
+.detail-meta .material-symbols-outlined {
+  font-size: 1.1rem;
 }
 
-.badge-approved {
-  background: #d1fae5;
-  color: #065f46;
+.detail-description {
+  margin: 0;
+  color: var(--ecolink-text);
+  line-height: 1.6;
 }
 
-.badge-rejected {
-  background: #fecaca;
-  color: #991b1b;
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: auto;
 }
 
 .project-meta {
@@ -632,6 +777,16 @@ onMounted(() => {
 .project-category {
   font-weight: 500;
   color: var(--ecolink-text);
+}
+
+.project-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.project-location .material-symbols-outlined {
+  font-size: 1rem;
 }
 
 .project-description {
@@ -709,13 +864,10 @@ onMounted(() => {
 .close-btn {
   background: none;
   border: none;
-  font-size: 24px;
-  color: var(--ecolink-muted);
+  font-size: 28px;
   cursor: pointer;
-  padding: 0;
-  width: 32px;
-  height: 32px;
-  display: flex;
+  color: var(--ecolink-muted);
+  display: inline-flex;
   align-items: center;
   justify-content: center;
 }
@@ -795,33 +947,46 @@ onMounted(() => {
 }
 
 /* Responsive Design */
-@media (max-width: 768px) {
-  .page-content {
-    padding: 16px;
+@media (max-width: 1024px) {
+  .projects-layout {
+    grid-template-columns: 1fr;
   }
 
+  .project-list {
+    flex-direction: row;
+    overflow-x: auto;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+
+  .project-list-item,
+  .project-list-item + .project-list-item {
+    border-top: none;
+    border-right: 1px solid var(--ecolink-border);
+  }
+
+  .project-list-item {
+    min-width: 220px;
+  }
+
+  .project-detail {
+    border-top-left-radius: 0;
+  }
+}
+
+@media (max-width: 768px) {
   .filters {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .projects-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .project-footer {
+  .project-list {
     flex-direction: column;
-    gap: 12px;
-    align-items: stretch;
   }
 
-  .project-actions {
-    justify-content: center;
-  }
-
-  .modal {
-    margin: 20px;
-    max-width: calc(100% - 40px);
+  .project-list-item,
+  .project-list-item + .project-list-item {
+    border-right: none;
+    border-top: 1px solid var(--ecolink-border);
   }
 }
 </style>

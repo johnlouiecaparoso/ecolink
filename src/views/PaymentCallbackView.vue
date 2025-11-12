@@ -344,7 +344,7 @@ onMounted(async () => {
       
       // Redirect to retire dashboard after purchase (shows proof of purchase)
       // For wallet top-up, redirect to wallet
-      const redirectPath = wasTopUp ? '/wallet' : '/retire'
+      const redirectPath = '/wallet'
       
       // Add a flag to trigger refresh in RetireView
       if (!wasTopUp) {

@@ -27,7 +27,7 @@
     <meta name="build-time" content="2024-10-02T10:00:00.000Z" />
 
     <!-- PWA Meta Tags -->
-    <link rel="manifest" href="/manifest.json" />
+    <link rel="manifest" href="/manifest.json" onerror="this.onerror=null;console.warn('Manifest not available (may be blocked by preview protection)')" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="EcoLink" />
@@ -51,6 +51,15 @@
       content="A platform for trading carbon credits and managing environmental projects"
     />
     <meta name="twitter:image" content="/apple-touch-icon.png" />
+
+    <!-- Google Fonts - Roboto -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+    />
 
     <title>EcoLink - Carbon Credit Marketplace</title>
   </head>

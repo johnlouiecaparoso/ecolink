@@ -15,8 +15,10 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 
-// Initialize Supabase client
-initSupabase()
+// Initialize Supabase client (errors handled internally)
+initSupabase().catch(() => {
+  // Error already logged in initSupabase, no need to log again
+})
 
 // Mount the app - Cache buster: 2024-10-02-V3-SINGLE-BOX-LOGIN
 app.mount('#app')
@@ -53,6 +55,53 @@ initializeMobile()
 
 // Initialize performance optimizations
 optimizeImageLoading()
+
+// Handle manifest.json fetch errors gracefully (suppress 401 errors from Vercel preview protection)
+if (typeof window !== 'undefined') {
+  // Intercept fetch requests to suppress manifest.json 401 errors
+  const originalFetch = window.fetch
+  window.fetch = function(...args) {
+    const url = args[0]
+    if (typeof url === 'string' && url.includes('manifest.json')) {
+      return originalFetch.apply(this, args).catch((error) => {
+        // Suppress 401 errors for manifest.json (expected on preview deployments)
+        if (error.message?.includes('401') || error.status === 401) {
+          console.debug('Manifest.json 401 (expected on preview deployments, harmless)')
+          // Return a mock response to prevent error propagation
+          return new Response(JSON.stringify({}), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          })
+        }
+        throw error
+      })
+    }
+    return originalFetch.apply(this, args)
+  }
+
+  // Suppress manifest.json 401 errors in console
+  const originalError = console.error
+  console.error = function(...args) {
+    const message = args.join(' ')
+    if ((message.includes('manifest.json') && message.includes('401')) ||
+        (message.includes('Manifest fetch') && message.includes('401'))) {
+      // Silently ignore - this is expected on Vercel preview deployments
+      return
+    }
+    originalError.apply(console, args)
+  }
+
+  // Handle network errors for manifest.json
+  window.addEventListener('error', (event) => {
+    if (event.message?.includes('manifest.json') || 
+        event.filename?.includes('manifest.json') ||
+        (event.target?.href && event.target.href.includes('manifest.json'))) {
+      event.preventDefault()
+      event.stopPropagation()
+      return false
+    }
+  }, true)
+}
 setupServiceWorkerCache()
 
 // Handle browser extension context errors (harmless)

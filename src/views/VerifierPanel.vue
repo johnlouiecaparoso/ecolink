@@ -15,14 +15,18 @@
       <div class="container">
         <!-- Access Check -->
         <div v-if="!store.isAuthenticated" class="access-denied">
-          <div class="access-denied-icon">🔒</div>
+          <div class="access-denied-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">lock</span>
+          </div>
           <h2>Authentication Required</h2>
           <p>You must be signed in to access the verifier panel.</p>
           <router-link to="/login" class="login-link">Go to Login</router-link>
         </div>
 
         <div v-else-if="!store.isVerifier" class="access-denied">
-          <div class="access-denied-icon">❌</div>
+          <div class="access-denied-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">block</span>
+          </div>
           <h2>Access Denied</h2>
           <p>Your account does not have verifier access.</p>
           <p class="hint-text">Please contact an administrator if you believe this is an error.</p>
@@ -33,24 +37,6 @@
           <!-- Project Approval Panel -->
           <div class="approval-section">
             <ProjectApprovalPanel />
-          </div>
-
-          <!-- Quick Links -->
-          <div class="quick-links-section">
-            <h3 class="section-title">Quick Actions</h3>
-            <div class="quick-links-grid">
-              <router-link to="/marketplace" class="quick-link-card">
-                <div class="quick-link-icon">🏪</div>
-                <h4>Marketplace</h4>
-                <p>View approved projects in the marketplace</p>
-              </router-link>
-
-              <router-link to="/profile" class="quick-link-card">
-                <div class="quick-link-icon">👤</div>
-                <h4>Profile</h4>
-                <p>Manage your verifier profile and settings</p>
-              </router-link>
-            </div>
           </div>
         </div>
       </div>
@@ -79,9 +65,10 @@ const store = useUserStore()
 }
 
 .container {
-  max-width: 1280px;
+  max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
-  padding: 0 var(--spacing-md);
+  padding: 0 var(--spacing-lg);
 }
 
 .page-title {
@@ -98,6 +85,7 @@ const store = useUserStore()
 
 .verifier-content {
   padding: 2rem 0;
+  overflow-x: hidden;
 }
 
 .access-denied {
@@ -109,8 +97,19 @@ const store = useUserStore()
 }
 
 .access-denied-icon {
-  font-size: 4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
   margin-bottom: 1rem;
+  border-radius: 1.25rem;
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+.access-denied-icon .material-symbols-outlined {
+  font-size: 2.5rem;
 }
 
 .access-denied h2 {
@@ -146,73 +145,14 @@ const store = useUserStore()
 }
 
 .verifier-dashboard {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
+  display: block;
 }
 
 .approval-section {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.quick-links-section {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.section-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #111827;
-  margin-bottom: 1.5rem;
-}
-
-.quick-links-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-}
-
-.quick-link-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem;
-  background: #f9fafb;
-  border: 2px solid #e5e7eb;
-  border-radius: 12px;
-  text-decoration: none;
-  color: #111827;
-  transition: all 0.2s;
-}
-
-.quick-link-card:hover {
-  border-color: #10b981;
-  background: #f0fdf4;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-.quick-link-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
-
-.quick-link-card h4 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.quick-link-card p {
-  font-size: 0.875rem;
-  color: #6b7280;
-  text-align: center;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
 }
 
 @media (max-width: 768px) {
@@ -224,8 +164,12 @@ const store = useUserStore()
     font-size: 1rem;
   }
 
-  .quick-links-grid {
-    grid-template-columns: 1fr;
+  .verifier-content {
+    padding: 1rem 0;
+  }
+
+  .container {
+    padding: 0 var(--spacing-md);
   }
 }
 </style>

@@ -19,6 +19,8 @@ const showTopUp = ref(false)
 const showWithdraw = ref(false)
 const error = ref('')
 
+const isDev = import.meta.env.DEV
+
 async function loadWalletData() {
   if (!store.session?.user?.id) {
     console.log('No user session, skipping wallet data load')
@@ -27,30 +29,67 @@ async function loadWalletData() {
 
   loading.value = true
   try {
-    console.log('Loading wallet data for user:', store.session.user.id)
+    const startTime = isDev ? performance.now() : 0
 
-    // Add timeout to prevent hanging
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Wallet data load timeout')), 10000),
-    )
-
-    const [balance, transactionHistory, portfolio, stats] = await Promise.race([
-      Promise.all([
-        getWalletBalance(store.session.user.id),
-        getTransactions(store.session.user.id),
-        creditOwnershipService.getUserCreditPortfolio(store.session.user.id),
-        creditOwnershipService.getUserCreditStats(store.session.user.id),
-      ]),
-      timeoutPromise,
+    const results = await Promise.allSettled([
+      getWalletBalance(store.session.user.id),
+      getTransactions(store.session.user.id),
+      creditOwnershipService.getUserCreditPortfolio(store.session.user.id),
+      creditOwnershipService.getUserCreditStats(store.session.user.id),
     ])
 
-    walletBalance.value = balance
-    transactions.value = transactionHistory
-    creditPortfolio.value = portfolio
-    creditStats.value = stats
-    console.log('Wallet data loaded successfully')
-    console.log('📊 Credit Portfolio loaded:', portfolio.length, 'items')
-    console.log('📊 Credit Stats:', stats)
+    const [balanceResult, transactionsResult, portfolioResult, statsResult] = results
+    let failures = 0
+
+    if (balanceResult.status === 'fulfilled') {
+      walletBalance.value = balanceResult.value
+    } else {
+      failures += 1
+      console.warn('Warning: Failed to load wallet balance:', balanceResult.reason)
+      walletBalance.value = { current_balance: 0, currency: 'PHP' }
+    }
+
+    if (transactionsResult.status === 'fulfilled') {
+      transactions.value = transactionsResult.value
+    } else {
+      failures += 1
+      console.warn('Warning: Failed to load wallet transactions:', transactionsResult.reason)
+      transactions.value = []
+    }
+
+    if (portfolioResult.status === 'fulfilled') {
+      creditPortfolio.value = portfolioResult.value
+    } else {
+      failures += 1
+      console.warn('Warning: Failed to load credit portfolio:', portfolioResult.reason)
+      creditPortfolio.value = []
+    }
+
+    if (statsResult.status === 'fulfilled') {
+      creditStats.value = statsResult.value
+    } else {
+      failures += 1
+      console.warn('Warning: Failed to load credit stats:', statsResult.reason)
+      creditStats.value = {
+        total_owned: 0,
+        total_retired: 0,
+        total_credits: 0,
+        projects_count: 0,
+      }
+    }
+
+    if (failures === results.length) {
+      error.value = 'Failed to load wallet data. Please try refreshing the page.'
+    } else if (failures > 0) {
+      error.value = 'Wallet data loaded with partial information.'
+    } else {
+      error.value = ''
+    }
+
+    if (isDev) {
+      const duration = performance.now() - startTime
+      console.log(`Wallet data loaded successfully in ${duration.toFixed(0)}ms`)
+    }
   } catch (err) {
     console.error('Error loading wallet data:', err)
     error.value = 'Failed to load wallet data. Please try refreshing the page.'
@@ -102,19 +141,6 @@ function formatDate(dateString) {
   })
 }
 
-function getTransactionIcon(type) {
-  switch (type) {
-    case 'topup':
-      return '⬆️'
-    case 'withdrawal':
-      return '⬇️'
-    case 'payment':
-      return '💳'
-    default:
-      return '💰'
-  }
-}
-
 function getTransactionStatusColor(status) {
   switch (status) {
     case 'completed':
@@ -125,6 +151,19 @@ function getTransactionStatusColor(status) {
       return '#ef4444'
     default:
       return '#6b7280'
+  }
+}
+
+function getTransactionIconName(type) {
+  switch (type) {
+    case 'topup':
+      return 'add_card'
+    case 'withdrawal':
+      return 'credit_card_off'
+    case 'payment':
+      return 'paid'
+    default:
+      return 'account_balance_wallet'
   }
 }
 
@@ -185,7 +224,15 @@ onMounted(() => {
         </div>
 
         <div v-if="creditPortfolio.length === 0" class="empty-portfolio">
-          <div class="empty-icon">🌱</div>
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M12 3c-3.75 0-7 3.05-7 6.8 0 3.6 2.7 6.45 6.3 6.77v3.18a.75.75 0 0 0 1.28.53l2.65-2.65a.75.75 0 0 0-.53-1.28H12c-2.07 0-3.75-1.68-3.75-3.75S9.93 8.85 12 8.85h5.75C17.47 5.4 15.08 3 12 3Z"
+              />
+            </svg>
+          </div>
           <h3>No credits yet</h3>
           <p>Purchase credits from the marketplace to build your portfolio</p>
           <button class="btn btn-primary" @click="router.push('/marketplace')">
@@ -211,12 +258,6 @@ onMounted(() => {
               </div>
             </div>
             <div class="portfolio-actions">
-              <button
-                class="btn btn-sm btn-ghost"
-                @click="router.push(`/retire?project=${credit.project_id}`)"
-              >
-                Retire Credits
-              </button>
               <button class="btn btn-sm btn-primary" @click="router.push('/credit-portfolio')">
                 View Portfolio
               </button>
@@ -227,7 +268,13 @@ onMounted(() => {
 
       <!-- Error State -->
       <div v-if="error" class="error-card">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+            <path d="M12 9v4.5" stroke-linecap="round" />
+            <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+          </svg>
+        </div>
         <div class="error-message">{{ error }}</div>
         <button class="btn btn-primary" @click="loadWalletData">Retry</button>
       </div>
@@ -245,8 +292,14 @@ onMounted(() => {
           <button class="btn btn-ghost" @click="loadWalletData">Refresh</button>
         </div>
 
-        <div v-if="transactions.length === 0" class="empty-transactions">
-          <div class="empty-icon">📋</div>
+      <div v-if="transactions.length === 0" class="empty-transactions">
+        <div class="empty-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="4.5" y="3.75" width="15" height="16.5" rx="2" />
+            <path d="M8 3.75v3h8v-3" stroke-linecap="round" />
+            <path d="M8 12h8M8 16h5" stroke-linecap="round" />
+          </svg>
+        </div>
           <h3>No transactions yet</h3>
           <p>Your transaction history will appear here</p>
           <button class="btn btn-primary" @click="showTopUpModal">
@@ -256,8 +309,10 @@ onMounted(() => {
 
         <div v-else class="transactions-list">
           <div v-for="transaction in transactions" :key="transaction.id" class="transaction-item">
-            <div class="transaction-icon">
-              {{ getTransactionIcon(transaction.type) }}
+            <div class="transaction-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">
+                {{ getTransactionIconName(transaction.type) }}
+              </span>
             </div>
             <div class="transaction-details">
               <div class="transaction-description">{{ transaction.description }}</div>
@@ -396,8 +451,20 @@ onMounted(() => {
 }
 
 .error-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: #dc2626;
+  margin: 0 auto 16px;
+}
+
+.error-icon svg {
+  width: 1.9rem;
+  height: 1.9rem;
 }
 
 .error-message {
@@ -459,8 +526,20 @@ onMounted(() => {
 }
 
 .empty-icon {
-  font-size: 48px;
+  width: 3.25rem;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.1);
+  color: #0f172a;
   margin-bottom: 16px;
+}
+
+.empty-icon svg {
+  width: 2rem;
+  height: 2rem;
 }
 
 .empty-transactions h3 {
@@ -496,7 +575,6 @@ onMounted(() => {
 }
 
 .transaction-icon {
-  font-size: 24px;
   width: 40px;
   height: 40px;
   display: flex;
@@ -504,6 +582,10 @@ onMounted(() => {
   justify-content: center;
   background: var(--ecolink-surface);
   border-radius: 50%;
+}
+
+.transaction-icon .material-symbols-outlined {
+  font-size: 22px;
 }
 
 .transaction-details {
@@ -682,8 +764,7 @@ onMounted(() => {
 }
 
 .empty-portfolio .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  margin: 0 auto 16px;
 }
 
 .empty-portfolio h3 {
