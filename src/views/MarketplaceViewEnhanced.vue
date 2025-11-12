@@ -15,14 +15,16 @@
             class="advanced-search-toggle"
             :class="{ active: showAdvancedSearch }"
           >
-            🔍 Advanced Search
+            <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+            <span>Advanced Search</span>
           </button>
           <button
             v-if="userStore.isProjectDeveloper"
             @click="navigateToSubmitProject"
             class="submit-project-button"
           >
-            📝 Submit Project
+            <span class="material-symbols-outlined" aria-hidden="true">note_add</span>
+            <span>Submit Project</span>
           </button>
         </div>
       </div>
@@ -61,14 +63,16 @@
                   :class="{ active: viewMode === 'grid' }"
                   class="view-toggle"
                 >
-                  ⊞ Grid
+                  <span class="material-symbols-outlined" aria-hidden="true">grid_view</span>
+                  <span class="view-toggle-label">Grid</span>
                 </button>
                 <button
                   @click="viewMode = 'list'"
                   :class="{ active: viewMode === 'list' }"
                   class="view-toggle"
                 >
-                  ☰ List
+                  <span class="material-symbols-outlined" aria-hidden="true">view_list</span>
+                  <span class="view-toggle-label">List</span>
                 </button>
               </div>
             </div>
@@ -91,7 +95,13 @@
 
             <!-- Error State -->
             <div v-else-if="errorMessage" class="error-state">
-              <div class="error-icon">⚠️</div>
+              <div class="error-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+                  <path d="M12 9v4.5" stroke-linecap="round" />
+                  <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
               <h3>Error Loading Marketplace</h3>
               <p>{{ errorMessage }}</p>
               <button @click="loadMarketplaceData" class="retry-button">Try Again</button>
@@ -123,8 +133,8 @@
                     <h3 class="project-grid-title">{{ listing.project_title }}</h3>
                     <p class="project-grid-description">{{ listing.project_description }}</p>
                     <div class="project-grid-meta">
-                      <span>📍 {{ listing.location }}</span>
-                      <span>🏷️ {{ listing.category }}</span>
+                      <span class="material-symbols-outlined location-icon" aria-hidden="true">location_on</span>
+                      <span>{{ listing.location }}</span>
                     </div>
                     <div class="project-grid-pricing">
                       <div class="price">
@@ -151,7 +161,8 @@
                         style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
                         :title="`Delete project: ${listing.project_title}`"
                       >
-                        🗑️ Delete
+                        <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+                        <span>Delete</span>
                       </UiButton>
                     </div>
                   </div>
@@ -182,9 +193,14 @@
                     <h3 class="project-title">{{ listing.project_title }}</h3>
                     <p class="project-description">{{ listing.project_description }}</p>
                     <div class="project-meta">
-                      <span class="project-location">📍 {{ listing.location }}</span>
-                      <span class="project-category">🏷️ {{ listing.category }}</span>
-                      <span class="project-vintage">📅 {{ listing.vintage_year }}</span>
+                      <div class="meta-item">
+                        <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                        <span class="meta-text">{{ listing.location }}</span>
+                      </div>
+                      <div class="meta-item">
+                        <span class="material-symbols-outlined" aria-hidden="true">category</span>
+                        <span class="meta-text">{{ listing.category }}</span>
+                      </div>
                     </div>
                   </div>
                   <div class="project-pricing">
@@ -211,7 +227,8 @@
                         style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
                         :title="`Delete project: ${listing.project_title}`"
                       >
-                        🗑️ Delete
+                        <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+                        <span>Delete</span>
                       </UiButton>
                     </div>
                   </div>
@@ -231,7 +248,13 @@
 
             <!-- Empty State -->
             <div v-else class="empty-state">
-              <div class="empty-icon">🔍</div>
+              <div class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+                  <path d="M12 9v4.5" stroke-linecap="round" />
+                  <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+                </svg>
+              </div>
               <h3>No projects found</h3>
               <p>Try adjusting your search criteria or filters</p>
               <button @click="clearFilters" class="clear-filters-button">Clear Filters</button>
@@ -254,9 +277,16 @@
           <h4>{{ selectedListing?.project_title }}</h4>
           <p>{{ selectedListing?.project_description }}</p>
           <div class="project-details">
-            <span>📍 {{ selectedListing?.location }}</span>
-            <span>🏷️ {{ selectedListing?.category }}</span>
-            <span>📅 {{ selectedListing?.vintage_year }}</span>
+            <div class="modal-meta">
+              <div class="meta-item">
+                <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                <span>{{ selectedListing?.location }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="material-symbols-outlined" aria-hidden="true">label</span>
+                <span>{{ selectedListing?.category }}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -277,8 +307,12 @@
                 (Developer limit: {{ formatNumber(selectedListing.estimated_credits) }})
               </span>
             </small>
-            <div v-if="purchaseQuantity > maxPurchaseQuantity" class="error-message">
-              ⚠️ Cannot purchase more than {{ formatNumber(maxPurchaseQuantity) }} credits. Available: {{ formatNumber(selectedListing?.available_quantity || 0) }} credits
+            <div v-if="purchaseQuantity > maxPurchaseQuantity" class="error-message warning-inline">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>
+              <span>
+                Cannot purchase more than {{ formatNumber(maxPurchaseQuantity) }} credits. Available:
+                {{ formatNumber(selectedListing?.available_quantity || 0) }} credits
+              </span>
             </div>
           </div>
 
@@ -309,7 +343,9 @@
                 :class="['payment-method-card', { active: selectedPaymentMethod === method.value }]"
                 @click="selectedPaymentMethod = method.value"
               >
-                <div class="payment-method-icon">{{ method.icon }}</div>
+                <div class="payment-method-icon" aria-hidden="true">
+                  <span class="material-symbols-outlined">{{ method.icon }}</span>
+                </div>
                 <div class="payment-method-info">
                   <div class="payment-method-name">{{ method.label }}</div>
                   <div v-if="method.value === 'wallet'" class="wallet-balance">
@@ -322,8 +358,12 @@
                 </div>
               </div>
             </div>
-            <div v-if="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice" class="error-message">
-              ⚠️ Your wallet balance ({{ formatCurrency(walletBalance, 'PHP') }}) is insufficient for this purchase ({{ formatCurrency(totalPrice, selectedListing?.currency) }})
+            <div v-if="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice" class="error-message warning-inline">
+              <span class="material-symbols-outlined" aria-hidden="true">error</span>
+              <span>
+                Your wallet balance ({{ formatCurrency(walletBalance, 'PHP') }}) is insufficient for this purchase
+                ({{ formatCurrency(totalPrice, selectedListing?.currency) }})
+              </span>
             </div>
           </div>
 
@@ -435,26 +475,20 @@ const paymentMethods = [
   {
     value: 'wallet',
     label: 'Wallet Balance',
-    icon: '💳',
+    icon: 'account_balance_wallet',
     description: 'Pay from your wallet',
   },
   {
     value: 'card',
     label: 'Credit/Debit Card',
-    icon: '💳',
-    description: 'Pay with credit or debit card',
+    icon: 'credit_card',
+    description: 'Pay using your bank card',
   },
   {
     value: 'gcash',
     label: 'GCash',
-    icon: '📱',
-    description: 'Pay via GCash (PayMongo)',
-  },
-  {
-    value: 'maya',
-    label: 'Maya',
-    icon: '🏦',
-    description: 'Pay via Maya (PayMongo)',
+    icon: 'payments',
+    description: 'Pay via GCash mobile wallet',
   },
 ]
 
@@ -588,10 +622,19 @@ async function loadMarketplaceData() {
   // Clear old listings to prevent stale data
   listings.value = []
 
+  // Add timeout protection to prevent infinite loading
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+  )
+
   try {
-    const [listingsData, statsData] = await Promise.all([
-      getMarketplaceListings(),
-      getMarketplaceStats(),
+    // Race against timeout
+    const [listingsData, statsData] = await Promise.race([
+      Promise.all([
+        getMarketplaceListings(),
+        getMarketplaceStats(),
+      ]),
+      timeoutPromise,
     ])
 
     console.log('📦 Received listings data:', listingsData?.length || 0, 'listings')
@@ -601,9 +644,19 @@ async function loadMarketplaceData() {
     marketplaceStats.value = statsData
   } catch (err) {
     console.error('Error loading marketplace data:', err)
-    errorMessage.value = 'Failed to load marketplace data'
+    if (err.message?.includes('timeout')) {
+      errorMessage.value = 'Request timed out. Please check your connection and try again.'
+    } else {
+      errorMessage.value = 'Failed to load marketplace data. Please try again.'
+    }
     // Ensure listings is empty on error
     listings.value = []
+    marketplaceStats.value = {
+      totalListings: 0,
+      totalCreditsAvailable: 0,
+      totalMarketValue: 0,
+      recentTransactions: 0,
+    }
   } finally {
     loading.value = false
   }
@@ -734,8 +787,20 @@ async function handlePurchase() {
 
   purchaseLoading.value = true
   try {
+    console.log('🛒 Starting purchase process:', {
+      listingId: selectedListing.value.listing_id,
+      quantity: purchaseQuantity.value,
+      paymentMethod: selectedPaymentMethod.value,
+      listingTitle: selectedListing.value.project_title,
+    })
+
     // Import the purchase function
     const { purchaseCredits } = await import('@/services/marketplaceService')
+
+    // Validate payment method is selected
+    if (!selectedPaymentMethod.value) {
+      throw new Error('Please select a payment method')
+    }
 
     // Create purchase data
     const purchaseData = {
@@ -744,8 +809,19 @@ async function handlePurchase() {
       paymentData: null,
     }
 
-    // Process the purchase
-    const result = await purchaseCredits(selectedListing.value.listing_id, purchaseData)
+    console.log('📦 Purchase data prepared:', purchaseData)
+
+    // Process the purchase with timeout protection
+    const purchaseTimeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Purchase request timed out after 60 seconds')), 60000)
+    )
+
+    const result = await Promise.race([
+      purchaseCredits(selectedListing.value.listing_id, purchaseData),
+      purchaseTimeout,
+    ])
+
+    console.log('✅ Purchase result received:', result)
 
     // Handle redirect for PayMongo checkout
     if (result.redirect && result.checkoutUrl) {
@@ -783,10 +859,31 @@ async function handlePurchase() {
     // Reload marketplace data to update available quantities
     await loadMarketplaceData()
   } catch (err) {
-    console.error('Purchase failed:', err)
+    console.error('❌ Purchase failed:', err)
+    console.error('❌ Purchase error details:', {
+      message: err.message,
+      stack: err.stack,
+      listingId: selectedListing.value?.listing_id,
+      quantity: purchaseQuantity.value,
+      paymentMethod: selectedPaymentMethod.value,
+    })
+
+    // Show user-friendly error message
+    let errorMessage = 'Please try again.'
+    if (err.message?.includes('timeout')) {
+      errorMessage = 'Request timed out. Please check your connection and try again.'
+    } else if (err.message?.includes('authenticated') || err.message?.includes('User not')) {
+      errorMessage = 'Please log in to complete your purchase.'
+      router.push({ name: 'login', query: { returnTo: '/marketplace' } })
+    } else if (err.message?.includes('Insufficient')) {
+      errorMessage = err.message
+    } else if (err.message) {
+      errorMessage = err.message
+    }
+
     await showErrorPrompt({
       title: 'Purchase Failed',
-      message: err.message || 'Please try again.',
+      message: errorMessage,
       confirmText: 'OK',
     })
   } finally {
@@ -808,15 +905,15 @@ function formatNumber(number) {
 // Admin delete function - deletes the project (which will cascade to listings)
 async function adminDeleteListing(listing) {
   // Immediate console log to verify function is called
-  console.log('🗑️🗑️🗑️ DELETE FUNCTION CALLED! 🗑️🗑️🗑️')
-  console.log('🗑️ Delete button clicked for listing:', listing)
+  console.log('Admin delete flow triggered')
+  console.log('Admin delete button clicked for listing:', listing)
   console.log('🔍 User store isAdmin:', userStore.isAdmin)
   console.log('🔍 User role:', userStore.role)
   console.log('🔍 User store object:', userStore)
   
   // Check if user is admin
   if (!userStore.isAdmin) {
-    console.warn('⚠️ Non-admin user attempted to delete project')
+    console.warn('WARNING: Non-admin user attempted to delete project')
     await showErrorPrompt({
       title: 'Access Denied',
       message: 'Only administrators can delete projects from the marketplace.',
@@ -843,7 +940,7 @@ async function adminDeleteListing(listing) {
   const confirmed = await confirm({
     type: 'warning',
     title: 'Delete Project?',
-    message: `⚠️ WARNING: Are you sure you want to permanently delete "${listing.project_title}" from the marketplace?\n\nThis action cannot be undone and will:\n- Remove the project from the system\n- Delete all associated credits and listings\n- Delete all related data\n\nThis is a permanent action!`,
+    message: `WARNING: Are you sure you want to permanently delete "${listing.project_title}" from the marketplace?\n\nThis action cannot be undone and will:\n- Remove the project from the system\n- Delete all associated credits and listings\n- Delete all related data\n\nThis is a permanent action!`,
     confirmText: 'Delete Permanently',
     cancelText: 'Cancel',
   })
@@ -853,7 +950,7 @@ async function adminDeleteListing(listing) {
   }
 
   try {
-    console.log('🗑️ Admin deleting project from marketplace:', projectId)
+    console.log('Admin deleting project from marketplace:', projectId)
     
     // Use admin delete function which handles all related data deletion
     const result = await projectService.adminDeleteProject(projectId)
@@ -868,7 +965,7 @@ async function adminDeleteListing(listing) {
     await loadMarketplaceData()
     
     await success({
-      title: 'Project Deleted! 🗑️',
+      title: 'Project Deleted!',
       message: `"${listing.project_title}" has been permanently deleted from the marketplace and system.`,
       confirmText: 'OK',
     })
@@ -938,6 +1035,13 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   backdrop-filter: blur(10px);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.advanced-search-toggle .material-symbols-outlined {
+  font-size: 1.25rem;
 }
 
 .advanced-search-toggle:hover {
@@ -950,20 +1054,20 @@ onMounted(() => {
 }
 
 .submit-project-button {
-  background: var(--primary-color);
-  border: 1px solid var(--primary-color);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   color: white;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.submit-project-button:hover {
-  background: var(--primary-hover, #058e3f);
-  border-color: var(--primary-hover, #058e3f);
-  transform: translateY(-1px);
+.submit-project-button .material-symbols-outlined {
+  font-size: 1.25rem;
 }
 
 .advanced-search-panel {
@@ -1003,11 +1107,24 @@ onMounted(() => {
 
 .view-toggle {
   padding: 0.5rem 1rem;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 999px;
   background: white;
-  border-radius: 6px;
+  color: var(--text-primary);
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.view-toggle .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
+.view-toggle-label {
+  display: inline-flex;
 }
 
 .view-toggle:hover {
@@ -1181,8 +1298,27 @@ onMounted(() => {
 .project-meta {
   display: flex;
   gap: 1rem;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  margin-top: 0.75rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.project-meta .meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project-meta .material-symbols-outlined {
+  font-size: 1rem;
+  color: #f97316;
+}
+
+.project-meta .meta-text {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.95rem;
+  color: #6b7280;
 }
 
 .project-pricing {
@@ -1232,8 +1368,29 @@ onMounted(() => {
 
 .error-icon,
 .empty-icon {
-  font-size: 3rem;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
   margin-bottom: 1rem;
+}
+
+.error-icon {
+  background: rgba(220, 38, 38, 0.12);
+  color: #b91c1c;
+}
+
+.empty-icon {
+  background: rgba(15, 23, 42, 0.12);
+  color: var(--text-muted);
+}
+
+.error-icon svg,
+.empty-icon svg {
+  width: 1.8rem;
+  height: 1.8rem;
 }
 
 .retry-button,
@@ -1363,8 +1520,19 @@ onMounted(() => {
 }
 
 .payment-method-icon {
-  font-size: 2rem;
-  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--primary-color, #069e2d);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+}
+
+.payment-method-icon .material-symbols-outlined {
+  font-size: 1.6rem;
 }
 
 .payment-method-info {
@@ -1404,6 +1572,16 @@ onMounted(() => {
   font-size: 0.875rem;
 }
 
+.warning-inline {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.warning-inline .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .marketplace-header {
@@ -1422,6 +1600,11 @@ onMounted(() => {
   .advanced-search-toggle {
     padding: 0.625rem 1.25rem;
     font-size: 0.875rem;
+  }
+
+  .advanced-search-toggle .material-symbols-outlined,
+  .submit-project-button .material-symbols-outlined {
+    font-size: 1.1rem;
   }
 
   .marketplace-content {
@@ -1514,5 +1697,35 @@ onMounted(() => {
   .form-input {
     font-size: 16px; /* Prevent zoom on iOS */
   }
+}
+
+.location-icon,
+.category-icon {
+  font-size: 1rem;
+  color: #f97316;
+}
+
+.project-meta {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.75rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.project-meta .material-symbols-outlined {
+  font-size: 1rem;
+}
+
+.modal-meta .meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: #4b5563;
+}
+
+.modal-meta .meta-item .material-symbols-outlined {
+  font-size: 1.05rem;
 }
 </style>

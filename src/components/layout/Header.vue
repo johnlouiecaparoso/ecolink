@@ -82,19 +82,8 @@
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
               <span class="user-role">{{ getRoleDisplayName(userStore.role) }}</span>
             </div>
-            <div
-              class="user-avatar"
-              @click.stop="toggleUserMenu"
-              @mousedown.stop
-              title="Click to open profile menu"
-            >
-              <img
-                v-if="userStore.profile?.avatar_url"
-                :src="userStore.profile.avatar_url"
-                :alt="userStore.profile?.full_name || 'User'"
-                class="avatar-image"
-              />
-              <svg v-else class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="user-avatar" @click="showUserMenu = !showUserMenu">
+              <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -104,31 +93,26 @@
               </svg>
             </div>
             <!-- User Dropdown Menu -->
-            <div
-              v-if="showUserMenu"
-              v-show="showUserMenu"
-              class="user-dropdown"
-              @click.stop
-              @mousedown.stop
-            >
-              <router-link
-                to="/profile"
-                class="dropdown-item"
-                @click="
-                  () => {
-                    console.log('Profile clicked')
-                    showUserMenu = false
-                  }
-                "
-                @mousedown.stop
-              >
-                Profile
+            <div v-if="showUserMenu" class="user-dropdown">
+              <router-link to="/profile" class="dropdown-item" @click="showUserMenu = false">
+                Profile Settings
               </router-link>
 
+              <!-- Admin Tools moved to Admin Dashboard page -->
+
+              <!-- Hidden for now: Preferences, Analytics, Social Impact -->
+              <!-- <router-link to="/preferences" class="dropdown-item" @click="showUserMenu = false">
+                Preferences
+              </router-link>
+              <router-link to="/analytics" class="dropdown-item" @click="showUserMenu = false">
+                Analytics
+              </router-link>
+              <router-link to="/social" class="dropdown-item" @click="showUserMenu = false">
+                Social Impact
+              </router-link> -->
+
               <div class="dropdown-divider"></div>
-              <button @click="handleLogout" class="dropdown-item logout" @mousedown.stop>
-                Logout
-              </button>
+              <button @click="handleLogout" class="dropdown-item logout">Logout</button>
             </div>
           </div>
           <div v-else class="auth-buttons">
@@ -222,97 +206,6 @@
             />
           </div>
 
-          <!-- USER PROFILE SECTION (Mobile) -->
-          <router-link
-            v-if="userStore.isAuthenticated"
-            to="/profile"
-            @click="mobileMenuOpen = false"
-            style="
-              padding: 1rem !important;
-              background: #e8f5e8 !important;
-              border-bottom: 2px solid #4caf50 !important;
-              margin-bottom: 1rem !important;
-              text-decoration: none !important;
-              display: block !important;
-              cursor: pointer !important;
-              transition: background 0.2s ease !important;
-            "
-            @mouseenter="$event.currentTarget.style.background = '#d4edda'"
-            @mouseleave="$event.currentTarget.style.background = '#e8f5e8'"
-          >
-            <div
-              style="
-                display: flex !important;
-                align-items: center !important;
-                gap: 0.75rem !important;
-              "
-            >
-              <div
-                style="
-                  width: 48px !important;
-                  height: 48px !important;
-                  background: #4caf50 !important;
-                  border-radius: 50% !important;
-                  display: flex !important;
-                  align-items: center !important;
-                  justify-content: center !important;
-                  flex-shrink: 0 !important;
-                  overflow: hidden !important;
-                "
-              >
-                <img
-                  v-if="userStore.profile?.avatar_url"
-                  :src="userStore.profile.avatar_url"
-                  :alt="userStore.profile?.full_name || 'User'"
-                  style="
-                    width: 100% !important;
-                    height: 100% !important;
-                    object-fit: cover !important;
-                    border-radius: 50% !important;
-                  "
-                />
-                <svg
-                  v-else
-                  style="width: 24px !important; height: 24px !important; color: white !important"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                  ></path>
-                </svg>
-              </div>
-              <div style="flex: 1 !important; min-width: 0 !important">
-                <div
-                  style="
-                    font-weight: 600 !important;
-                    color: #2d5a2d !important;
-                    font-size: 1rem !important;
-                    margin-bottom: 0.25rem !important;
-                    overflow: hidden !important;
-                    text-overflow: ellipsis !important;
-                    white-space: nowrap !important;
-                  "
-                >
-                  {{ userStore.profile?.full_name || 'User' }}
-                </div>
-                <div
-                  style="
-                    font-size: 0.875rem !important;
-                    color: #666 !important;
-                    text-transform: capitalize !important;
-                  "
-                >
-                  {{ getRoleDisplayName(userStore.role) }}
-                </div>
-              </div>
-            </div>
-          </router-link>
-
           <!-- NAVIGATION LINKS -->
           <div style="padding: 1rem !important; background: white !important">
             <div
@@ -323,7 +216,9 @@
               "
             >
               <router-link
-                to="/"
+                v-for="item in navItems"
+                :key="item.path"
+                :to="item.path"
                 @click="mobileMenuOpen = false"
                 style="
                   display: block !important;
@@ -336,24 +231,9 @@
                   font-weight: 500 !important;
                 "
               >
-                Home
+                {{ item.label }}
               </router-link>
-              <router-link
-                to="/marketplace"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
-                "
-              >
-                Marketplace
-              </router-link>
+
               <router-link
                 v-if="userStore.isAuthenticated"
                 to="/profile"
@@ -371,9 +251,10 @@
               >
                 Profile Settings
               </router-link>
+
               <router-link
-                v-if="userStore.isAuthenticated && userStore.isProjectDeveloper"
-                to="/submit-project"
+                v-if="userStore.isAuthenticated"
+                to="/receipts"
                 @click="mobileMenuOpen = false"
                 style="
                   display: block !important;
@@ -386,208 +267,25 @@
                   font-weight: 500 !important;
                 "
               >
-                Submit Project
-              </router-link>
-              <router-link
-                v-if="userStore.isAuthenticated"
-                to="/retire"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: var(--primary-color, #10b981) !important;
-                  border: none !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #fff !important;
-                  font-weight: 600 !important;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-                "
-              >
-                Retire Credits
-              </router-link>
-              <router-link
-                v-if="userStore.isAuthenticated"
-                to="/certificates"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: var(--primary-color, #10b981) !important;
-                  border: none !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #fff !important;
-                  font-weight: 600 !important;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-                "
-              >
-                Certificates
-              </router-link>
-              <router-link
-                v-if="userStore.isAuthenticated"
-                to="/wallet"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: var(--primary-color, #10b981) !important;
-                  border: none !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #fff !important;
-                  font-weight: 600 !important;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-                "
-              >
-                Wallet
-              </router-link>
-              <!-- Receipts removed - no longer needed -->
-              <!-- Buy Credits removed - users can buy credits through the marketplace -->
-              <!-- Verifier Specific Links -->
-              <router-link
-                v-if="userStore.isVerifier && !userStore.isAdmin"
-                to="/verifier"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: var(--primary-color, #10b981) !important;
-                  border: none !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #fff !important;
-                  font-weight: 600 !important;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-                "
-              >
-                Verifier Panel
+                Receipts
               </router-link>
 
-              <!-- Admin Specific Links -->
-              <router-link
-                v-if="userStore.isAdmin"
-                to="/admin"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: var(--primary-color, #10b981) !important;
-                  border: none !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #fff !important;
-                  font-weight: 600 !important;
-                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
-                "
-              >
-                Admin Dashboard
-              </router-link>
-              <router-link
-                v-if="userStore.isAdmin"
-                to="/admin/users"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #fff3cd !important;
-                  border: 1px solid #ffc107 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #856404 !important;
-                  font-weight: 500 !important;
-                "
-              >
-                User Management
-              </router-link>
-              <router-link
-                v-if="userStore.isAdmin"
-                to="/admin/database"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #fff3cd !important;
-                  border: 1px solid #ffc107 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #856404 !important;
-                  font-weight: 500 !important;
-                "
-              >
-                Database Management
-              </router-link>
-              <router-link
-                v-if="userStore.isAdmin"
-                to="/admin/audit-logs"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #fff3cd !important;
-                  border: 1px solid #ffc107 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #856404 !important;
-                  font-weight: 500 !important;
-                "
-              >
-                Audit Logs
-              </router-link>
               <button
                 v-if="userStore.isAuthenticated"
                 @click="handleLogout"
                 style="
                   display: block !important;
-                  width: 100% !important;
                   padding: 0.75rem !important;
                   background: #fee2e2 !important;
-                  border: 1px solid #fecaca !important;
+                  border: 1px solid #ef4444 !important;
                   border-radius: 6px !important;
-                  color: #dc2626 !important;
-                  font-weight: 500 !important;
-                  cursor: pointer !important;
+                  text-decoration: none !important;
+                  color: #b91c1c !important;
+                  font-weight: 600 !important;
                 "
               >
                 Logout
               </button>
-              <template v-else>
-                <router-link
-                  to="/login"
-                  @click="mobileMenuOpen = false"
-                  style="
-                    display: block !important;
-                    padding: 0.75rem !important;
-                    background: #e8f5e8 !important;
-                    border: 1px solid #4caf50 !important;
-                    border-radius: 6px !important;
-                    text-decoration: none !important;
-                    color: #2d5a2d !important;
-                    font-weight: 500 !important;
-                    text-align: center !important;
-                    margin-bottom: 0.5rem !important;
-                  "
-                >
-                  Login
-                </router-link>
-                <router-link
-                  to="/register"
-                  @click="mobileMenuOpen = false"
-                  style="
-                    display: block !important;
-                    padding: 0.75rem !important;
-                    background: #4caf50 !important;
-                    border: 1px solid #4caf50 !important;
-                    border-radius: 6px !important;
-                    text-decoration: none !important;
-                    color: white !important;
-                    font-weight: 500 !important;
-                    text-align: center !important;
-                  "
-                >
-                  Sign Up
-                </router-link>
-              </template>
             </div>
           </div>
         </div>
@@ -597,7 +295,7 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getRoleDisplayName } from '@/constants/roles'
@@ -609,168 +307,87 @@ const searchQuery = ref('')
 const mobileMenuOpen = ref(false)
 const showUserMenu = ref(false)
 
-// Close dropdown when clicking outside
-const handleClickOutside = (event) => {
-  // Don't close if clicking inside the user menu area or dropdown
-  const userMenuElement = event.target.closest('.user-menu')
-  const dropdownElement = event.target.closest('.user-dropdown')
-
-  // Also check if clicking on router-link or button inside dropdown
-  const isDropdownItem = event.target.closest('.dropdown-item')
-
-  if (!userMenuElement && !dropdownElement && !isDropdownItem && showUserMenu.value) {
-    console.log('Click outside detected, closing dropdown')
-    showUserMenu.value = false
-  } else {
-    console.log('Click inside user menu area, keeping dropdown open', {
-      userMenuElement: !!userMenuElement,
-      dropdownElement: !!dropdownElement,
-      isDropdownItem: !!isDropdownItem,
-    })
-  }
-}
-
-onMounted(() => {
-  // Use bubble phase (not capture) so dropdown clicks register first
-  // Add delay to prevent immediate closing when dropdown opens
-  setTimeout(() => {
-    document.addEventListener('click', handleClickOutside, false)
-  }, 200)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleClickOutside, false)
-})
-
 // Toggle mobile menu
 const toggleMobileMenu = () => {
   mobileMenuOpen.value = !mobileMenuOpen.value
 }
 
-// Toggle user menu dropdown
-const toggleUserMenu = (event) => {
-  if (event) {
-    event.stopPropagation()
-    event.preventDefault()
-  }
-  console.log('Avatar clicked, showUserMenu before:', showUserMenu.value)
-  showUserMenu.value = !showUserMenu.value
-  console.log('Avatar clicked, showUserMenu after:', showUserMenu.value)
-  console.log('Dropdown should be visible:', showUserMenu.value)
-}
-
 // Role-based navigation items
 const navItems = computed(() => {
-  // Base navigation items that are always shown
   const baseItems = [
     { path: '/', label: 'Home' },
     { path: '/marketplace', label: 'Marketplace' },
   ]
 
-  // If user is not authenticated, only show base items
   if (!userStore.isAuthenticated) {
     return baseItems
   }
 
-  // IMPORTANT: Debug role checking
-  if (import.meta.env.DEV) {
-    console.log('[Header] navItems computed - Role check:', {
-      role: userStore.role,
-      profile: userStore.profile,
-      isAdmin: userStore.isAdmin,
-      isVerifier: userStore.isVerifier,
-      isProjectDeveloper: userStore.isProjectDeveloper,
-      authenticated: userStore.isAuthenticated,
-    })
-  }
-
-  // If user is authenticated, show main functionality items only
-  const authenticatedItems = [
-    ...baseItems, // Home, Marketplace
-    { path: '/retire', label: 'Retire' },
-    { path: '/certificates', label: 'Certificates' },
+  const items = [
+    ...baseItems,
     { path: '/wallet', label: 'Wallet' },
-    // Buy Credits removed - users can buy credits through the marketplace
+    { path: '/certificates', label: 'Certificates' },
   ]
 
-  // Only show Submit Project for Project Developers
-  if (userStore.isProjectDeveloper) {
-    if (import.meta.env.DEV) console.log('[Header] Adding Submit Project link')
-    authenticatedItems.splice(2, 0, { path: '/submit-project', label: 'Submit Project' })
-  }
-
-  // Add verifier-specific navigation for verifiers only
-  // NOTE: Admin can also be verifier, so check verifier role regardless of admin status
-  if (userStore.isVerifier) {
-    if (import.meta.env.DEV) console.log('[Header] Adding Verifier Panel link')
-    authenticatedItems.splice(3, 0, { path: '/verifier', label: 'Verifier Panel' })
-  }
-
-  // Add admin-specific navigation for admins
   if (userStore.isAdmin) {
-    if (import.meta.env.DEV) console.log('[Header] Adding Admin Dashboard link')
-    authenticatedItems.splice(3, 0, { path: '/admin', label: 'Admin Dashboard' })
+    items.push({ path: '/admin', label: 'Admin Dashboard' })
+    return items
   }
 
-  // Admin Dashboard is now in main navigation, other admin features remain in profile dropdown
-
-  // Wallet and Certificates are now in main navigation, receipts removed
-  const finalItems = authenticatedItems.filter((item) => !item.path.includes('/receipts'))
-
-  if (import.meta.env.DEV) {
-    console.log(
-      '[Header] Final navItems:',
-      finalItems.map((i) => i.label),
-    )
+  if (userStore.isProjectDeveloper) {
+    items.push({ path: '/submit-project', label: 'Submit Project' })
   }
 
-  return finalItems
+  if (userStore.isVerifier) {
+    items.push({ path: '/verifier', label: 'Verifier Panel' })
+  }
+
+  return items
 })
 
 function isActive(path) {
-  // Exact match for active state
-  // Only mark as active if we're exactly on that path
-  if (route.path === path) {
-    return true
-  }
-  // Also handle nested routes (e.g., /verifier/... should match /verifier)
-  if (route.path.startsWith(path + '/')) {
-    return true
-  }
-  return false
+  return route.path === path
 }
 
-async function handleLogout() {
+function handleLogout() {
   console.log('🚨 LOGOUT BUTTON CLICKED! Starting logout process...')
 
   // Close the dropdown menu immediately
   showUserMenu.value = false
 
-  // Clear local state immediately (don't wait for async operations)
-  userStore.clearUserData()
-  userStore.session = null
-  userStore.profile = null
-  userStore.role = 'general_user'
-  userStore.loading = false
-
-  // Redirect immediately without waiting
-  console.log('Redirecting to login page immediately...')
-
-  // Use window.location for instant redirect (faster than router)
-  window.location.href = '/login'
-
-  // Do background cleanup (fire and forget - don't await)
-  // This happens after redirect is initiated
-  Promise.resolve().then(async () => {
-    try {
-      // Sign out from Supabase in background (non-blocking)
-      const { signOut } = await import('@/services/authService')
-      await signOut()
-    } catch (error) {
-      console.error('Background logout cleanup error:', error)
-      // Ignore - we've already cleared local state and redirected
+  // Clear all storage immediately
+  try {
+    if (typeof window !== 'undefined') {
+      // Clear localStorage
+      localStorage.clear()
+      // Clear sessionStorage
+      sessionStorage.clear()
+      console.log('Storage cleared')
     }
+  } catch (storageError) {
+    console.warn('Storage clear error:', storageError)
+  }
+
+  // Perform logout from user store (don't wait for it)
+  userStore.logout().catch((error) => {
+    console.error('User store logout error:', error)
   })
+
+  // Force immediate redirect to login page
+  console.log('Redirecting to login page...')
+
+  // Use the most reliable redirect method with a longer delay
+  setTimeout(() => {
+    console.log('Executing redirect now...')
+    try {
+      // Force a complete page reload to the login page
+      window.location.replace('/login')
+      console.log('Redirect initiated successfully')
+    } catch (error) {
+      console.error('Redirect failed, trying alternative:', error)
+      window.location.href = '/login'
+    }
+  }, 200)
 }
 </script>
 
@@ -778,13 +395,12 @@ async function handleLogout() {
 .header {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 50;
   width: 100%;
   border-bottom: 2px solid var(--border-green-light);
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   backdrop-filter: blur(8px);
   box-shadow: var(--shadow-green);
-  overflow: visible;
 }
 
 .header-container {
@@ -797,7 +413,6 @@ async function handleLogout() {
   padding: 0;
   position: relative;
   width: 100%;
-  overflow: visible;
 }
 
 /* Logo */
@@ -813,9 +428,8 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   margin: 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 1rem;
   width: auto;
-  flex-shrink: 0;
 }
 
 .logo-image-container {
@@ -823,10 +437,10 @@ async function handleLogout() {
   width: 3.5rem;
   height: 3.5rem;
   border-radius: 50%;
-  border: 2px solid rgba(209, 250, 229, 0.8);
-  padding: 0.25rem;
-  background: rgba(209, 250, 229, 0.4);
-  box-shadow: 0 2px 8px rgba(6, 158, 45, 0.2);
+  border: 3px solid #10b981;
+  padding: 0.35rem;
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
   transition: all 0.3s ease;
   margin: 0;
 }
@@ -974,12 +588,7 @@ async function handleLogout() {
 .desktop-nav {
   display: none;
   align-items: center;
-  gap: 0.75rem;
-  height: 100%;
-  flex-shrink: 1;
-  flex-wrap: nowrap;
-  overflow: hidden;
-  min-width: 0;
+  gap: 1.5rem;
 }
 
 .nav-link {
@@ -987,29 +596,15 @@ async function handleLogout() {
   color: var(--text-primary);
   text-decoration: none;
   transition: var(--transition);
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
   position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  white-space: nowrap;
-  line-height: 1.5;
-  min-height: 2.5rem;
-  vertical-align: middle;
-  font-weight: 500;
-  word-spacing: normal;
-  letter-spacing: normal;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  flex-shrink: 0;
 }
 
 .nav-link:hover:not(.active) {
   color: var(--primary-color);
   background: var(--bg-green-light);
-  transform: none;
+  transform: translateY(-1px);
 }
 
 .nav-link.active {
@@ -1017,15 +612,11 @@ async function handleLogout() {
   background: var(--primary-color);
   font-weight: 600;
   box-shadow: var(--shadow-green);
-  transform: none;
-  /* Use text-shadow to simulate boldness without layout shift */
-  text-shadow: 0 0.5px 0 rgba(0, 0, 0, 0.1);
 }
 
 .nav-link.active:hover {
   background: var(--primary-hover);
   color: var(--text-light);
-  transform: none;
 }
 
 /* Admin navigation items removed - admin features accessible via profile dropdown */
@@ -1034,13 +625,10 @@ async function handleLogout() {
 .desktop-actions {
   display: none;
   align-items: center;
-  gap: 0.75rem;
+  gap: 1rem;
   margin: 0;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 1rem;
   width: auto;
-  flex-shrink: 0;
-  min-width: 0;
-  overflow: visible;
 }
 
 .search-wrapper {
@@ -1058,8 +646,7 @@ async function handleLogout() {
 }
 
 .search-input {
-  width: 12rem;
-  max-width: 12rem;
+  width: 16rem;
   height: 2.25rem;
   padding: 0.5rem 0.75rem 0.5rem 2.5rem;
   font-size: var(--font-size-sm);
@@ -1069,7 +656,6 @@ async function handleLogout() {
   outline: none;
   transition: var(--transition);
   box-shadow: var(--shadow-sm);
-  flex-shrink: 1;
 }
 
 .search-input:focus {
@@ -1083,9 +669,6 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-shrink: 0;
-  min-width: 0;
-  z-index: 10001;
 }
 
 .user-info {
@@ -1093,18 +676,12 @@ async function handleLogout() {
   flex-direction: column;
   align-items: flex-end;
   text-align: right;
-  min-width: 0;
-  max-width: 150px;
 }
 
 .user-name {
   font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
 }
 
 .user-role {
@@ -1123,19 +700,10 @@ async function handleLogout() {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-  overflow: hidden;
-  flex-shrink: 0;
 }
 
 .user-avatar:hover {
   background: var(--bg-accent);
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 50%;
 }
 
 .avatar-icon {
@@ -1146,42 +714,33 @@ async function handleLogout() {
 
 .user-dropdown {
   position: absolute;
-  top: calc(100% + 0.5rem);
+  top: 100%;
   right: 0;
+  margin-top: 0.5rem;
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  box-shadow:
-    0 4px 6px rgba(0, 0, 0, 0.1),
-    0 10px 20px rgba(0, 0, 0, 0.15);
-  z-index: 10000 !important;
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
   min-width: 14rem;
   max-width: 18rem;
-  overflow: visible !important;
-  display: block !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
-  white-space: nowrap;
+  overflow: hidden;
 }
 
 .dropdown-item {
-  display: block !important;
-  width: 100% !important;
-  padding: 0.75rem 1rem !important;
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
   font-size: var(--font-size-sm);
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   text-decoration: none;
   border: none;
   background: none;
   text-align: left;
-  cursor: pointer !important;
+  cursor: pointer;
   transition: var(--transition);
   border-bottom: 1px solid var(--border-light);
   box-sizing: border-box;
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
 }
 
 .dropdown-item:last-child {
@@ -1200,24 +759,6 @@ async function handleLogout() {
 .dropdown-item.logout:hover {
   color: #dc2626;
   background: #fef2f2;
-}
-
-/* Dropdown transition */
-.dropdown-fade-enter-active,
-.dropdown-fade-leave-active {
-  transition:
-    opacity 0.2s ease,
-    transform 0.2s ease;
-}
-
-.dropdown-fade-enter-from {
-  opacity: 0;
-  transform: translateY(-10px);
-}
-
-.dropdown-fade-leave-to {
-  opacity: 0;
-  transform: translateY(-10px);
 }
 
 /* Admin Dropdown Items */
@@ -1442,10 +983,6 @@ async function handleLogout() {
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  height: 100%;
-  min-height: 5rem;
-  gap: 0.5rem;
-  overflow: visible;
 }
 
 /* Hide desktop header on mobile */
@@ -2188,50 +1725,6 @@ async function handleLogout() {
 
   .mobile-menu-button {
     display: none;
-  }
-}
-
-/* Medium screens - reduce spacing */
-@media (max-width: 1400px) {
-  .desktop-nav {
-    gap: 0.5rem;
-  }
-
-  .nav-link {
-    padding: 0.5rem 0.6rem;
-    font-size: 0.875rem;
-  }
-
-  .search-input {
-    width: 10rem;
-    max-width: 10rem;
-  }
-
-  .desktop-actions {
-    gap: 0.5rem;
-    padding: 0.5rem;
-  }
-}
-
-/* Smaller desktop screens */
-@media (max-width: 1200px) {
-  .nav-link {
-    padding: 0.5rem 0.5rem;
-    font-size: 0.813rem;
-  }
-
-  .search-input {
-    width: 8rem;
-    max-width: 8rem;
-    padding: 0.5rem 0.5rem 0.5rem 2rem;
-  }
-
-  .user-info {
-    max-width: 120px;
-  }
-
-  .user-name {
-    font-size: 0.813rem;
   }
 }
 

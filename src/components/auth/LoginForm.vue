@@ -134,13 +134,13 @@ async function handleSubmit() {
       <!-- Email Input -->
       <div class="form-field">
         <label for="email" class="form-label">
-          <span class="label-icon">@</span>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">mail</span>
           Email Address
         </label>
         <UiInput
           id="email"
           type="email"
-          placeholder="you@ecolink.io"
+          placeholder="Email"
           v-model="email"
           :error="emailError"
           @blur="validateEmail"
@@ -150,10 +150,7 @@ async function handleSubmit() {
 
       <div class="form-field">
         <label for="password" class="form-label">
-          <svg class="label-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">lock</span>
           Password
         </label>
         <UiInput
@@ -170,10 +167,8 @@ async function handleSubmit() {
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
 
       <UiButton type="submit" :loading="loading" block class="sign-in-button">
-        <svg class="button-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"></path>
-        </svg>
-        Sign In
+        <span class="material-symbols-outlined" aria-hidden="true">login</span>
+        <span>Sign In</span>
       </UiButton>
     </form>
   </div>
@@ -243,15 +238,12 @@ async function handleSubmit() {
 }
 
 .label-icon {
-  width: 16px;
-  height: 16px;
-  color: #6b7280;
-  flex-shrink: 0;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.875rem;
-  font-weight: 500;
+  margin-right: 0.5rem;
+  color: #6b7280;
+  font-size: 1.25rem;
 }
 
 /* Specific styling for UiInput components */
@@ -290,7 +282,15 @@ async function handleSubmit() {
 }
 
 .sign-in-button {
-  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.sign-in-button .material-symbols-outlined {
+  font-size: 1.35rem;
 }
 
 .sign-in-button :deep(.ui-btn) {

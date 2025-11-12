@@ -45,79 +45,145 @@
 
     <!-- No Projects -->
     <div v-else-if="displayedProjects.length === 0" class="no-projects">
-      <div class="no-projects-icon">📋</div>
+      <div class="no-projects-icon" aria-hidden="true">
+        <span class="material-symbols-outlined">inventory</span>
+      </div>
       <h3>No Projects Found</h3>
       <p v-if="statusFilter === 'all'">There are currently no projects in the system.</p>
       <p v-else>There are currently no {{ statusFilter }} projects.</p>
     </div>
 
     <!-- Projects List -->
-    <div v-else class="projects-list">
-      <div v-for="project in displayedProjects" :key="project.id" class="project-card">
-        <!-- Status Badge -->
-        <div class="project-status-badge" :class="project.status">
-          {{ project.status.toUpperCase() }}
-        </div>
-        <div class="project-header">
-          <h3 class="project-title">{{ project.title }}</h3>
-          <span class="project-category">{{ project.category }}</span>
-        </div>
+    <div v-else class="projects-layout">
+      <aside class="project-list">
+        <button
+          v-for="project in displayedProjects"
+          :key="project.id"
+          type="button"
+          :class="['project-list-item', { active: project.id === activeProjectId }]"
+          @click="activeProjectId = project.id"
+        >
+          <span class="project-list-title">{{ project.title }}</span>
+          <span :class="['status-badge', project.status]">{{ getStatusLabel(project.status) }}</span>
+        </button>
+      </aside>
 
-        <div class="project-details">
-          <div class="detail-row"><strong>Location:</strong> {{ project.location }}</div>
-          <div class="detail-row">
-            <strong>Submitted:</strong> {{ formatDate(project.created_at) }}
+      <section v-if="activeProject" class="project-detail">
+        <header class="detail-header">
+          <h3 class="detail-title">{{ activeProject.title }}</h3>
+          <span :class="['status-badge', activeProject.status]">
+            {{ getStatusLabel(activeProject.status) }}
+          </span>
+        </header>
+
+        <div class="detail-meta">
+          <div class="meta-item">
+            <span class="material-symbols-outlined" aria-hidden="true">category</span>
+            <span>{{ activeProject.category || 'Uncategorized' }}</span>
           </div>
-          <div class="detail-row">
-            <strong>Expected Impact:</strong>
+          <div class="meta-item">
+            <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+            <span>{{ activeProject.location || 'No location provided' }}</span>
           </div>
-          <p class="project-impact">{{ project.expected_impact }}</p>
+          <div class="meta-item">
+            <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+            <span>Submitted {{ formatDate(activeProject.created_at) }}</span>
+          </div>
         </div>
 
-        <div class="project-description">
-          <strong>Description:</strong>
-          <p>{{ project.description }}</p>
+        <div class="detail-section">
+          <h4>
+            <span class="material-symbols-outlined" aria-hidden="true">insights</span>
+            <span>Expected Impact</span>
+          </h4>
+          <p>{{ activeProject.expected_impact || 'No expected impact provided.' }}</p>
         </div>
 
-        <div class="project-actions">
-          <button 
-            v-if="project.status === 'pending'"
-            @click.stop.prevent="approveProject(project.id)" 
-            :disabled="processing || processingProjects.includes(project.id)" 
-            class="approve-btn"
+        <div class="detail-section">
+          <h4>
+            <span class="material-symbols-outlined" aria-hidden="true">description</span>
+            <span>Description</span>
+          </h4>
+          <p>{{ activeProject.description || 'No description provided.' }}</p>
+        </div>
+
+        <div class="detail-actions">
+          <button
+            v-if="activeProject.status === 'pending'"
+            class="action-btn outline"
             type="button"
+            @click="openVerificationModal(activeProject, 'under_review')"
+            :disabled="processing"
           >
-            ✅ Approve Project
+            <span class="material-symbols-outlined" aria-hidden="true">flag</span>
+            <span>Start Review</span>
           </button>
-          <button 
-            v-if="project.status === 'pending'"
-            @click="rejectProject(project.id)" 
-            :disabled="processing" 
-            class="reject-btn"
+
+          <button
+            v-if="activeProject.status === 'pending' || activeProject.status === 'under_review'"
+            class="action-btn success"
+            type="button"
+            @click="openVerificationModal(activeProject, 'approved')"
+            :disabled="processing"
           >
-            ❌ Reject Project
+            <span class="material-symbols-outlined" aria-hidden="true">done_all</span>
+            <span>Approve Project</span>
           </button>
-          <button 
-            @click="deleteProject(project.id)" 
-            :disabled="processing" 
-            class="delete-btn"
+
+          <button
+            v-if="activeProject.status === 'pending' || activeProject.status === 'under_review'"
+            class="action-btn outline danger"
+            type="button"
+            @click="openVerificationModal(activeProject, 'rejected')"
+            :disabled="processing"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">cancel</span>
+            <span>Reject Project</span>
+          </button>
+
+          <button
+            v-if="activeProject.status === 'approved' || activeProject.status === 'rejected'"
+            class="action-btn outline"
+            type="button"
+            @click="openVerificationModal(activeProject, 'under_review')"
+            :disabled="processing"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+            <span>Re-review</span>
+          </button>
+
+          <button
+            v-if="userStore.isAdmin"
+            class="action-btn danger"
+            type="button"
+            @click="deleteProject(activeProject.id)"
+            :disabled="processing"
             title="Delete project permanently (Admin only)"
           >
-            🗑️ Delete Project
+            <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+            <span>Delete Project</span>
           </button>
         </div>
 
-        <!-- Processing State -->
-        <div v-if="processingProjects.includes(project.id)" class="processing-overlay" style="pointer-events: none;">
+        <div
+          v-if="activeProject && processingProjects.includes(activeProject.id)"
+          class="processing-overlay"
+          style="pointer-events: none;"
+        >
           <div class="spinner small"></div>
           <span>Processing...</span>
         </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- Success Message -->
-    <div v-if="successMessage" class="success-message">
-      {{ successMessage }}
+      <section v-else class="project-detail empty-detail">
+        <div class="empty-state">
+          <div class="empty-icon" aria-hidden="true">
+            <span class="material-symbols-outlined">assignment</span>
+          </div>
+          <h3>Select a project</h3>
+          <p>Choose a project from the list to view full details.</p>
+        </div>
+      </section>
     </div>
 
     <!-- Modern Prompt Modal -->
@@ -137,7 +203,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { projectApprovalService } from '@/services/projectApprovalService'
 import { useUserStore } from '@/store/userStore'
 import { useModernPrompt } from '@/composables/useModernPrompt'
@@ -145,17 +211,17 @@ import { getSupabase } from '@/services/supabaseClient'
 import { projectService } from '@/services/projectService'
 import ModernPrompt from '@/components/ui/ModernPrompt.vue'
 
-const { promptState, confirm, success, error: showErrorPrompt, warning, handleConfirm, handleCancel, handleClose } = useModernPrompt()
+const { promptState, confirm, success, error: showErrorPrompt, handleConfirm, handleCancel, handleClose } = useModernPrompt()
 
 const userStore = useUserStore()
 const loading = ref(true)
 const errorMessage = ref(null)
-const successMessage = ref(null)
 const allProjects = ref([])
 const pendingProjects = ref([])
 const statusFilter = ref('all')
 const processing = ref(false)
 const processingProjects = ref([])
+const activeProjectId = ref(null)
 
 // Computed property for displayed projects based on filter
 const displayedProjects = computed(() => {
@@ -165,9 +231,28 @@ const displayedProjects = computed(() => {
   return allProjects.value.filter(p => p.status === statusFilter.value)
 })
 
+const activeProject = computed(() =>
+  displayedProjects.value.find((project) => project.id === activeProjectId.value) || null,
+)
+
 onMounted(() => {
   loadPendingProjects()
 })
+
+watch(
+  displayedProjects,
+  (projects) => {
+    if (projects.length === 0) {
+      activeProjectId.value = null
+      return
+    }
+
+    if (!projects.some((project) => project.id === activeProjectId.value)) {
+      activeProjectId.value = projects[0].id
+    }
+  },
+  { immediate: true },
+)
 
 async function loadPendingProjects(forceRefresh = false) {
   loading.value = true
@@ -178,7 +263,7 @@ async function loadPendingProjects(forceRefresh = false) {
     if (forceRefresh) {
       allProjects.value = []
       pendingProjects.value = []
-      console.log('🔄 Force refreshing projects list from database...')
+      console.log('Force refreshing projects list from database...')
     }
     
     // Note: The marketplace cleanup function runs automatically when marketplace loads
@@ -198,7 +283,7 @@ async function loadPendingProjects(forceRefresh = false) {
     // Update pending projects count
     pendingProjects.value = allProjects.value.filter(p => p.status === 'pending')
     
-    console.log('✅ Loaded projects from Supabase database:', {
+    console.log('Loaded projects from Supabase database:', {
       total: allProjects.value.length,
       pending: pendingProjects.value.length,
       approved: allProjects.value.filter(p => p.status === 'approved').length,
@@ -206,204 +291,23 @@ async function loadPendingProjects(forceRefresh = false) {
       note: 'Deleted projects are physically removed from database and will not appear here'
     })
   } catch (err) {
-    console.error('❌ Error loading projects:', err)
+    console.error('Error loading projects:', err)
     errorMessage.value = err.message || 'Failed to load projects'
   } finally {
     loading.value = false
   }
 }
 
-async function approveProject(projectId) {
-  console.log('🔵 APPROVE BUTTON CLICKED - Project ID:', projectId)
-  console.log('🔵 Current state:', {
-    allProjectsCount: allProjects.value.length,
-    pendingProjectsCount: pendingProjects.value.length,
-    processingCount: processingProjects.value.length,
-    isProcessing: processing.value,
-    projectId: projectId
-  })
-  
-  // Prevent multiple simultaneous calls for same project
-  if (processingProjects.value.includes(projectId)) {
-    console.warn('⚠️ Project approval already in progress for:', projectId)
-    return
-  }
-
-  const project = allProjects.value.find((p) => p.id === projectId)
-  console.log('🔵 Found project:', project ? { id: project.id, title: project.title, status: project.status } : 'NOT FOUND')
-  
-  if (!project) {
-    console.error('❌ Project not found:', projectId)
-    console.error('❌ Available project IDs:', allProjects.value.map(p => ({ id: p.id, status: p.status, title: p.title })))
-    await showErrorPrompt({
-      title: 'Project Not Found',
-      message: 'The project could not be found. Please refresh the page and try again.',
-      confirmText: 'OK',
-    })
-    return
-  }
-
-  // Check if project is actually pending
-  console.log('🔵 Project status check:', { projectId, status: project.status, isPending: project.status === 'pending' })
-  if (project.status !== 'pending') {
-    console.warn('⚠️ Attempted to approve non-pending project:', { projectId, status: project.status })
-    await showErrorPrompt({
-      title: 'Invalid Project Status',
-      message: `This project is already ${project.status}. Only pending projects can be approved.`,
-      confirmText: 'OK',
-    })
-    return
-  }
-
-  // Show confirmation prompt
-  const confirmed = await confirm({
-    type: 'success',
-    title: 'Approve Project?',
-    message: `Are you sure you want to approve "${project.title}"? This will generate carbon credits and make the project available in the marketplace.`,
-    confirmText: 'Approve',
-    cancelText: 'Cancel',
-  })
-
-  if (!confirmed) {
-    return
-  }
-
-  processingProjects.value.push(projectId)
-  processing.value = true
-
-  try {
-    console.log('🔍 Before approveProject call:', {
-      isAuthenticated: userStore.isAuthenticated,
-      hasSession: !!userStore.session,
-      userEmail: userStore.session?.user?.email,
-      role: userStore.role
-    })
-    
-    const result = await projectApprovalService.approveProject(projectId, 'Approved by admin')
-    console.log('Project approved:', result)
-
-    // Update project status in all lists
-    const projectIndex = allProjects.value.findIndex(p => p.id === projectId)
-    if (projectIndex !== -1) {
-      allProjects.value[projectIndex].status = 'approved'
-    }
-    pendingProjects.value = pendingProjects.value.filter((p) => p.id !== projectId)
-
-    // Reload the list to ensure consistency
-    await loadPendingProjects()
-
-    // Show modern success prompt
-    await success({
-      title: 'Project Approved! ✅',
-      message: `"${result.project.title}" has been approved and carbon credits have been generated. The project is now available in the marketplace.`,
-      confirmText: 'OK',
-    })
-  } catch (err) {
-    console.error('Error approving project:', err)
-    await showErrorPrompt({
-      title: 'Approval Failed',
-      message: err.message || 'Failed to approve project. Please try again.',
-      confirmText: 'OK',
-    })
-  } finally {
-    processingProjects.value = processingProjects.value.filter((id) => id !== projectId)
-    processing.value = processingProjects.value.length > 0
-  }
-}
-
-async function rejectProject(projectId) {
-  const project = allProjects.value.find((p) => p.id === projectId)
-  if (!project) return
-
-  // Show confirmation prompt with reason input
-  const confirmed = await confirm({
-    type: 'warning',
-    title: 'Reject Project?',
-    message: `Are you sure you want to reject "${project.title}"? This action cannot be undone. Please provide a reason in the next step.`,
-    confirmText: 'Continue',
-    cancelText: 'Cancel',
-  })
-
-  if (!confirmed) {
-    return
-  }
-
-  // Get rejection reason using a modern prompt
-  // Note: For a more advanced solution, we could create an input prompt component
-  // For now, we'll use a simple approach
-  const reason = prompt('Please provide a reason for rejection:')
-  if (!reason || reason.trim() === '') {
-    await warning({
-      title: 'Reason Required',
-      message: 'A rejection reason is required. Please try again.',
-      confirmText: 'OK',
-      showCancel: false,
-    })
-    return
-  }
-
-  processingProjects.value.push(projectId)
-  processing.value = true
-
-  try {
-    // Update project status to rejected
-    const supabase = getSupabase()
-    if (!supabase) {
-      throw new Error('Supabase client not available')
-    }
-
-    const { error } = await supabase
-      .from('projects')
-      .update({
-        status: 'rejected',
-        verification_notes: reason,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', projectId)
-
-    if (error) {
-      throw new Error(error.message)
-    }
-
-    // Update project status in all lists
-    const projectIndex = allProjects.value.findIndex(p => p.id === projectId)
-    if (projectIndex !== -1) {
-      allProjects.value[projectIndex].status = 'rejected'
-    }
-    pendingProjects.value = pendingProjects.value.filter((p) => p.id !== projectId)
-
-    // Reload the list to ensure consistency
-    await loadPendingProjects()
-
-    // Show modern success prompt
-    await success({
-      title: 'Project Rejected',
-      message: `"${project.title}" has been rejected. The developer has been notified.`,
-      confirmText: 'OK',
-    })
-  } catch (err) {
-    console.error('Error rejecting project:', err)
-    await showErrorPrompt({
-      title: 'Rejection Failed',
-      message: err.message || 'Failed to reject project. Please try again.',
-      confirmText: 'OK',
-    })
-  } finally {
-    processingProjects.value = processingProjects.value.filter((id) => id !== projectId)
-    processing.value = processingProjects.value.length > 0
-  }
-}
-
 async function deleteProject(projectId) {
   const project = allProjects.value.find((p) => p.id === projectId)
   if (!project) {
-    console.warn('⚠️ Project not found in list:', projectId)
+    console.warn('Project not found in list:', projectId)
     return
   }
 
   // Prevent multiple simultaneous calls for same project
   if (processingProjects.value.includes(projectId)) {
-    console.warn('⚠️ Project deletion already in progress for:', projectId)
+    console.warn('Project deletion already in progress for:', projectId)
     return
   }
 
@@ -421,7 +325,7 @@ async function deleteProject(projectId) {
   const confirmed = await confirm({
     type: 'warning',
     title: 'Delete Project?',
-    message: `⚠️ WARNING: Are you sure you want to permanently delete "${project.title}"?\n\nThis action cannot be undone and will:\n- Remove the project from the system\n- Delete all associated credits and listings\n- Delete all related data\n\nThis is a permanent action!`,
+    message: `Warning: Are you sure you want to permanently delete "${project.title}"?\n\nThis action cannot be undone and will:\n- Remove the project from the system\n- Delete all associated credits and listings\n- Delete all related data\n\nThis is a permanent action!`,
     confirmText: 'Delete Permanently',
     cancelText: 'Cancel',
   })
@@ -434,7 +338,7 @@ async function deleteProject(projectId) {
   processing.value = true
 
   try {
-    console.log('🗑️ Admin deleting project:', projectId)
+    console.log('Admin deleting project:', projectId)
     
     // Use admin delete function which bypasses status checks
     const result = await projectService.adminDeleteProject(projectId)
@@ -443,14 +347,14 @@ async function deleteProject(projectId) {
       throw new Error('Delete operation returned false')
     }
 
-    console.log('✅ Project deleted successfully:', projectId)
+    console.log('Project deleted successfully:', projectId)
 
     // Remove from all lists immediately (optimistic update)
     allProjects.value = allProjects.value.filter((p) => p.id !== projectId)
     pendingProjects.value = pendingProjects.value.filter((p) => p.id !== projectId)
 
     // Force a complete refresh of the list from database to verify deletion
-    console.log('🔄 Reloading projects list from database to verify deletion...')
+    console.log('Reloading projects list from database to verify deletion...')
     
     // Wait a moment to ensure database operation completes
     await new Promise(resolve => setTimeout(resolve, 500))
@@ -461,20 +365,20 @@ async function deleteProject(projectId) {
     // Double-check: Verify the project is not in the list
     const stillExists = allProjects.value.find(p => p.id === projectId)
     if (stillExists) {
-      console.error('❌ CRITICAL: Project still appears in list after deletion!', projectId)
+      console.error('Critical: Project still appears in list after deletion!', projectId)
       throw new Error('Project deletion verification failed - project still appears in the list')
     }
     
-    console.log('✅ Verification: Project confirmed removed from interface and database')
+    console.log('Verification: Project confirmed removed from interface and database')
 
     // Show modern success prompt
     await success({
-      title: 'Project Deleted! 🗑️',
+      title: 'Project Deleted!',
       message: `"${project.title}" has been permanently deleted from the system and database.`,
       confirmText: 'OK',
     })
   } catch (err) {
-    console.error('❌ Error deleting project:', err)
+    console.error('Error deleting project:', err)
     await showErrorPrompt({
       title: 'Deletion Failed',
       message: err.message || 'Failed to delete project. Please check console for details and try again.',
@@ -495,59 +399,127 @@ function formatDate(dateString) {
     minute: '2-digit',
   })
 }
+
+function getStatusLabel(status) {
+  switch (status) {
+    case 'pending':
+      return 'Pending'
+    case 'under_review':
+      return 'Under Review'
+    case 'approved':
+      return 'Approved'
+    case 'rejected':
+      return 'Rejected'
+    default:
+      return status.toUpperCase()
+  }
+}
+
+async function openVerificationModal(project, newStatus) {
+  console.log('Opening verification modal for project:', project.id, 'to status:', newStatus)
+  const statusLabel = getStatusLabel(newStatus)
+  const confirmed = await confirm({
+    type: 'success',
+    title: `Confirm ${statusLabel}?`,
+    message: `Are you sure you want to mark "${project.title}" as ${statusLabel.toLowerCase()}? This action cannot be undone.`,
+    confirmText: `Confirm ${statusLabel}`,
+    cancelText: 'Cancel',
+  })
+
+  if (!confirmed) {
+    return
+  }
+
+  processingProjects.value.push(project.id)
+  processing.value = true
+
+  try {
+    const result = await projectApprovalService.updateProjectStatus(project.id, newStatus)
+    console.log('Project status updated:', result)
+
+    // Update project status in all lists
+    const projectIndex = allProjects.value.findIndex(p => p.id === project.id)
+    if (projectIndex !== -1) {
+      allProjects.value[projectIndex].status = newStatus
+    }
+    pendingProjects.value = pendingProjects.value.filter((p) => p.id !== project.id)
+
+    // Reload the list to ensure consistency
+    await loadPendingProjects()
+
+    // Show modern success prompt
+    await success({
+      title: `${statusLabel} Complete`,
+      message: `"${project.title}" has been marked as ${statusLabel.toLowerCase()}.`,
+      confirmText: 'OK',
+    })
+  } catch (err) {
+    console.error('Error updating project status:', err)
+    await showErrorPrompt({
+      title: `${statusLabel} Failed`,
+      message: err.message || `Failed to mark the project as ${statusLabel.toLowerCase()}. Please try again.`,
+      confirmText: 'OK',
+    })
+  } finally {
+    processingProjects.value = processingProjects.value.filter((id) => id !== project.id)
+    processing.value = processingProjects.value.length > 0
+  }
+}
 </script>
 
 <style scoped>
 .project-approval-panel {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 24px;
+  background: transparent;
+  padding: 0;
 }
 
 .panel-header {
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid var(--ecolink-border, #e5e7eb);
 }
 
 .panel-header h2 {
   margin: 0 0 8px 0;
-  color: #333;
-  font-size: 24px;
+  color: var(--ecolink-text, #111827);
+  font-size: 26px;
+  font-weight: 700;
 }
 
 .panel-header p {
-  margin: 0 0 1rem 0;
-  color: #666;
+  margin: 0;
+  color: var(--ecolink-muted, #6b7280);
 }
 
 .filter-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-top: 1rem;
+  margin-top: 1.25rem;
   flex-wrap: wrap;
 }
 
 .filter-tab {
-  padding: 0.5rem 1rem;
-  border: 1px solid #e9ecef;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid var(--ecolink-border, #e5e7eb);
   background: white;
-  border-radius: 4px;
+  border-radius: 999px;
   cursor: pointer;
   font-size: 0.9rem;
-  transition: all 0.2s;
+  font-weight: 600;
+  color: var(--ecolink-text, #111827);
+  transition: all 0.2s ease;
 }
 
 .filter-tab:hover {
-  background: #f8f9fa;
-  border-color: #007bff;
+  border-color: var(--primary-color, #10b981);
+  color: var(--primary-color, #10b981);
 }
 
 .filter-tab.active {
-  background: #007bff;
+  background: var(--primary-color, #10b981);
+  border-color: var(--primary-color, #10b981);
   color: white;
-  border-color: #007bff;
+  box-shadow: 0 10px 18px rgba(16, 185, 129, 0.18);
 }
 
 .loading-state,
@@ -555,226 +527,367 @@ function formatDate(dateString) {
 .no-projects {
   text-align: center;
   padding: 48px 24px;
+  color: var(--ecolink-muted, #6b7280);
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(0, 0, 0, 0.08);
+  border-top-color: var(--primary-color, #10b981);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 1s ease-in-out infinite;
   margin: 0 auto 16px;
 }
 
-.spinner.small {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-  margin: 0 8px 0 0;
-}
-
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
+  to {
     transform: rotate(360deg);
   }
 }
 
+.spinner.small {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
 .error-message {
-  color: #dc3545;
+  color: #dc2626;
   margin-bottom: 16px;
 }
 
 .retry-btn {
-  background: #007bff;
+  padding: 10px 18px;
+  background: var(--primary-color, #10b981);
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: 600;
+  transition: background 0.2s ease;
+}
+
+.retry-btn:hover {
+  background: #059669;
 }
 
 .no-projects-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  border-radius: 0.75rem;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
 }
 
-.no-projects h3 {
-  margin: 0 0 8px 0;
-  color: #333;
+.no-projects-icon .material-symbols-outlined {
+  font-size: 1.9rem;
 }
 
-.no-projects p {
-  margin: 0;
-  color: #666;
+.projects-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) 1fr;
+  gap: 24px;
+  align-items: flex-start;
+  width: 100%;
+  min-height: 0;
 }
 
-.projects-list {
+.project-list {
   display: flex;
   flex-direction: column;
+  background: var(--ecolink-surface, #ffffff);
+  border: 1px solid var(--ecolink-border, #e5e7eb);
+  border-radius: 16px;
+  overflow: hidden;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.project-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ecolink-text, #111827);
+  transition: background 0.15s ease;
+}
+
+.project-list-item + .project-list-item {
+  border-top: 1px solid var(--ecolink-border, #e5e7eb);
+}
+
+.project-list-item:hover {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.project-list-item.active {
+  background: rgba(16, 185, 129, 0.16);
+  border-left: 3px solid var(--primary-color, #10b981);
+}
+
+.project-list-title {
+  flex: 1;
+  font-size: 0.95rem;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-badge.pending {
+  background: rgba(253, 224, 71, 0.18);
+  color: #92400e;
+}
+
+.status-badge.under_review {
+  background: rgba(147, 197, 253, 0.2);
+  color: #1d4ed8;
+}
+
+.status-badge.approved {
+  background: rgba(34, 197, 94, 0.18);
+  color: #166534;
+}
+
+.status-badge.rejected {
+  background: rgba(248, 113, 113, 0.2);
+  color: #9f1239;
+}
+
+.project-detail {
+  position: relative;
+  background: var(--ecolink-surface, #ffffff);
+  border: 1px solid var(--ecolink-border, #e5e7eb);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 380px;
+  min-width: 0;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.project-detail.empty-detail {
+  align-items: center;
+  justify-content: center;
+}
+
+.detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
 }
 
-.project-card {
-  border: 1px solid #e9ecef;
-  border-radius: 8px;
-  padding: 20px;
-  position: relative;
-  background: #f8f9fa;
-}
-
-.project-status-badge {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.project-status-badge.pending {
-  background: #ffc107;
-  color: #856404;
-}
-
-.project-status-badge.approved {
-  background: #28a745;
-  color: white;
-}
-
-.project-status-badge.rejected {
-  background: #dc3545;
-  color: white;
-}
-
-.project-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.project-title {
+.detail-title {
   margin: 0;
-  color: #333;
-  font-size: 18px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--ecolink-text, #0f172a);
 }
 
-.project-category {
-  background: #007bff;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.project-details {
-  margin-bottom: 16px;
-}
-
-.detail-row {
-  margin-bottom: 8px;
-  color: #555;
-}
-
-.project-impact {
-  margin: 8px 0 0 0;
-  padding: 12px;
-  background: #e3f2fd;
-  border-radius: 4px;
-  color: #1565c0;
-  font-style: italic;
-}
-
-.project-description {
-  margin-bottom: 20px;
-}
-
-.project-description strong {
-  color: #333;
-}
-
-.project-description p {
-  margin: 8px 0 0 0;
-  color: #666;
-  line-height: 1.5;
-}
-
-.project-actions {
+.detail-meta {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  color: var(--ecolink-muted, #6b7280);
+  font-size: 0.95rem;
+}
+
+.detail-meta .meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.detail-meta .material-symbols-outlined {
+  font-size: 1.05rem;
+}
+
+.detail-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.detail-section h4 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ecolink-text, #111827);
+}
+
+.detail-section h4 .material-symbols-outlined {
+  font-size: 1.2rem;
+  color: var(--primary-color, #10b981);
+}
+
+.detail-section p {
+  margin: 0;
+  color: var(--ecolink-text, #374151);
+  line-height: 1.6;
+}
+
+.detail-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
   gap: 12px;
+  margin-top: 1.5rem;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 35%);
+  padding: 16px 0 8px;
 }
 
-.approve-btn,
-.reject-btn {
-  padding: 10px 20px;
-  border: none;
-  border-radius: 4px;
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.15rem;
+  border-radius: 10px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
-.approve-btn {
-  background: #28a745;
-  color: white;
+.action-btn .material-symbols-outlined {
+  font-size: 1.25rem;
 }
 
-.approve-btn:hover:not(:disabled) {
-  background: #218838;
-}
-
-.reject-btn {
-  background: #dc3545;
-  color: white;
-}
-
-.reject-btn:hover:not(:disabled) {
-  background: #c82333;
-}
-
-.delete-btn {
-  background: #6c757d;
-  color: white;
-}
-
-.delete-btn:hover:not(:disabled) {
-  background: #5a6268;
-}
-
-.approve-btn:disabled,
-.reject-btn:disabled,
-.delete-btn:disabled {
+.action-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
-.processing-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(255, 255, 255, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
+.action-btn.success {
+  background: var(--primary-color, #10b981);
+  color: white;
+  box-shadow: 0 12px 20px rgba(16, 185, 129, 0.22);
 }
 
-.success-message {
-  background: #d4edda;
-  color: #155724;
-  padding: 12px 16px;
-  border-radius: 4px;
-  margin-bottom: 16px;
-  border: 1px solid #c3e6cb;
+.action-btn.success:hover:not(:disabled) {
+  background: #059669;
+}
+
+.action-btn.danger {
+  background: #dc2626;
+  color: white;
+  box-shadow: 0 12px 20px rgba(220, 38, 38, 0.2);
+}
+
+.action-btn.danger:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.action-btn.outline {
+  background: transparent;
+  border-color: var(--ecolink-border, #e5e7eb);
+  color: var(--ecolink-text, #111827);
+}
+
+.action-btn.outline:hover:not(:disabled) {
+  border-color: var(--primary-color, #10b981);
+  color: var(--primary-color, #10b981);
+}
+
+.action-btn.outline.danger {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.action-btn.outline.danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.08);
+}
+
+.processing-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  backdrop-filter: blur(2px);
+}
+
+@media (max-width: 1024px) {
+  .projects-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .project-list {
+    flex-direction: row;
+    overflow-x: auto;
+    border-radius: 16px 16px 0 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .project-list-item,
+  .project-list-item + .project-list-item {
+    border-top: none;
+    border-right: 1px solid var(--ecolink-border, #e5e7eb);
+    min-width: 220px;
+  }
+
+  .project-detail {
+    border-top-left-radius: 0;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-tabs {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .project-list {
+    flex-direction: column;
+  }
+
+  .project-list-item,
+  .project-list-item + .project-list-item {
+    border-right: none;
+    border-top: 1px solid var(--ecolink-border, #e5e7eb);
+  }
+
+  .detail-actions {
+    flex-direction: column;
+    align-items: stretch;
+    position: static;
+    background: none;
+    padding: 0;
+  }
 }
 </style>
+

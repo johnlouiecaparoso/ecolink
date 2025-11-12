@@ -21,6 +21,15 @@ export async function initSupabase() {
     isInitializing = true
     const url = requireEnv('VITE_SUPABASE_URL')
     const key = requireEnv('VITE_SUPABASE_ANON_KEY')
+    
+    // Validate URL format before creating client
+    if (!url || url === 'your_supabase_project_url_here' || !url.startsWith('http')) {
+      throw new Error('Invalid Supabase URL. Please set VITE_SUPABASE_URL to a valid URL (e.g., https://your-project.supabase.co)')
+    }
+    
+    if (!key || key === 'your_supabase_anon_key_here') {
+      throw new Error('Invalid Supabase key. Please set VITE_SUPABASE_ANON_KEY to your actual anon key')
+    }
 
     // DO NOT clear localStorage here - Supabase manages its own session storage
     // Clearing it would delete valid auth tokens on every page refresh!
@@ -86,7 +95,28 @@ export async function initSupabase() {
     console.log('✅ Supabase client initialized successfully')
     return supabase
   } catch (error) {
-    console.error('Failed to initialize Supabase client:', error)
+    // Only log error once per session to reduce console noise
+    if (!window._supabaseErrorLogged) {
+      if (error.message?.includes('Required env var')) {
+        console.warn('⚠️ Supabase not configured: Missing environment variables')
+        console.warn('💡 Create a .env file in the project root with:')
+        console.warn('   VITE_SUPABASE_URL=https://your-project-id.supabase.co')
+        console.warn('   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key')
+        console.warn('💡 App will continue in limited mode without database functionality')
+      } else if (error.message?.includes('Invalid Supabase URL') || error.message?.includes('Invalid supabaseUrl')) {
+        console.warn('⚠️ Supabase URL is invalid or still has placeholder value')
+        console.warn('💡 Update your .env file with a valid Supabase URL:')
+        console.warn('   VITE_SUPABASE_URL=https://your-project-id.supabase.co')
+        console.warn('   Get your URL from: https://app.supabase.com -> Your Project -> Settings -> API')
+      } else if (error.message?.includes('Invalid Supabase key')) {
+        console.warn('⚠️ Supabase key is invalid or still has placeholder value')
+        console.warn('💡 Update your .env file with your actual Supabase anon key')
+        console.warn('   Get your key from: https://app.supabase.com -> Your Project -> Settings -> API')
+      } else {
+        console.error('Failed to initialize Supabase client:', error)
+      }
+      window._supabaseErrorLogged = true
+    }
     supabase = null
     return null
   } finally {
@@ -97,8 +127,9 @@ export async function initSupabase() {
 export function getSupabase() {
   if (!supabase && !isInitializing) {
     // Start initialization but don't block
-    initSupabase().catch((err) => {
-      console.error('Error initializing Supabase:', err)
+    // Errors are already handled in initSupabase, no need to log again
+    initSupabase().catch(() => {
+      // Error already logged in initSupabase
     })
   }
   // Return existing instance (might be null if still initializing)

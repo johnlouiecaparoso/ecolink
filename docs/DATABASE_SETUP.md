@@ -68,6 +68,19 @@ If you enable the database, it will create these tables:
 - `credit_certificates` - User certificates
 - `audit_logs` - User action logs
 - `wallet_accounts` - User wallet balances
+- `role_applications` - Developer & verifier role requests awaiting admin approval
+
+## Role Application Workflow
+
+To use the new developer/verifier application flow:
+
+1. Run the SQL in `sql/ROLE_APPLICATIONS_SETUP.sql` inside the Supabase SQL editor.  
+   This script creates the `role_applications` table, indexes, and row-level security policies so that:
+   - Anyone can submit an application (with or without an account)
+   - Authenticated users can view their own submissions
+   - Admins can review, approve, or reject applications
+2. Deploy the updated frontend so users can access the `/apply-role` page.
+3. Admin reviewers can manage pending requests at `/admin/role-applications`. Approved requests automatically update the user’s role when the applicant has an account linked to their email.
 
 ## Quick Toggle
 

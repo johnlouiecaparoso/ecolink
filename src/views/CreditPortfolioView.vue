@@ -4,9 +4,6 @@
     <div class="page-header">
       <div class="container">
         <div class="header-content">
-          <button class="btn btn-ghost back-btn" @click="$router.push('/wallet')">
-            ← Back to Wallet
-          </button>
           <div class="header-text">
             <h1 class="page-title">Credit Portfolio</h1>
             <p class="page-description">
@@ -28,7 +25,13 @@
 
         <!-- Error State -->
         <div v-else-if="error" class="error-state">
-          <div class="error-icon">⚠️</div>
+          <div class="error-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M12 3.25 3.75 19.5h16.5L12 3.25Z" stroke-linejoin="round" />
+              <path d="M12 9v4.5" stroke-linecap="round" />
+              <circle cx="12" cy="17" r="0.75" fill="currentColor" stroke="none" />
+            </svg>
+          </div>
           <h3>Unable to load portfolio</h3>
           <p>{{ error }}</p>
           <button class="btn btn-primary" @click="loadPortfolio">Try Again</button>
@@ -40,28 +43,57 @@
           <div class="stats-section">
             <div class="stats-grid">
               <div class="stat-card">
-                <div class="stat-icon">🌱</div>
+                <div class="stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M19 8.5c-1.5-3-4.5-5.5-8.5-5.5-4.4 0-8 3.4-8 7.8 0 4.3 3.3 7.7 7.5 7.7H11v2.1a.75.75 0 0 0 1.28.53l2.9-2.9a.75.75 0 0 0-.53-1.28H12c-2.6 0-4.75-2.07-4.75-4.75S9.4 7 12 7h6.5Z"
+                    />
+                  </svg>
+                </div>
                 <div class="stat-content">
                   <h3>{{ creditStats.total_owned.toLocaleString() }}</h3>
                   <p>Total Credits Owned</p>
                 </div>
               </div>
               <div class="stat-card">
-                <div class="stat-icon">♻️</div>
+                <div class="stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      d="M16.5 6.75A5.25 5.25 0 0 0 6.75 9h2.5m8 8.25A5.25 5.25 0 0 0 17.25 9h-2.5M9.25 16.5A5.25 5.25 0 0 0 17.25 9m-10.5 6.75-2-2m2 2 2-2m4.5-5.5 2-2m-2 2-2-2"
+                    />
+                  </svg>
+                </div>
                 <div class="stat-content">
                   <h3>{{ creditStats.total_retired.toLocaleString() }}</h3>
                   <p>Credits Retired</p>
                 </div>
               </div>
               <div class="stat-card">
-                <div class="stat-icon">🏢</div>
+                <div class="stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="5" y="3.75" width="14" height="16.5" rx="2" />
+                    <path d="M9 7.5h2m-2 4h2m-2 4h2m4-8h2m-2 4h2m-7 5.75v-4h4v4" />
+                  </svg>
+                </div>
                 <div class="stat-content">
                   <h3>{{ creditStats.projects_count }}</h3>
                   <p>Projects Supported</p>
                 </div>
               </div>
               <div class="stat-card">
-                <div class="stat-icon">💰</div>
+                <div class="stat-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <rect x="3.75" y="5.25" width="16.5" height="13.5" rx="3" />
+                    <path
+                      d="M7 9.5h5.25a2.25 2.25 0 1 1 0 4.5H7m6-6.5V8m0 8v-.5"
+                      stroke-linecap="round"
+                    />
+                  </svg>
+                </div>
                 <div class="stat-content">
                   <h3>${{ portfolioValue.toLocaleString() }}</h3>
                   <p>Portfolio Value</p>
@@ -76,7 +108,15 @@
               <h2 class="section-title">Your Credit Holdings</h2>
               <div class="section-actions">
                 <button class="btn btn-outline" @click="refreshPortfolio">
-                  <span class="btn-icon">🔄</span>
+                  <span class="btn-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        d="M3.75 9a8.25 8.25 0 0 1 14.28-4.987M20.25 15a8.25 8.25 0 0 1-14.28 4.987M3.75 9V5.25m0 3.75H7.5M20.25 15V18.75m0-3.75H16.5"
+                      />
+                    </svg>
+                  </span>
                   Refresh
                 </button>
               </div>
@@ -84,7 +124,15 @@
 
             <!-- Empty State -->
             <div v-if="creditPortfolio.length === 0" class="empty-state">
-              <div class="empty-icon">🌱</div>
+              <div class="empty-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M12 3c-3.75 0-7 3.05-7 6.8 0 3.6 2.7 6.45 6.3 6.77v3.18a.75.75 0 0 0 1.28.53l2.65-2.65a.75.75 0 0 0-.53-1.28H12c-2.07 0-3.75-1.68-3.75-3.75S9.93 8.85 12 8.85h5.75C17.47 5.4 15.08 3 12 3Z"
+                  />
+                </svg>
+              </div>
               <h3>No credits yet</h3>
               <p>Purchase credits from the marketplace to build your portfolio</p>
               <button class="btn btn-primary" @click="$router.push('/marketplace')">
@@ -108,7 +156,10 @@
                   </div>
                   <div class="credit-info">
                     <h3 class="credit-title">{{ credit.project_title }}</h3>
-                    <p class="credit-location">📍 {{ credit.project_location }}</p>
+                    <p class="credit-location">
+                      <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                      <span>{{ credit.project_location }}</span>
+                    </p>
                     <span class="credit-category">{{ credit.project_category }}</span>
                   </div>
                 </div>
@@ -131,46 +182,67 @@
                 </div>
 
                 <div class="credit-actions">
-                  <button
-                    v-if="credit.ownership_status === 'owned'"
-                    class="btn btn-sm btn-primary"
-                    @click="retireCredits(credit)"
-                  >
-                    Retire Credits
+                  <button class="btn btn-sm btn-outline" @click="router.push('/wallet')">
+                    Manage in Wallet
                   </button>
-                  <button v-else class="btn btn-sm btn-outline" disabled>Already Retired</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Transaction History -->
-          <div class="transactions-section">
-            <div class="section-header">
-              <h2 class="section-title">Recent Transactions</h2>
-              <button class="btn btn-outline" @click="$router.push('/wallet')">View All</button>
+          <!-- Portfolio Insights -->
+          <div class="insights-section">
+            <div class="insight-card">
+              <div class="section-header">
+                <h2 class="section-title">Category Allocation</h2>
+              </div>
+              <ul class="insight-list">
+                <li v-if="categoryBreakdown.length === 0" class="insight-empty">
+                  <span>No category data yet</span>
+                </li>
+                <li v-for="entry in categoryBreakdown" :key="entry.name" class="insight-list-item">
+                  <span class="insight-label">{{ entry.name }}</span>
+                  <span class="insight-value">
+                    {{ entry.credits.toLocaleString() }} credits · {{ entry.percentageLabel }}
+                  </span>
+                </li>
+              </ul>
             </div>
 
-            <div class="transactions-list">
-              <div v-if="recentTransactions.length === 0" class="empty-transactions">
-                <p>No recent transactions</p>
+            <div class="insight-card">
+              <div class="section-header">
+                <h2 class="section-title">Geographic Spread</h2>
               </div>
-              <div
-                v-for="transaction in recentTransactions"
-                :key="transaction.id"
-                class="transaction-item"
-              >
-                <div class="transaction-icon">
-                  {{ getTransactionIcon(transaction.type) }}
+              <ul class="insight-list">
+                <li v-if="locationBreakdown.length === 0" class="insight-empty">
+                  <span>No location data available</span>
+                </li>
+                <li v-for="entry in locationBreakdown" :key="entry.name" class="insight-list-item">
+                  <span class="insight-label">{{ entry.name }}</span>
+                  <span class="insight-value">
+                    {{ entry.projects }} {{ entry.projects === 1 ? 'project' : 'projects' }}
+                  </span>
+                </li>
+              </ul>
+            </div>
+
+            <div class="insight-card">
+              <div class="section-header">
+                <h2 class="section-title">Retirement Progress</h2>
+              </div>
+              <div class="retirement-progress">
+                <div class="progress-number">
+                  {{ creditStats.total_retired.toLocaleString() }} retired
                 </div>
-                <div class="transaction-details">
-                  <h4 class="transaction-title">{{ transaction.description }}</h4>
-                  <p class="transaction-date">{{ formatDate(transaction.created_at) }}</p>
+                <div class="progress-bar">
+                  <div
+                    class="progress-bar-fill"
+                    :style="{ width: retirementProgress.percentLabel }"
+                  ></div>
                 </div>
-                <div class="transaction-amount" :class="transaction.type">
-                  {{ transaction.type === 'deposit' ? '+' : '-'
-                  }}{{ formatCurrency(transaction.amount) }}
-                </div>
+                <p class="progress-description">
+                  {{ retirementProgress.percentLabel }} of your credits have already been retired.
+                </p>
               </div>
             </div>
           </div>
@@ -185,7 +257,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { creditOwnershipService } from '@/services/creditOwnershipService'
-import { getTransactions } from '@/services/walletService'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -198,7 +269,6 @@ const creditStats = ref({
   total_credits: 0,
   projects_count: 0,
 })
-const recentTransactions = ref([])
 const loading = ref(false)
 const error = ref('')
 
@@ -206,6 +276,64 @@ const error = ref('')
 const portfolioValue = computed(() => {
   // Calculate portfolio value based on average credit price
   return creditStats.value.total_owned * 25 // Assuming $25 per credit average
+})
+
+const totalOwnedCredits = computed(() =>
+  creditPortfolio.value.reduce((sum, record) => sum + (record.quantity || 0), 0),
+)
+
+const categoryBreakdown = computed(() => {
+  const totals = new Map()
+  creditPortfolio.value.forEach((record) => {
+    const name = record.project_category || 'Uncategorized'
+    totals.set(name, (totals.get(name) || 0) + (record.quantity || 0))
+  })
+
+  const overall = totalOwnedCredits.value || 0
+
+  return Array.from(totals.entries())
+    .map(([name, credits]) => {
+      const percent = overall > 0 ? Math.round((credits / overall) * 100) : 0
+      return {
+        name,
+        credits,
+        percentage: percent,
+        percentageLabel: `${percent}%`,
+      }
+    })
+    .sort((a, b) => b.credits - a.credits)
+})
+
+const locationBreakdown = computed(() => {
+  const locations = new Map()
+  creditPortfolio.value.forEach((record) => {
+    const location = record.project_location || 'Unspecified'
+    if (!locations.has(location)) {
+      locations.set(location, { projects: 0, credits: 0 })
+    }
+    const entry = locations.get(location)
+    entry.projects += 1
+    entry.credits += record.quantity || 0
+  })
+
+  return Array.from(locations.entries())
+    .map(([name, data]) => ({
+      name,
+      projects: data.projects,
+      credits: data.credits,
+    }))
+    .sort((a, b) => b.credits - a.credits)
+    .slice(0, 5)
+})
+
+const retirementProgress = computed(() => {
+  const totalOwned = creditStats.value.total_owned || 0
+  const totalRetired = creditStats.value.total_retired || 0
+  const percent = totalOwned > 0 ? Math.min(100, Math.round((totalRetired / totalOwned) * 100)) : 0
+  return {
+    percent,
+    percentLabel: `${percent}%`,
+  }
 })
 
 // Methods
@@ -219,19 +347,27 @@ async function loadPortfolio() {
   error.value = ''
 
   try {
-    const [portfolio, stats, transactions] = await Promise.all([
+    const [portfolio, stats] = await Promise.all([
       creditOwnershipService.getUserCreditPortfolio(userStore.session.user.id),
       creditOwnershipService.getUserCreditStats(userStore.session.user.id),
-      getTransactions(userStore.session.user.id),
     ])
 
-    creditPortfolio.value = portfolio
-    creditStats.value = stats
-    recentTransactions.value = transactions.slice(0, 5) // Show last 5 transactions
+    creditPortfolio.value = portfolio || []
+    creditStats.value = stats || {
+      total_owned: 0,
+      total_retired: 0,
+      total_credits: 0,
+      projects_count: 0,
+    }
 
-    console.log('✅ Portfolio loaded successfully')
+    if (import.meta.env.DEV) {
+      console.log('Portfolio loaded successfully', {
+        holdings: creditPortfolio.value.length,
+        totalOwned: creditStats.value.total_owned,
+      })
+    }
   } catch (err) {
-    console.error('❌ Error loading portfolio:', err)
+    console.error('Error loading portfolio:', err)
     error.value = 'Failed to load portfolio. Please try again.'
   } finally {
     loading.value = false
@@ -242,40 +378,12 @@ async function refreshPortfolio() {
   await loadPortfolio()
 }
 
-function retireCredits(credit) {
-  // Navigate to retire page with pre-filled data
-  router.push({
-    path: '/retire',
-    query: {
-      project: credit.project_id,
-      quantity: credit.quantity,
-    },
-  })
-}
-
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
-}
-
-function formatCurrency(amount) {
-  return new Intl.NumberFormat('en-PH', {
-    style: 'currency',
-    currency: 'PHP',
-  }).format(amount)
-}
-
-function getTransactionIcon(type) {
-  const icons = {
-    deposit: '💰',
-    withdrawal: '💸',
-    payment: '💳',
-    refund: '↩️',
-  }
-  return icons[type] || '💳'
 }
 
 // Lifecycle
@@ -287,7 +395,7 @@ onMounted(() => {
 <style scoped>
 .credit-portfolio-page {
   min-height: 100vh;
-  background: var(--bg-primary, #ffffff);
+  background: var(--bg-secondary, #f8fdf8);
 }
 
 .container {
@@ -299,8 +407,10 @@ onMounted(() => {
 /* Page Header */
 .page-header {
   padding: 2rem 0;
-  border-bottom: 1px solid var(--border-color, #e2e8f0);
-  background: var(--bg-secondary, #f8fdf8);
+  background: linear-gradient(135deg, var(--primary-color, #10b981), var(--primary-dark, #04773b));
+  border-bottom: none;
+  border-radius: 0 0 24px 24px;
+  box-shadow: 0 24px 48px rgba(4, 119, 59, 0.2);
 }
 
 .header-content {
@@ -309,35 +419,16 @@ onMounted(() => {
   gap: 1rem;
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: transparent;
-  border: 1px solid var(--border-color, #e2e8f0);
-  border-radius: 0.5rem;
-  color: var(--text-secondary, #4a5568);
-  text-decoration: none;
-  transition: all 0.2s ease;
-}
-
-.back-btn:hover {
-  background: var(--bg-primary, #ffffff);
-  border-color: var(--primary-color, #069e2d);
-  color: var(--primary-color, #069e2d);
-}
-
 .page-title {
   font-size: 2.5rem;
   font-weight: 700;
-  color: var(--text-primary, #1a202c);
+  color: #ffffff;
   margin: 0 0 0.5rem 0;
 }
 
 .page-description {
   font-size: 1.125rem;
-  color: var(--text-muted, #718096);
+  color: rgba(255, 255, 255, 0.85);
   margin: 0;
 }
 
@@ -354,10 +445,11 @@ onMounted(() => {
 
 /* Stats Section */
 .stats-section {
-  background: var(--bg-primary, #ffffff);
+  background: #ffffff;
   border-radius: 1rem;
   padding: 2rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.1);
 }
 
 .stats-grid {
@@ -377,14 +469,19 @@ onMounted(() => {
 }
 
 .stat-icon {
-  font-size: 2rem;
   width: 3rem;
   height: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-light, rgba(6, 158, 45, 0.1));
-  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.11);
+  border-radius: 0.75rem;
+  color: #0f172a;
+}
+
+.stat-icon svg {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .stat-content h3 {
@@ -402,10 +499,11 @@ onMounted(() => {
 
 /* Holdings Section */
 .holdings-section {
-  background: var(--bg-primary, #ffffff);
+  background: #ffffff;
   border-radius: 1rem;
   padding: 2rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(15, 118, 110, 0.1);
+  border: 1px solid rgba(15, 118, 110, 0.1);
 }
 
 .section-header {
@@ -435,22 +533,108 @@ onMounted(() => {
 }
 
 .credit-card {
-  border: 1px solid var(--border-color, #e2e8f0);
+  border: 1px solid rgba(15, 118, 110, 0.1);
   border-radius: 0.75rem;
   padding: 1.5rem;
-  background: var(--bg-primary, #ffffff);
+  background: #ffffff;
   transition: all 0.2s ease;
 }
 
 .credit-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-color: var(--primary-color, #069e2d);
+  transform: translateY(-4px);
+  box-shadow: 0 18px 30px rgba(15, 118, 110, 0.12);
+  border-color: rgba(6, 158, 45, 0.3);
 }
 
 .credit-card.retired {
-  opacity: 0.6;
-  background: var(--bg-muted, #f8f9fa);
+  opacity: 0.75;
+  background: rgba(6, 158, 45, 0.12);
+}
+
+.insights-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.insight-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  padding: 2rem;
+  border: 1px solid rgba(15, 118, 110, 0.1);
+  box-shadow: 0 10px 30px rgba(15, 118, 110, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.insight-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.insight-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+  color: var(--text-primary, #1a202c);
+}
+
+.insight-label {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.insight-value {
+  font-weight: 500;
+  color: #0f172a;
+  opacity: 0.85;
+}
+
+.insight-empty {
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted, #718096);
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: 0.75rem;
+}
+
+.retirement-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.progress-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary, #1a202c);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(6, 158, 45, 0.15);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #bbf7d0 0%, #22c55e 100%);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.progress-description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #4a5568);
 }
 
 .credit-header {
@@ -487,9 +671,15 @@ onMounted(() => {
 }
 
 .credit-location {
-  font-size: 0.875rem;
-  color: var(--text-muted, #718096);
-  margin: 0 0 0.5rem 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.credit-location .material-symbols-outlined {
+  font-size: 1.05rem;
 }
 
 .credit-category {
@@ -539,10 +729,52 @@ onMounted(() => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.wallet-activity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+}
+
+.activity-card {
+  background: var(--bg-primary, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.activity-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.activity-card-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+}
+
 .transactions-list {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.purchase-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }
 
 .transaction-item {
@@ -596,6 +828,96 @@ onMounted(() => {
   color: var(--error-color, #ef4444);
 }
 
+.purchase-history-item {
+  padding: 1rem;
+  background: var(--bg-secondary, #f8fdf8);
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-color, #e2e8f0);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.purchase-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.purchase-project {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.badge-purchase {
+  background: var(--primary-light, rgba(6, 158, 45, 0.1));
+  color: var(--primary-color, #069e2d);
+}
+
+.purchase-title {
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+}
+
+.purchase-date {
+  font-size: 0.85rem;
+  color: var(--text-muted, #718096);
+}
+
+.purchase-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.purchase-credits {
+  font-size: 0.9rem;
+  color: var(--text-secondary, #4a5568);
+}
+
+.purchase-amount {
+  font-weight: 600;
+  color: var(--text-primary, #1a202c);
+}
+
+.purchase-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.purchase-payment {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  color: var(--text-muted, #718096);
+  letter-spacing: 0.05em;
+}
+
+.empty-history {
+  text-align: center;
+  padding: 1rem;
+  color: var(--text-muted, #718096);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
 /* Loading and Error States */
 .loading-state,
 .error-state,
@@ -625,8 +947,47 @@ onMounted(() => {
 
 .error-icon,
 .empty-icon {
-  font-size: 3rem;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  background: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
   margin-bottom: 1rem;
+}
+
+.empty-icon svg {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.btn-icon {
+  display: inline-flex;
+  margin-right: 0.5rem;
+}
+
+.btn-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.error-icon {
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  color: #dc2626;
+  margin: 0 auto 1rem;
+}
+
+.error-icon svg {
+  width: 1.75rem;
+  height: 1.75rem;
 }
 
 .error-state h3,
@@ -677,21 +1038,9 @@ onMounted(() => {
     align-items: flex-start;
     gap: 1rem;
   }
+
+  .insights-section {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

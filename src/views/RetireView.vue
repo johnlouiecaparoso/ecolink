@@ -291,13 +291,24 @@ const canRetire = computed(() => {
 // Methods
 const loadUserCredits = async () => {
   const userId = userStore.session?.user?.id || userStore.user?.id
-  if (!userId) return
+  if (!userId) {
+    loading.value = false
+    return
+  }
 
   loading.value = true
   error.value = ''
 
+  // Add timeout protection to prevent infinite loading
+  const timeoutPromise = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
+  )
+
   try {
-    const credits = await getUserCreditPortfolio(userId)
+    const credits = await Promise.race([
+      getUserCreditPortfolio(userId),
+      timeoutPromise,
+    ])
 
     // Transform the data to include project details (only show credits with quantity > 0)
     availableProjects.value = credits
@@ -322,7 +333,15 @@ const loadUserCredits = async () => {
         return
       }
       
-      const history = await getUserTransactionHistory(userId)
+      // Add timeout protection for transaction history
+      const historyTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Transaction history timeout')), 30000)
+      )
+      
+      const history = await Promise.race([
+        getUserTransactionHistory(userId),
+        historyTimeoutPromise,
+      ])
       
       purchaseHistory.value = history.purchases || []
       retirementHistory.value = history.retirements || []
@@ -354,7 +373,14 @@ const loadUserCredits = async () => {
     }
   } catch (err) {
     console.error('Error loading user credits:', err)
-    error.value = 'Failed to load your credits. Please try again.'
+    if (err.message?.includes('timeout')) {
+      error.value = 'Request timed out. Please check your connection and try again.'
+    } else {
+      error.value = 'Failed to load your credits. Please try again.'
+    }
+    availableProjects.value = []
+    purchaseHistory.value = []
+    retirementHistory.value = []
   } finally {
     loading.value = false
   }

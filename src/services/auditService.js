@@ -247,11 +247,9 @@ export async function searchAuditLogs(filters = {}, limit = 100) {
 
     if (error) {
       console.error('Error searching audit logs:', error)
-      // Return sample data if database query fails
-      return getSampleAuditLogs()
+      return []
     }
 
-    // Transform data to match expected format
     return (data || []).map((log) => ({
       id: log.id,
       action: log.action,
@@ -348,12 +346,11 @@ export async function getUserActivitySummary(userId = null) {
     }
   } catch (error) {
     console.error('Error in getUserActivitySummary:', error)
-    // Return sample data when database fails
     return {
-      total_actions: 156,
-      actions_24h: 12,
-      actions_7d: 89,
-      last_activity: new Date(Date.now() - 2 * 3600000).toISOString(), // 2 hours ago
+      total_actions: 0,
+      actions_24h: 0,
+      actions_7d: 0,
+      last_activity: null,
     }
   }
 }
@@ -384,11 +381,9 @@ export async function getRecentAuditLogs(limit = 50) {
 
     if (error) {
       console.error('Error fetching recent audit logs:', error)
-      // Return sample data if database query fails
-      return getSampleAuditLogs()
+      return []
     }
 
-    // Transform data to match expected format
     return (data || []).map((log) => ({
       id: log.id,
       action: log.action,
@@ -403,67 +398,6 @@ export async function getRecentAuditLogs(limit = 50) {
     }))
   } catch (error) {
     console.error('Error in getRecentAuditLogs:', error)
-    // In production, return empty array instead of fake data
-    // Only use sample data in development
-    if (import.meta.env.DEV || import.meta.env.MODE === 'development') {
-      console.warn('[DEV] Using sample audit logs due to error')
-      return getSampleAuditLogs()
-    }
-    // Production: return empty array, show error to user instead
     return []
   }
-}
-
-/**
- * Get sample audit logs for testing/fallback
- */
-function getSampleAuditLogs() {
-  const now = new Date()
-  const sampleLogs = []
-
-  // Generate sample audit logs
-  const actions = [
-    'LOGIN_SUCCESS',
-    'LOGIN_FAILED',
-    'LOGOUT_SUCCESS',
-    'REGISTRATION_SUCCESS',
-    'CREATE',
-    'UPDATE',
-    'DELETE',
-  ]
-  const resourceTypes = ['user', 'profile', 'project', 'wallet', 'transaction']
-  const users = [
-    { name: 'John Doe', role: 'admin' },
-    { name: 'Jane Smith', role: 'user' },
-    { name: 'Bob Johnson', role: 'verifier' },
-    { name: 'Alice Brown', role: 'user' },
-  ]
-
-  for (let i = 0; i < 20; i++) {
-    const user = users[Math.floor(Math.random() * users.length)]
-    const action = actions[Math.floor(Math.random() * actions.length)]
-    const resourceType = resourceTypes[Math.floor(Math.random() * resourceTypes.length)]
-
-    // Create timestamp going back in time
-    const timestamp = new Date(now.getTime() - i * 3600000) // Each log 1 hour apart
-
-    sampleLogs.push({
-      id: `sample-${i + 1}`,
-      action: action,
-      resource_type: resourceType,
-      resource_id: `${resourceType}-${Math.floor(Math.random() * 1000)}`,
-      user_id: `user-${Math.floor(Math.random() * 100)}`,
-      user_name: user.name,
-      user_role: user.role,
-      ip_address: `192.168.1.${Math.floor(Math.random() * 255)}`,
-      metadata: {
-        browser: 'Chrome',
-        platform: 'Windows',
-        details: `Sample ${action.toLowerCase()} action on ${resourceType}`,
-      },
-      created_at: timestamp.toISOString(),
-    })
-  }
-
-  return sampleLogs
 }

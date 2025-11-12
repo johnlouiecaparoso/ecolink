@@ -259,3 +259,87 @@ export async function updateUserEmailPreferences(userId, preferences) {
     preferences,
   }
 }
+
+/**
+ * Notify applicant that their specialist role request was approved
+ */
+const PROJECT_REF = import.meta.env.VITE_SUPABASE_PROJECT_REF
+const DEFAULT_FUNCTIONS_URL = PROJECT_REF ? `https://${PROJECT_REF}.functions.supabase.co` : ''
+const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || DEFAULT_FUNCTIONS_URL
+
+export async function sendRoleApplicationApprovalEmail(details) {
+  const { email, applicantName, role, hasAccount = false, approvedAt = new Date() } = details || {}
+
+  if (!email) {
+    throw new Error('Approval email requires a recipient email.')
+  }
+
+  if (!FUNCTIONS_URL) {
+    throw new Error('Supabase functions URL is not configured (VITE_SUPABASE_FUNCTIONS_URL).')
+  }
+
+  const roleLabel =
+    role === 'verifier'
+      ? 'Verifier'
+      : role === 'project_developer'
+        ? 'Project Developer'
+        : 'Specialist'
+
+  const origin =
+    (typeof window !== 'undefined' && window.location?.origin) || 'https://app.ecolink.dev'
+
+  const loginLink = `${origin}/login`
+  const signUpLink = `${origin}/register?role=${encodeURIComponent(role || '')}&email=${encodeURIComponent(email)}`
+
+  const html = `
+    <p>Hi ${applicantName || 'EcoLink Specialist'},</p>
+    <p>Your EcoLink application to become a <strong>${roleLabel}</strong> has been approved.</p>
+    ${
+      hasAccount
+        ? `<p>You can sign in and access your dashboard here:<br/><a href="${loginLink}">${loginLink}</a></p>`
+        : `<p>To get started, create your EcoLink account using this link:<br/><a href="${signUpLink}">${signUpLink}</a></p>`
+    }
+    <p>Approval date: ${approvedAt instanceof Date ? approvedAt.toLocaleString() : approvedAt}</p>
+    <p>If you believe this was sent in error, please contact the EcoLink support team.</p>
+    <p>— The EcoLink Team</p>
+  `
+
+  const functionsUrl = `${FUNCTIONS_URL.replace(/\/$/, '')}/send-approval-email`
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+  const response = await fetch(functionsUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(anonKey
+        ? {
+            apikey: anonKey,
+            Authorization: `Bearer ${anonKey}`,
+          }
+        : {}),
+    },
+    body: JSON.stringify({
+      to: email,
+      subject: `🎉 Your ${roleLabel} application has been approved`,
+      html,
+      from: 'EcoLink <notifications@resend.dev>',
+    }),
+  })
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error('send-approval-email failed:', errorText)
+    throw new Error(`Approval email failed: ${errorText}`)
+  }
+
+  const result = await response.json()
+
+  return {
+    ...result,
+    success: true,
+    email,
+    role,
+    hasAccount,
+    type: 'role_application_approved',
+  }
+}

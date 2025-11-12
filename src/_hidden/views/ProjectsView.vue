@@ -283,7 +283,10 @@ onMounted(() => {
 
           <div class="project-meta">
             <span class="project-category">{{ project.category }}</span>
-            <span class="project-location">📍 {{ project.location }}</span>
+            <span class="project-location">
+              <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+              <span>{{ project.location }}</span>
+            </span>
           </div>
 
           <p class="project-description">
@@ -351,7 +354,10 @@ onMounted(() => {
             </div>
             <div class="meta-item">
               <strong>Location:</strong>
-              <span>📍 {{ selectedProject?.location }}</span>
+              <span>
+                <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                <span>{{ selectedProject?.location }}</span>
+              </span>
             </div>
             <div class="meta-item">
               <strong>Created:</strong>
@@ -671,6 +677,16 @@ onMounted(() => {
   color: var(--ecolink-text);
 }
 
+.project-location {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.project-location .material-symbols-outlined {
+  font-size: 1rem;
+}
+
 .project-description {
   margin: 0 0 16px 0;
   color: var(--ecolink-text);
@@ -817,6 +833,10 @@ onMounted(() => {
   justify-content: flex-end;
   padding: 24px;
   border-top: 1px solid var(--ecolink-border);
+}
+
+.modal-meta-item .material-symbols-outlined {
+  font-size: 1.1rem;
 }
 
 /* Responsive Design */

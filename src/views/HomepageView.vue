@@ -40,10 +40,33 @@
           <button @click="$router.push('/register')" class="auth-button secondary">Sign Up</button>
         </div>
 
+        <!-- Role Applications CTA -->
+        <div v-if="!store.isAuthenticated" class="role-apply">
+          <div class="role-apply__content">
+            <h3 class="role-apply__title">Join EcoLink as a Specialist</h3>
+            <p class="role-apply__description">
+              Apply to become a project developer or verifier and help scale trusted climate solutions.
+            </p>
+          </div>
+          <div class="role-apply__buttons">
+            <button
+              class="role-apply__button developer"
+              @click="handleRoleApplication('project_developer')"
+            >
+              Apply as Project Developer
+            </button>
+            <button class="role-apply__button verifier" @click="handleRoleApplication('verifier')">
+              Apply as Verifier
+            </button>
+          </div>
+        </div>
+
         <!-- Stats -->
         <div class="stats-grid">
           <div v-for="(stat, index) in stats" :key="index" class="stat-card">
-            <div class="stat-icon">{{ stat.icon }}</div>
+            <div class="stat-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">{{ stat.icon }}</span>
+            </div>
             <div class="stat-value">{{ stat.value }}</div>
             <div class="stat-label">{{ stat.label }}</div>
           </div>
@@ -157,7 +180,8 @@
               @click="$router.push('/submit-project')"
               class="cta-button secondary"
             >
-              Submit Project
+              <span class="material-symbols-outlined" aria-hidden="true">note_add</span>
+              <span>Submit Project</span>
             </button>
           </template>
         </div>
@@ -235,10 +259,10 @@ export default {
       searchQuery: '',
       currentFeatured: 0,
       stats: [
-        { label: 'Carbon Credits Retired', value: '2.3M', icon: '🌱' },
-        { label: 'Active Projects', value: '150+', icon: '🎯' },
-        { label: 'Countries', value: '45', icon: '🌍' },
-        { label: 'CO2 Reduced', value: '5.2M tonnes', icon: '📈' },
+        { label: 'Carbon Credits Retired', value: '2.3M', icon: 'compost' },
+        { label: 'Active Projects', value: '150+', icon: 'track_changes' },
+        { label: 'Countries', value: '45', icon: 'public' },
+        { label: 'CO2 Reduced', value: '5.2M tonnes', icon: 'monitoring' },
       ],
       featuredProjects: [
         {
@@ -290,6 +314,14 @@ export default {
     handleSearch() {
       if (this.searchQuery.trim()) {
         this.$router.push(`/marketplace?search=${encodeURIComponent(this.searchQuery)}`)
+      }
+    },
+    handleRoleApplication(role) {
+      try {
+        const roleParam = role === 'verifier' ? 'verifier' : 'project_developer'
+        this.$router.push({ name: 'role-application', query: { role: roleParam } })
+      } catch (error) {
+        console.error('Failed to navigate to role application:', error)
       }
     },
   },
@@ -461,6 +493,85 @@ export default {
   box-shadow: var(--shadow-green);
 }
 
+/* Role Apply CTA */
+.role-apply {
+  margin: 0 auto 3rem auto;
+  padding: 2rem;
+  max-width: 60rem;
+  background: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  border: 2px solid var(--border-green-light);
+  box-shadow: var(--shadow-green);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  text-align: center;
+}
+
+.role-apply__content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.role-apply__title {
+  font-size: var(--font-size-2xl);
+  font-weight: 700;
+  color: var(--primary-color);
+  margin: 0;
+}
+
+.role-apply__description {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-base);
+}
+
+.role-apply__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+}
+
+.role-apply__button {
+  width: 100%;
+  max-width: 22rem;
+  padding: 0.85rem 1.5rem;
+  border-radius: var(--radius-lg);
+  border: none;
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-green);
+}
+
+.role-apply__button.developer {
+  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
+  color: var(--text-light);
+}
+
+.role-apply__button.developer:hover {
+  background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-dark) 100%);
+  transform: translateY(-2px);
+}
+
+.role-apply__button.verifier {
+  background: var(--bg-primary);
+  color: var(--primary-color);
+  border: 2px solid var(--primary-color);
+}
+
+.role-apply__button.verifier:hover {
+  background: var(--primary-color);
+  color: var(--text-light);
+  transform: translateY(-2px);
+}
+
 /* Stats Grid */
 .stats-grid {
   display: grid;
@@ -494,10 +605,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 3rem;
   background: linear-gradient(135deg, var(--primary-light) 0%, var(--bg-green-light) 100%);
   border-radius: 50%;
   border: 2px solid var(--border-green-light);
+}
+
+.stat-icon .material-symbols-outlined {
+  font-size: 2.4rem;
 }
 
 .stat-value {
@@ -742,13 +856,19 @@ export default {
 }
 
 .cta-button {
-  padding: 0.75rem 1.5rem;
-  border-radius: var(--radius-md);
-  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  border-radius: 999px;
+  padding: 0.85rem 1.75rem;
+  font-weight: 600;
+  font-size: 1rem;
   cursor: pointer;
-  transition: var(--transition);
-  border: none;
-  min-width: 12rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cta-button .material-symbols-outlined {
+  font-size: 1.25rem;
 }
 
 .cta-button.primary {
@@ -843,6 +963,16 @@ export default {
 @media (min-width: 768px) {
   .hero-title {
     font-size: var(--font-size-6xl);
+  }
+
+  .role-apply__buttons {
+    flex-direction: row;
+    justify-content: center;
+  }
+
+  .role-apply__button {
+    max-width: none;
+    min-width: 16rem;
   }
 
   .stats-grid {

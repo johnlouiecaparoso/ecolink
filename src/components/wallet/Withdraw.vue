@@ -16,10 +16,10 @@ const loading = ref(false)
 const currentBalance = ref(0)
 
 const paymentMethods = [
-  { value: 'gcash', label: 'GCash', icon: '📱' },
-  { value: 'maya', label: 'Maya', icon: '💳' },
-  { value: 'bpi', label: 'BPI', icon: '🏦' },
-  { value: 'bdo', label: 'BDO', icon: '🏦' },
+  { value: 'gcash', label: 'GCash', icon: 'smartphone' },
+  { value: 'maya', label: 'Maya', icon: 'credit_card' },
+  { value: 'bpi', label: 'BPI', icon: 'account_balance' },
+  { value: 'bdo', label: 'BDO', icon: 'account_balance' },
 ]
 
 const quickAmounts = computed(() => {
@@ -168,7 +168,9 @@ loadBalance()
               v-model="formData.paymentMethod"
               class="payment-radio"
             />
-            <span class="method-icon">{{ method.icon }}</span>
+            <span class="material-symbols-outlined method-icon" aria-hidden="true">
+              {{ method.icon }}
+            </span>
             <span class="method-name">{{ method.label }}</span>
           </label>
         </div>
@@ -330,7 +332,15 @@ loadBalance()
 }
 
 .method-icon {
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(6, 158, 45, 0.12);
+  color: var(--ecolink-primary-600, #047857);
+  font-size: 22px;
 }
 
 .method-name {
