@@ -54,13 +54,22 @@
 
               <div class="action-buttons">
                 <UiButton variant="primary" @click="goToMarketplace" class="action-btn">
-                  🏪 Browse Marketplace
+                  <span class="material-symbols-outlined success-action-icon" aria-hidden="true">
+                    storefront
+                  </span>
+                  <span>Browse Marketplace</span>
                 </UiButton>
                 <UiButton variant="outline" @click="goToDashboard" class="action-btn">
-                  📊 Go to Dashboard
+                  <span class="material-symbols-outlined success-action-icon" aria-hidden="true">
+                    dashboard
+                  </span>
+                  <span>Go to Dashboard</span>
                 </UiButton>
                 <UiButton variant="outline" @click="submitAnother" class="action-btn">
-                  ➕ Submit Another Project
+                  <span class="material-symbols-outlined success-action-icon" aria-hidden="true">
+                    add_circle
+                  </span>
+                  <span>Submit Another Project</span>
                 </UiButton>
               </div>
             </div>
@@ -505,11 +514,19 @@ const submitAnother = () => {
   font-weight: 500;
   border-radius: 0.5rem;
   transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .action-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.success-action-icon {
+  font-size: 1.25rem;
 }
 
 /* Responsive Success Card */

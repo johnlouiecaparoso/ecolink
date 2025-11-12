@@ -45,6 +45,8 @@ const projectImage = ref(null)
 const projectImagePreview = ref('')
 const projectImageError = ref('')
 const uploadingImage = ref(false)
+const isDraggingImage = ref(false)
+const isDraggingFiles = ref(false)
 
 // Form state
 const loading = ref(false)
@@ -290,6 +292,13 @@ function clearErrors() {
   success.value = ''
 }
 
+function clearFieldError(field) {
+  if (errors.value[field]) {
+    delete errors.value[field]
+  }
+  success.value = ''
+}
+
 function resetForm() {
   formData.value = {
     title: '',
@@ -367,6 +376,21 @@ async function handleFileUpload(event) {
   event.target.value = '' // Clear the input
 }
 
+function handleFileDragOver() {
+  isDraggingFiles.value = true
+}
+
+function handleFileDragLeave() {
+  isDraggingFiles.value = false
+}
+
+async function handleFileDrop(event) {
+  isDraggingFiles.value = false
+  if (!event?.dataTransfer?.files?.length) return
+  const files = Array.from(event.dataTransfer.files)
+  await handleFileUpload({ target: { files, value: '' } })
+}
+
 function removeFile(fileId) {
   const index = uploadedFiles.value.findIndex((f) => f.id === fileId)
   if (index !== -1) {
@@ -427,6 +451,21 @@ async function handleProjectImageUpload(event) {
     uploadingImage.value = false
     event.target.value = '' // Clear the input
   }
+}
+
+function handleImageDragOver() {
+  isDraggingImage.value = true
+}
+
+function handleImageDragLeave() {
+  isDraggingImage.value = false
+}
+
+async function handleImageDrop(event) {
+  isDraggingImage.value = false
+  if (!event?.dataTransfer?.files?.length) return
+  const file = event.dataTransfer.files[0]
+  await handleProjectImageUpload({ target: { files: [file], value: '' } })
 }
 
 function removeProjectImage() {

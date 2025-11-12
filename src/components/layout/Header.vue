@@ -82,15 +82,19 @@
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
               <span class="user-role">{{ getRoleDisplayName(userStore.role) }}</span>
             </div>
-            <div class="user-avatar" @click="showUserMenu = !showUserMenu">
-              <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                ></path>
-              </svg>
+            <div
+              class="user-avatar user-avatar-thumb"
+              :class="{ 'has-image': showAvatarImage }"
+              @click="showUserMenu = !showUserMenu"
+            >
+              <img
+                v-if="showAvatarImage"
+                :src="avatarUrl"
+                alt="User avatar"
+                class="avatar-img"
+                @error.stop="onAvatarError"
+              />
+              <span v-else class="avatar-initials">{{ avatarInitials }}</span>
             </div>
             <!-- User Dropdown Menu -->
             <div v-if="showUserMenu" class="user-dropdown">
@@ -295,10 +299,11 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getRoleDisplayName } from '@/constants/roles'
+import { getUserInitials } from '@/services/profileService'
 
 const route = useRoute()
 const userStore = useUserStore()
@@ -306,6 +311,7 @@ const userStore = useUserStore()
 const searchQuery = ref('')
 const mobileMenuOpen = ref(false)
 const showUserMenu = ref(false)
+const avatarError = ref(false)
 
 // Toggle mobile menu
 const toggleMobileMenu = () => {
@@ -388,6 +394,38 @@ function handleLogout() {
       window.location.href = '/login'
     }
   }, 200)
+}
+
+const avatarUrl = computed(() => {
+  const profileAvatar = userStore.profile?.avatar_url || userStore.profile?.avatarUrl
+  const metadata = userStore.session?.user?.user_metadata || {}
+  const metadataAvatar = metadata.avatar_url || metadata.avatarUrl || metadata.avatar
+
+  return profileAvatar || metadataAvatar || null
+})
+
+const showAvatarImage = computed(() => Boolean(avatarUrl.value && !avatarError.value))
+
+const avatarInitials = computed(() => {
+  const metadata = userStore.session?.user?.user_metadata || {}
+  const name =
+    userStore.profile?.full_name ||
+    userStore.profile?.fullName ||
+    metadata.full_name ||
+    metadata.fullName ||
+    metadata.name ||
+    ''
+  const fallback = userStore.session?.user?.email || 'User'
+
+  return getUserInitials(name || fallback)
+})
+
+watch(avatarUrl, () => {
+  avatarError.value = false
+})
+
+function onAvatarError() {
+  avatarError.value = true
 }
 </script>
 
@@ -700,6 +738,31 @@ function handleLogout() {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
+}
+
+.user-avatar-thumb {
+  overflow: hidden;
+  position: relative;
+  color: var(--text-light);
+  font-weight: 600;
+}
+
+.user-avatar-thumb.has-image {
+  background: transparent;
+}
+
+.user-avatar-thumb .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: 50%;
+}
+
+.user-avatar-thumb .avatar-initials {
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  letter-spacing: 0.03em;
 }
 
 .user-avatar:hover {

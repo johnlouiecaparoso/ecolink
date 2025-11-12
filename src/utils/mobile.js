@@ -317,26 +317,37 @@ export const mobilePerformance = {
    * Enable service worker for offline support
    */
   enableServiceWorker() {
-    if ('serviceWorker' in navigator) {
-      // Use setTimeout to avoid DOMException from using objects after page navigation
-      setTimeout(() => {
-        navigator.serviceWorker
-          .register('/sw.js')
-          .then((registration) => {
-            // Only log if registration is still valid
-            if (registration && registration.active) {
-              console.log('✅ Service Worker registered successfully')
-            }
-          })
-          .catch((error) => {
-            // Silently ignore service worker errors - they're optional
-            // Only log specific errors that aren't DOMException
-            if (error.name !== 'DOMException') {
-              console.debug('Service Worker not available (optional):', error.message)
-            }
-          })
-      }, 100)
+    if (!('serviceWorker' in navigator)) {
+      return
     }
+
+    const { protocol, hostname } = window.location
+    const isSecureContext =
+      window.isSecureContext || protocol === 'https:' || hostname === 'localhost' || hostname === '127.0.0.1'
+
+    if (!isSecureContext) {
+      console.debug('Skipping service worker registration: insecure context detected')
+      return
+    }
+
+    // Use setTimeout to avoid DOMException from using objects after page navigation
+    setTimeout(() => {
+      navigator.serviceWorker
+        .register('/sw.js')
+        .then((registration) => {
+          // Only log if registration is still valid
+          if (registration && registration.active) {
+            console.log('✅ Service Worker registered successfully')
+          }
+        })
+        .catch((error) => {
+          // Silently ignore service worker errors - they're optional
+          // Only log specific errors that aren't DOMException
+          if (error.name !== 'DOMException') {
+            console.debug('Service Worker not available (optional):', error.message)
+          }
+        })
+    }, 100)
   },
 }
 
