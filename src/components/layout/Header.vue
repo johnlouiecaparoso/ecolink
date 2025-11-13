@@ -256,24 +256,6 @@
                 Profile Settings
               </router-link>
 
-              <router-link
-                v-if="userStore.isAuthenticated"
-                to="/receipts"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
-                "
-              >
-                Receipts
-              </router-link>
-
               <button
                 v-if="userStore.isAuthenticated"
                 @click="handleLogout"

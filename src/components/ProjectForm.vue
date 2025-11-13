@@ -53,10 +53,6 @@ const loading = ref(false)
 const errors = ref({})
 const success = ref('')
 
-// Drag state
-const isDraggingImage = ref(false)
-const isDraggingFiles = ref(false)
-
 // File input refs
 const projectImageInput = ref(null)
 const projectDocumentsInput = ref(null)
@@ -313,13 +309,6 @@ function clearErrors() {
   success.value = ''
 }
 
-function clearFieldError(field) {
-  if (errors.value[field]) {
-    delete errors.value[field]
-  }
-  success.value = ''
-}
-
 function resetForm() {
   formData.value = {
     title: '',
@@ -401,21 +390,6 @@ async function handleFileUpload(event) {
   event.target.value = ''
 }
 
-function handleFileDragOver() {
-  isDraggingFiles.value = true
-}
-
-function handleFileDragLeave() {
-  isDraggingFiles.value = false
-}
-
-async function handleFileDrop(event) {
-  isDraggingFiles.value = false
-  if (!event?.dataTransfer?.files?.length) return
-  const files = Array.from(event.dataTransfer.files)
-  await handleFileUpload({ target: { files, value: '' } })
-}
-
 function removeFile(fileId) {
   const index = uploadedFiles.value.findIndex((f) => f.id === fileId)
   if (index !== -1) {
@@ -474,27 +448,11 @@ async function processProjectImageFile(file) {
   }
 }
 
-<<<<<<< HEAD
 async function handleProjectImageUpload(event) {
   const file = event.target.files?.[0]
   if (!file) return
   await processProjectImageFile(file)
   event.target.value = ''
-=======
-function handleImageDragOver() {
-  isDraggingImage.value = true
-}
-
-function handleImageDragLeave() {
-  isDraggingImage.value = false
-}
-
-async function handleImageDrop(event) {
-  isDraggingImage.value = false
-  if (!event?.dataTransfer?.files?.length) return
-  const file = event.dataTransfer.files[0]
-  await handleProjectImageUpload({ target: { files: [file], value: '' } })
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
 }
 
 function removeProjectImage() {
@@ -966,7 +924,6 @@ onMounted(() => {
         <div class="subsection-header">
           <h4 class="subsection-title">Project Image (Optional)</h4>
         </div>
-<<<<<<< HEAD
         <div
           class="upload-dropzone"
           :class="{ dragging: isDraggingImage }"
@@ -982,23 +939,14 @@ onMounted(() => {
             class="file-input-hidden"
             @change="handleProjectImageUpload"
           />
-=======
-        <div class="upload-dropzone" :class="{ dragging: isDraggingImage }" @dragover.prevent="handleImageDragOver" @dragleave.prevent="handleImageDragLeave" @drop.prevent="handleImageDrop">
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
           <div v-if="uploadingImage" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading image...</span>
           </div>
           <template v-else>
-<<<<<<< HEAD
             <div v-if="projectImagePreview" class="image-preview-container">
               <img :src="projectImagePreview" alt="Project preview" class="image-preview" />
               <button type="button" class="remove-image-btn" @click.stop="removeProjectImage">✕</button>
-=======
-            <div v-if="projectImagePreview" class="image-preview">
-              <img :src="projectImagePreview" alt="Project preview" />
-              <button type="button" class="remove-image" @click="removeProjectImage">Remove</button>
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
             </div>
             <div v-else class="upload-placeholder">
               <span class="material-symbols-outlined upload-icon" aria-hidden="true">add_photo_alternate</span>
@@ -1147,7 +1095,6 @@ onMounted(() => {
           @dragover.prevent="handleFileDragOver"
           @dragleave.prevent="handleFileDragLeave"
           @drop.prevent="handleFileDrop"
-<<<<<<< HEAD
           @click="onFileZoneClick"
         >
           <input
@@ -1158,29 +1105,18 @@ onMounted(() => {
             class="file-input-hidden"
             @change="handleFileUpload"
           />
-=======
-        >
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
           <div v-if="uploadingFiles" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading documents...</span>
           </div>
           <template v-else>
             <div v-if="uploadedFiles.length" class="uploaded-files">
-<<<<<<< HEAD
               <div v-for="file in uploadedFiles" :key="file.id" class="uploaded-file">
-=======
-              <div v-for="file in uploadedFiles" :key="file.name" class="uploaded-file">
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
                 <span class="material-symbols-outlined document-icon" aria-hidden="true">
                   {{ file.type.includes('pdf') ? 'picture_as_pdf' : file.type.includes('image') ? 'image' : 'description' }}
                 </span>
                 <span class="file-name">{{ file.name }}</span>
-<<<<<<< HEAD
                 <button type="button" class="remove-file" @click.stop="removeFile(file.id)">
-=======
-                <button type="button" class="remove-file" @click="removeFile(file.name)">
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
                   <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
@@ -2110,13 +2046,10 @@ onMounted(() => {
   cursor: not-allowed;
 }
 
-<<<<<<< HEAD
 .file-input-hidden {
   display: none;
 }
 
-=======
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
 .credit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

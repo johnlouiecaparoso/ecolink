@@ -119,29 +119,6 @@ const userRoleDisplay = computed(() => {
 function goHome() {
   router.push('/profile')
 }
-<<<<<<< HEAD
-=======
-
-let profileWatcher = null
-
-onMounted(() => {
-  loadUserProfile()
-
-  // Watch for profile updates in the store and refresh
-  profileWatcher = store.$subscribe((mutation, state) => {
-    if (state.profile && state.profile.id && state.profile.avatar_url) {
-      // Reload profile when store profile avatar is updated
-      loadUserProfile()
-    }
-  })
-})
-
-onUnmounted(() => {
-  if (profileWatcher) {
-    profileWatcher()
-  }
-})
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
 </script>
 
 <style scoped>

@@ -68,7 +68,3 @@ export const { log, warn, error, info, debug } = logger
 
 
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
