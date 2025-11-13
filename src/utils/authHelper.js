@@ -48,18 +48,25 @@ export async function getCurrentUserId() {
     }
 
     // Method 4: Check if there's a stored session in localStorage
-    if (typeof window !== 'undefined' && window.localStorage) {
+    if (typeof window !== 'undefined') {
       try {
-        const authData = window.localStorage.getItem('sb-fmngptolarydbgrtltnd-auth-token')
-        if (authData) {
-          const parsed = JSON.parse(authData)
-          if (parsed?.currentSession?.user?.id) {
-            console.log('Got user ID from localStorage:', parsed.currentSession.user.id)
-            return parsed.currentSession.user.id
+        const storage = window.localStorage
+        if (storage) {
+          const authData = storage.getItem('sb-fmngptolarydbgrtltnd-auth-token')
+          if (authData) {
+            try {
+              const parsed = JSON.parse(authData)
+              if (parsed?.currentSession?.user?.id) {
+                console.log('Got user ID from localStorage:', parsed.currentSession.user.id)
+                return parsed.currentSession.user.id
+              }
+            } catch (parseError) {
+              console.warn('Failed to parse stored Supabase auth token:', parseError)
+            }
           }
         }
-      } catch (e) {
-        // Ignore localStorage parsing errors
+      } catch (storageError) {
+        console.debug('LocalStorage not accessible while retrieving user ID:', storageError.message)
       }
     }
 
