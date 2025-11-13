@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js'
-import { requireEnv } from '@/utils/env'
 
 // Singleton pattern to prevent multiple instances
 let supabase = null
@@ -19,10 +18,12 @@ export async function initSupabase() {
 
   try {
     isInitializing = true
-    const url = requireEnv('VITE_SUPABASE_URL')
-    const key = requireEnv('VITE_SUPABASE_ANON_KEY')
+    // Use direct env access instead of requireEnv to prevent build-time failures
+    // The validation below will catch missing/invalid values at runtime
+    const url = import.meta.env.VITE_SUPABASE_URL
+    const key = import.meta.env.VITE_SUPABASE_ANON_KEY
     
-    // Validate URL format before creating client
+    // Validate URL format and presence before creating client
     if (!url || url === 'your_supabase_project_url_here' || !url.startsWith('http')) {
       throw new Error('Invalid Supabase URL. Please set VITE_SUPABASE_URL to a valid URL (e.g., https://your-project.supabase.co)')
     }
