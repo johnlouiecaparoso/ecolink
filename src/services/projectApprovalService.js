@@ -80,6 +80,59 @@ export class ProjectApprovalService {
   }
 
   /**
+   * Update project status (pending -> approved/rejected, etc.)
+   * @param {string} projectId
+   * @param {string} status
+   * @param {string} notes
+   */
+  async updateProjectStatus(projectId, status, notes = '') {
+    if (typeof status !== 'string') {
+      throw new Error('Status must be a string')
+    }
+
+    const normalizedStatus = status.toLowerCase()
+
+    if (normalizedStatus === 'approved') {
+      return this.approveProject(projectId, notes)
+    }
+
+    if (!this.supabase) {
+      throw new Error('Supabase client not available')
+    }
+
+    try {
+      const userId = await getCurrentUserId()
+      if (!userId) {
+        throw new Error('User not authenticated')
+      }
+
+      const updatePayload = {
+        status: normalizedStatus,
+        verification_notes: notes,
+        verified_by: userId,
+        verified_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+
+      const { data, error } = await this.supabase
+        .from('projects')
+        .update(updatePayload)
+        .eq('id', projectId)
+        .select()
+        .single()
+
+      if (error) {
+        throw new Error(error.message || 'Failed to update project status')
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error updating project status:', error)
+      throw error
+    }
+  }
+
+  /**
    * Generate credits for a project
    * @param {string} projectId - Project ID
    * @returns {Promise<Object>} Generated credits

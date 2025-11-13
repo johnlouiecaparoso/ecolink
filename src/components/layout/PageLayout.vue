@@ -45,18 +45,15 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
-import { getProfile } from '@/services/profileService'
 import { ROLES } from '@/constants/roles'
 import AppSidebar from './AppSidebar.vue'
 
 const router = useRouter()
 const route = useRoute()
 const store = useUserStore()
-
-const userProfile = ref(null)
 
 const pageTitle = computed(() => {
   const titles = {
@@ -73,6 +70,25 @@ const pageTitle = computed(() => {
   return titles[route.path] || 'EcoLink'
 })
 
+const userProfile = computed(() => {
+  if (store.profile) {
+    return store.profile
+  }
+
+  const sessionUser = store.session?.user
+  const fallbackName =
+    sessionUser?.user_metadata?.name ||
+    sessionUser?.email?.split('@')[0] ||
+    'User'
+
+  return {
+    full_name: fallbackName,
+    email: sessionUser?.email || '',
+    avatar_url: sessionUser?.user_metadata?.avatar_url || null,
+    role: store.role || ROLES.GENERAL_USER,
+  }
+})
+
 const userInitials = computed(() => {
   if (userProfile.value?.full_name) {
     return userProfile.value.full_name
@@ -86,7 +102,7 @@ const userInitials = computed(() => {
 })
 
 const userRoleDisplay = computed(() => {
-  const role = userProfile.value?.role || store.role
+  const role = store.role || userProfile.value?.role || ROLES.GENERAL_USER
   switch (role) {
     case ROLES.SUPER_ADMIN:
       return 'Super Admin'
@@ -100,40 +116,9 @@ const userRoleDisplay = computed(() => {
   }
 })
 
-async function loadUserProfile() {
-  if (store.session?.user?.id) {
-    try {
-      const profile = await getProfile(store.session.user.id)
-      userProfile.value = profile
-    } catch (error) {
-      console.error('Error loading user profile:', error)
-    }
-  }
-}
-
 function goHome() {
   router.push('/profile')
 }
-
-let profileWatcher = null
-
-onMounted(() => {
-  loadUserProfile()
-
-  // Watch for profile updates in the store and refresh
-  profileWatcher = store.$subscribe((mutation, state) => {
-    if (state.profile && state.profile.id && state.profile.avatar_url) {
-      // Reload profile when store profile avatar is updated
-      loadUserProfile()
-    }
-  })
-})
-
-onUnmounted(() => {
-  if (profileWatcher) {
-    profileWatcher()
-  }
-})
 </script>
 
 <style scoped>

@@ -51,6 +51,14 @@ const loading = ref(false)
 const errors = ref({})
 const success = ref('')
 
+// Drag state
+const isDraggingImage = ref(false)
+const isDraggingFiles = ref(false)
+
+// File input refs
+const projectImageInput = ref(null)
+const projectDocumentsInput = ref(null)
+
 // Categories are now custom text input - no longer using predefined list
 
 // Form validation rules
@@ -214,6 +222,19 @@ const isFormValid = computed(() => {
 })
 
 // Methods
+function clearFieldError(field) {
+  if (errors.value[field]) {
+    delete errors.value[field]
+  }
+  if (Object.keys(errors.value).length === 0) {
+    errors.value = {}
+  }
+  if (errors.value.general) {
+    delete errors.value.general
+  }
+  success.value = ''
+}
+
 function validateField(field) {
   const value = formData.value[field]
   const rule = validationRules[field]
@@ -324,19 +345,19 @@ function validateFile(file) {
   return null
 }
 
-async function handleFileUpload(event) {
-  const files = Array.from(event.target.files)
+async function addFiles(files) {
+  const incomingFiles = Array.from(files)
   fileUploadError.value = ''
 
   // Check max files limit
-  if (uploadedFiles.value.length + files.length > fileUploadConfig.maxFiles) {
+  if (uploadedFiles.value.length + incomingFiles.length > fileUploadConfig.maxFiles) {
     fileUploadError.value = `Maximum ${fileUploadConfig.maxFiles} files allowed`
     return
   }
 
   uploadingFiles.value = true
 
-  for (const file of files) {
+  for (const file of incomingFiles) {
     const validationError = validateFile(file)
     if (validationError) {
       fileUploadError.value = validationError
@@ -364,7 +385,11 @@ async function handleFileUpload(event) {
   }
 
   uploadingFiles.value = false
-  event.target.value = '' // Clear the input
+}
+
+async function handleFileUpload(event) {
+  await addFiles(event.target.files || [])
+  event.target.value = ''
 }
 
 function removeFile(fileId) {
@@ -399,10 +424,7 @@ function validateImageFile(file) {
   return null
 }
 
-async function handleProjectImageUpload(event) {
-  const file = event.target.files[0]
-  if (!file) return
-
+async function processProjectImageFile(file) {
   projectImageError.value = ''
   uploadingImage.value = true
 
@@ -425,8 +447,14 @@ async function handleProjectImageUpload(event) {
     projectImageError.value = `Failed to upload ${file.name}`
   } finally {
     uploadingImage.value = false
-    event.target.value = '' // Clear the input
   }
+}
+
+async function handleProjectImageUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  await processProjectImageFile(file)
+  event.target.value = ''
 }
 
 function removeProjectImage() {
@@ -446,6 +474,69 @@ async function convertImageToBase64(file) {
     reader.onerror = reject
     reader.readAsDataURL(file)
   })
+}
+
+function triggerProjectImageSelect() {
+  projectImageInput.value?.click()
+}
+
+function triggerDocumentsSelect() {
+  projectDocumentsInput.value?.click()
+}
+
+function handleImageDragOver(event) {
+  event.preventDefault()
+  isDraggingImage.value = true
+}
+
+function handleImageDragLeave(event) {
+  event.preventDefault()
+  isDraggingImage.value = false
+}
+
+async function handleImageDrop(event) {
+  event.preventDefault()
+  isDraggingImage.value = false
+  const file = event.dataTransfer?.files?.[0]
+  if (file) {
+    await processProjectImageFile(file)
+  }
+}
+
+function onImageZoneClick(event) {
+  if (uploadingImage.value) return
+  // Ignore clicks on remove button
+  if (event.target.closest('.remove-image-btn')) {
+    return
+  }
+  triggerProjectImageSelect()
+}
+
+function handleFileDragOver(event) {
+  event.preventDefault()
+  isDraggingFiles.value = true
+}
+
+function handleFileDragLeave(event) {
+  event.preventDefault()
+  isDraggingFiles.value = false
+}
+
+async function handleFileDrop(event) {
+  event.preventDefault()
+  isDraggingFiles.value = false
+  const files = event.dataTransfer?.files
+  if (files && files.length) {
+    await addFiles(files)
+  }
+}
+
+function onFileZoneClick(event) {
+  if (uploadingFiles.value) return
+  if (event.target.closest('.remove-file')) {
+    return
+  }
+  triggerDocumentsSelect()
 }
 
 async function handleSubmit() {
@@ -835,15 +926,29 @@ onMounted(() => {
         <div class="subsection-header">
           <h4 class="subsection-title">Project Image (Optional)</h4>
         </div>
-        <div class="upload-dropzone" :class="{ dragging: isDraggingImage }" @dragover.prevent="handleImageDragOver" @dragleave.prevent="handleImageDragLeave" @drop.prevent="handleImageDrop">
+        <div
+          class="upload-dropzone"
+          :class="{ dragging: isDraggingImage }"
+          @dragover.prevent="handleImageDragOver"
+          @dragleave.prevent="handleImageDragLeave"
+          @drop.prevent="handleImageDrop"
+          @click="onImageZoneClick"
+        >
+          <input
+            ref="projectImageInput"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            class="file-input-hidden"
+            @change="handleProjectImageUpload"
+          />
           <div v-if="uploadingImage" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading image...</span>
           </div>
           <template v-else>
-            <div v-if="projectImagePreview" class="image-preview">
-              <img :src="projectImagePreview" alt="Project preview" />
-              <button type="button" class="remove-image" @click="removeProjectImage">Remove</button>
+            <div v-if="projectImagePreview" class="image-preview-container">
+              <img :src="projectImagePreview" alt="Project preview" class="image-preview" />
+              <button type="button" class="remove-image-btn" @click.stop="removeProjectImage">✕</button>
             </div>
             <div v-else class="upload-placeholder">
               <span class="material-symbols-outlined upload-icon" aria-hidden="true">add_photo_alternate</span>
@@ -992,19 +1097,28 @@ onMounted(() => {
           @dragover.prevent="handleFileDragOver"
           @dragleave.prevent="handleFileDragLeave"
           @drop.prevent="handleFileDrop"
+          @click="onFileZoneClick"
         >
+          <input
+            ref="projectDocumentsInput"
+            type="file"
+            multiple
+            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png"
+            class="file-input-hidden"
+            @change="handleFileUpload"
+          />
           <div v-if="uploadingFiles" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading documents...</span>
           </div>
           <template v-else>
             <div v-if="uploadedFiles.length" class="uploaded-files">
-              <div v-for="file in uploadedFiles" :key="file.name" class="uploaded-file">
+              <div v-for="file in uploadedFiles" :key="file.id" class="uploaded-file">
                 <span class="material-symbols-outlined document-icon" aria-hidden="true">
                   {{ file.type.includes('pdf') ? 'picture_as_pdf' : file.type.includes('image') ? 'image' : 'description' }}
                 </span>
                 <span class="file-name">{{ file.name }}</span>
-                <button type="button" class="remove-file" @click="removeFile(file.name)">
+                <button type="button" class="remove-file" @click.stop="removeFile(file.id)">
                   <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
@@ -1397,16 +1511,23 @@ onMounted(() => {
 
 .image-preview-container {
   position: relative;
-  display: inline-block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 360px;
+  max-height: 240px;
+  margin: 0 auto;
   border-radius: var(--radius-md, 0.5rem);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: white;
 }
 
 .image-preview {
-  width: 200px;
-  height: 150px;
-  object-fit: cover;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   display: block;
 }
 
@@ -1925,6 +2046,10 @@ onMounted(() => {
 .remove-file:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.file-input-hidden {
+  display: none;
 }
 
 .credit-grid {

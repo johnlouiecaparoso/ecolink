@@ -21,6 +21,21 @@ const formData = ref({
 const userProfile = computed(() => userStore.profile)
 const userRole = computed(() => userStore.role)
 
+const hasAvatar = computed(() => !!userProfile.value?.avatar_url)
+
+const userInitials = computed(() => {
+  const name = userProfile.value?.full_name || ''
+  if (!name.trim()) return 'U'
+
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2)
+})
+
 const roleDisplayName = computed(() => {
   switch (userRole.value) {
     case ROLES.SUPER_ADMIN:
@@ -104,8 +119,15 @@ onMounted(() => {
   <div class="user-profile">
     <div class="profile-header">
       <div class="profile-avatar">
-        <div class="avatar-circle">
-          {{ userProfile?.full_name?.charAt(0)?.toUpperCase() || 'U' }}
+        <div v-if="hasAvatar" class="avatar-image-wrapper">
+          <img
+            :src="userProfile?.avatar_url"
+            :alt="userProfile?.full_name || 'User avatar'"
+            class="avatar-image"
+          />
+        </div>
+        <div v-else class="avatar-circle">
+          {{ userInitials }}
         </div>
       </div>
       <div class="profile-info">
@@ -230,15 +252,31 @@ onMounted(() => {
   flex-shrink: 0;
 }
 
-.avatar-circle {
+.avatar-circle,
+.avatar-image-wrapper {
   width: 80px;
   height: 80px;
   border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.avatar-circle {
   background: var(--ecolink-primary);
   color: white;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
   font-size: 32px;
   font-weight: 700;
 }

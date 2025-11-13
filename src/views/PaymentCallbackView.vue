@@ -301,7 +301,7 @@ onMounted(async () => {
                   console.log('✅ Certificate will appear in certificate dashboard and retire section')
                   // Show success message with modern prompt
                   await showSuccess({
-                    title: 'Certificate Generated! 🎉',
+                    title: 'Certificate Generated!',
                     message: 'Your certificate has been generated successfully. You can view and download it in the Certificates section.',
                     confirmText: 'View Certificates',
                   }).then((confirmed) => {

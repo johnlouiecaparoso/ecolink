@@ -1,0 +1,16 @@
+{
+  "name": "EcoLink",
+  "short_name": "EcoLink",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#10b981",
+  "description": "EcoLink - Carbon credit marketplace and project management platform.",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

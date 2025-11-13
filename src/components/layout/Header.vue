@@ -82,8 +82,24 @@
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
               <span class="user-role">{{ getRoleDisplayName(userStore.role) }}</span>
             </div>
-            <div class="user-avatar" @click="showUserMenu = !showUserMenu">
-              <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div
+              class="user-avatar"
+              :class="{ 'has-image': userStore.profile?.avatar_url }"
+              @click="showUserMenu = !showUserMenu"
+            >
+              <img
+                v-if="userStore.profile?.avatar_url"
+                :src="userStore.profile.avatar_url"
+                :alt="userStore.profile?.full_name || 'User avatar'"
+                class="user-avatar-image"
+              />
+              <svg
+                v-else
+                class="avatar-icon"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <path
                   stroke-linecap="round"
                   stroke-linejoin="round"
@@ -700,10 +716,29 @@ function handleLogout() {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
+  overflow: hidden;
+  border: 1px solid transparent;
+}
+
+.user-avatar.has-image {
+  background: transparent;
+  border-color: var(--border-green-light);
 }
 
 .user-avatar:hover {
   background: var(--bg-accent);
+}
+
+.user-avatar.has-image:hover {
+  background: transparent;
+  border-color: var(--primary-color);
+}
+
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .avatar-icon {
