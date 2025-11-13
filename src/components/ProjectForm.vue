@@ -1111,12 +1111,20 @@ onMounted(() => {
           </div>
           <template v-else>
             <div v-if="uploadedFiles.length" class="uploaded-files">
+<<<<<<< HEAD
               <div v-for="file in uploadedFiles" :key="file.id || file.name" class="uploaded-file">
+=======
+              <div v-for="file in uploadedFiles" :key="file.id" class="uploaded-file">
+>>>>>>> development
                 <span class="material-symbols-outlined document-icon" aria-hidden="true">
                   {{ file.type.includes('pdf') ? 'picture_as_pdf' : file.type.includes('image') ? 'image' : 'description' }}
                 </span>
                 <span class="file-name">{{ file.name }}</span>
+<<<<<<< HEAD
                 <button type="button" class="remove-file" @click.stop="removeFile(file.id || file.name)">
+=======
+                <button type="button" class="remove-file" @click.stop="removeFile(file.id)">
+>>>>>>> development
                   <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>

@@ -46,8 +46,16 @@ export function createRoleGuard(userStore) {
 export function createAdminGuard(userStore) {
   return async (to, from) => {
     if (!userStore.isAuthenticated) {
+      console.log('[AdminGuard] User not authenticated, redirecting to login')
       return { name: 'login', query: { redirect: to.fullPath } }
     }
+
+    console.log('[AdminGuard] Initial state:', {
+      hasProfile: !!userStore.profile,
+      currentRole: userStore.role,
+      profileRole: userStore.profile?.role,
+      isAdmin: userStore.isAdmin,
+    })
 
     // CRITICAL: Always fetch profile to ensure role is up-to-date
     // This handles cases where profile wasn't loaded yet or role changed
@@ -55,44 +63,68 @@ export function createAdminGuard(userStore) {
       console.log('[AdminGuard] Profile/role missing, fetching...', {
         hasProfile: !!userStore.profile,
         currentRole: userStore.role,
+        profileRole: userStore.profile?.role,
       })
       try {
         await userStore.fetchUserProfile()
         // Give it a moment to update the store
-        await new Promise((resolve) => setTimeout(resolve, 200))
+        await new Promise((resolve) => setTimeout(resolve, 300))
         console.log('[AdminGuard] After fetch:', {
           role: userStore.role,
+          profileRole: userStore.profile?.role,
           isAdmin: userStore.isAdmin,
           ROLES_ADMIN: ROLES.ADMIN,
+          roleMatch: userStore.role === ROLES.ADMIN,
         })
       } catch (error) {
-        console.error('Error fetching profile in admin guard:', error)
+        console.error('❌ Error fetching profile in admin guard:', error)
         // Don't block access if fetch fails - let the route handle it
       }
     }
 
-    // Double-check role after profile fetch
+    // Double-check role after profile fetch - also check profile.role directly
+    const roleFromStore = userStore.role
+    const roleFromProfile = userStore.profile?.role
+    const normalizedRoleFromProfile = roleFromProfile
+      ? String(roleFromProfile).toLowerCase().trim()
+      : null
+
     console.log('[AdminGuard] Final check:', {
-      role: userStore.role,
+      roleFromStore: roleFromStore,
+      roleFromProfile: roleFromProfile,
+      normalizedRoleFromProfile: normalizedRoleFromProfile,
       isAdmin: userStore.isAdmin,
       ROLES_ADMIN: ROLES.ADMIN,
-      roleMatch: userStore.role === ROLES.ADMIN,
+      roleMatch: roleFromStore === ROLES.ADMIN,
+      profileRoleMatch: normalizedRoleFromProfile === ROLES.ADMIN,
     })
 
-    if (!userStore.isAdmin) {
+    // Check both store role and profile role (in case of sync issues)
+    const isAdminByStore = userStore.isAdmin
+    const isAdminByProfile = normalizedRoleFromProfile === ROLES.ADMIN
+
+    if (!isAdminByStore && !isAdminByProfile) {
       console.warn(
-        `❌ Admin access denied: User with role '${userStore.role}' cannot access admin routes`,
+        `❌ Admin access denied: User with role '${roleFromStore}' (profile: '${roleFromProfile}') cannot access admin routes`,
         {
-          role: userStore.role,
+          roleFromStore: roleFromStore,
+          roleFromProfile: roleFromProfile,
+          normalizedRoleFromProfile: normalizedRoleFromProfile,
           ROLES_ADMIN: ROLES.ADMIN,
-          match: userStore.role === ROLES.ADMIN,
+          storeMatch: roleFromStore === ROLES.ADMIN,
+          profileMatch: normalizedRoleFromProfile === ROLES.ADMIN,
         },
       )
-      const path = getRoleDefaultRoute(userStore.role)
+      const path = getRoleDefaultRoute(roleFromStore || ROLES.GENERAL_USER)
       return { path }
     }
 
-    console.log('✅ Admin access granted')
+    console.log('✅ Admin access granted', {
+      roleFromStore: roleFromStore,
+      roleFromProfile: roleFromProfile,
+      isAdminByStore: isAdminByStore,
+      isAdminByProfile: isAdminByProfile,
+    })
 
     return undefined
   }
