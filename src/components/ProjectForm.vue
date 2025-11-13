@@ -967,6 +967,7 @@ onMounted(() => {
           <h4 class="subsection-title">Project Image (Optional)</h4>
         </div>
 <<<<<<< HEAD
+<<<<<<< HEAD
         <div
           class="upload-dropzone"
           :class="{ dragging: isDraggingImage }"
@@ -985,11 +986,15 @@ onMounted(() => {
 =======
         <div class="upload-dropzone" :class="{ dragging: isDraggingImage }" @dragover.prevent="handleImageDragOver" @dragleave.prevent="handleImageDragLeave" @drop.prevent="handleImageDrop">
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+        <div class="upload-dropzone" :class="{ dragging: isDraggingImage }" @dragover.prevent="handleImageDragOver" @dragleave.prevent="handleImageDragLeave" @drop.prevent="handleImageDrop">
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
           <div v-if="uploadingImage" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading image...</span>
           </div>
           <template v-else>
+<<<<<<< HEAD
 <<<<<<< HEAD
             <div v-if="projectImagePreview" class="image-preview-container">
               <img :src="projectImagePreview" alt="Project preview" class="image-preview" />
@@ -999,6 +1004,11 @@ onMounted(() => {
               <img :src="projectImagePreview" alt="Project preview" />
               <button type="button" class="remove-image" @click="removeProjectImage">Remove</button>
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+            <div v-if="projectImagePreview" class="image-preview">
+              <img :src="projectImagePreview" alt="Project preview" />
+              <button type="button" class="remove-image" @click="removeProjectImage">Remove</button>
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
             </div>
             <div v-else class="upload-placeholder">
               <span class="material-symbols-outlined upload-icon" aria-hidden="true">add_photo_alternate</span>
@@ -1148,6 +1158,7 @@ onMounted(() => {
           @dragleave.prevent="handleFileDragLeave"
           @drop.prevent="handleFileDrop"
 <<<<<<< HEAD
+<<<<<<< HEAD
           @click="onFileZoneClick"
         >
           <input
@@ -1161,6 +1172,9 @@ onMounted(() => {
 =======
         >
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+        >
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
           <div v-if="uploadingFiles" class="upload-loading">
             <div class="loading-spinner"></div>
             <span>Uploading documents...</span>
@@ -1168,19 +1182,27 @@ onMounted(() => {
           <template v-else>
             <div v-if="uploadedFiles.length" class="uploaded-files">
 <<<<<<< HEAD
+<<<<<<< HEAD
               <div v-for="file in uploadedFiles" :key="file.id" class="uploaded-file">
 =======
               <div v-for="file in uploadedFiles" :key="file.name" class="uploaded-file">
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+              <div v-for="file in uploadedFiles" :key="file.name" class="uploaded-file">
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
                 <span class="material-symbols-outlined document-icon" aria-hidden="true">
                   {{ file.type.includes('pdf') ? 'picture_as_pdf' : file.type.includes('image') ? 'image' : 'description' }}
                 </span>
                 <span class="file-name">{{ file.name }}</span>
 <<<<<<< HEAD
+<<<<<<< HEAD
                 <button type="button" class="remove-file" @click.stop="removeFile(file.id)">
 =======
                 <button type="button" class="remove-file" @click="removeFile(file.name)">
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+                <button type="button" class="remove-file" @click="removeFile(file.name)">
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
                   <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
@@ -2111,12 +2133,15 @@ onMounted(() => {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 .file-input-hidden {
   display: none;
 }
 
 =======
 >>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
+=======
+>>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 .credit-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
