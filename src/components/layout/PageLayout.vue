@@ -119,8 +119,6 @@ const userRoleDisplay = computed(() => {
 function goHome() {
   router.push('/profile')
 }
-<<<<<<< HEAD
-=======
 
 let profileWatcher = null
 
@@ -141,7 +139,6 @@ onUnmounted(() => {
     profileWatcher()
   }
 })
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
 </script>
 
 <style scoped>

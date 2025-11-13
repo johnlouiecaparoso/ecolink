@@ -43,35 +43,3 @@ export const logger = {
 
 // Export individual functions for convenience
 export const { log, warn, error, info, debug } = logger
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<<<<<<< HEAD
-
-
-<<<<<<< HEAD
-
-=======
->>>>>>> 191b09e226eebf78c886c5d495f26a15031099cd
-=======
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655

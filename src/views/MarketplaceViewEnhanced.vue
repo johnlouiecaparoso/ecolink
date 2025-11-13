@@ -825,12 +825,21 @@ async function handlePurchase() {
 
     // Handle redirect for PayMongo checkout
     if (result.redirect && result.checkoutUrl) {
+      console.log('🔗 Redirecting to PayMongo checkout:', result.checkoutUrl)
       // Store the pending purchase
       localStorage.setItem('pending_purchase_session', result.sessionId)
       
-      // Redirect to PayMongo checkout
+      // Redirect to PayMongo checkout immediately
       window.location.href = result.checkoutUrl
       return // Stop here, user will be redirected
+    }
+
+    // If we get here without redirect, check if checkoutUrl exists anyway (fallback)
+    if (result.checkoutUrl && !result.redirect) {
+      console.log('⚠️ Found checkoutUrl but redirect flag not set, redirecting anyway:', result.checkoutUrl)
+      localStorage.setItem('pending_purchase_session', result.sessionId || '')
+      window.location.href = result.checkoutUrl
+      return
     }
 
     // Show success message for immediate completion (demo mode or wallet payment)

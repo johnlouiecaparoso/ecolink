@@ -82,7 +82,6 @@
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
               <span class="user-role">{{ getRoleDisplayName(userStore.role) }}</span>
             </div>
-<<<<<<< HEAD
           <div
             class="user-avatar user-avatar-thumb"
             :class="{ 'has-image': showAvatarImage }"
@@ -97,18 +96,6 @@
             />
             <span v-else class="avatar-initials">{{ avatarInitials }}</span>
           </div>
-=======
-            <div class="user-avatar" @click="showUserMenu = !showUserMenu">
-              <svg class="avatar-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                ></path>
-              </svg>
-            </div>
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
             <!-- User Dropdown Menu -->
             <div v-if="showUserMenu" class="user-dropdown">
               <router-link to="/profile" class="dropdown-item" @click="showUserMenu = false">
@@ -269,24 +256,6 @@
                 Profile Settings
               </router-link>
 
-              <router-link
-                v-if="userStore.isAuthenticated"
-                to="/receipts"
-                @click="mobileMenuOpen = false"
-                style="
-                  display: block !important;
-                  padding: 0.75rem !important;
-                  background: #e8f5e8 !important;
-                  border: 1px solid #4caf50 !important;
-                  border-radius: 6px !important;
-                  text-decoration: none !important;
-                  color: #2d5a2d !important;
-                  font-weight: 500 !important;
-                "
-              >
-                Receipts
-              </router-link>
-
               <button
                 v-if="userStore.isAuthenticated"
                 @click="handleLogout"
@@ -312,11 +281,7 @@
 </template>
 
 <script setup>
-<<<<<<< HEAD
 import { computed, ref, watch } from 'vue'
-=======
-import { computed, ref } from 'vue'
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getRoleDisplayName } from '@/constants/roles'
@@ -328,10 +293,7 @@ const userStore = useUserStore()
 const searchQuery = ref('')
 const mobileMenuOpen = ref(false)
 const showUserMenu = ref(false)
-<<<<<<< HEAD
 const avatarError = ref(false)
-=======
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 
 // Toggle mobile menu
 const toggleMobileMenu = () => {
@@ -414,7 +376,6 @@ function handleLogout() {
       window.location.href = '/login'
     }
   }, 200)
-<<<<<<< HEAD
 }
 
 const avatarUrl = computed(() => {
@@ -447,8 +408,6 @@ watch(avatarUrl, () => {
 
 function onAvatarError() {
   avatarError.value = true
-=======
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 }
 </script>
 
@@ -761,7 +720,6 @@ function onAvatarError() {
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-<<<<<<< HEAD
 }
 
 .user-avatar-thumb {
@@ -787,17 +745,12 @@ function onAvatarError() {
   text-transform: uppercase;
   font-size: 0.85rem;
   letter-spacing: 0.03em;
-=======
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 }
 
 .user-avatar:hover {
   background: var(--bg-accent);
 }
-<<<<<<< HEAD
-=======
 
->>>>>>> cdeda1ddb03759c7616575d52de04771aba3c655
 .avatar-icon {
   width: 1rem;
   height: 1rem;

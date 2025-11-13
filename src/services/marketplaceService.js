@@ -710,8 +710,16 @@ export async function purchaseCredits(listingId, purchaseData) {
         paymentResult = await realPaymentService.processMayaPayment(paymentData)
       }
 
+      // Check for errors first
+      if (!paymentResult.success) {
+        const errorMessage = paymentResult.error || 'Payment processing failed'
+        console.error('❌ Payment service error:', errorMessage)
+        throw new Error(errorMessage)
+      }
+
       // If PayMongo checkout is created, redirect user and return early
       if (paymentResult.checkoutUrl) {
+        console.log('🔗 Redirecting to PayMongo checkout:', paymentResult.checkoutUrl)
         // Store purchase data temporarily in localStorage for later completion
         localStorage.setItem(
           'pending_purchase',
@@ -732,13 +740,13 @@ export async function purchaseCredits(listingId, purchaseData) {
           sessionId: paymentResult.sessionId,
           message: 'Redirecting to payment...',
         }
+      } else {
+        // If no checkoutUrl is returned, this is an error for online payment methods
+        console.error('❌ No checkout URL returned from payment service')
+        throw new Error('Failed to create payment checkout. Please try again or contact support.')
       }
     } else {
       throw new Error(`Invalid payment method: ${purchaseData.paymentMethod}`)
-    }
-
-    if (!paymentResult.success) {
-      throw new Error('Payment processing failed')
     }
 
     // Create credit purchase transaction
