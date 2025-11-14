@@ -92,25 +92,3 @@ export async function waitForWebhookTransaction(
   console.warn('⚠️ Webhook did not process transaction within timeout, falling back to client-side')
   return null
 }
-<<<<<<< HEAD
-=======
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
->>>>>>> development

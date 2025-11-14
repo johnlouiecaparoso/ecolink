@@ -875,16 +875,3 @@ function startNewApplication(role) {
   }
 }
 </style>
-
-
-
-
-
-<<<<<<< HEAD
-=======
-
-
-
-
-
->>>>>>> development
