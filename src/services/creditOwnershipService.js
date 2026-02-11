@@ -128,38 +128,33 @@ export class CreditOwnershipService {
       if (existingOwnership && !checkError) {
         // Update existing ownership
         const newQuantity = existingOwnership.quantity + quantity
+        const updateData = { quantity: newQuantity }
 
-        // Try update with updated_at first, fallback without it
-        let updateData = { quantity: newQuantity }
-        
-        // Try with updated_at first
+        // Try without updated_at first (table/trigger may not have that column)
         let { data: updatedOwnership, error: updateError } = await this.supabase
           .from('credit_ownership')
-          .update({
-            ...updateData,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updateData)
           .eq('id', existingOwnership.id)
           .select()
           .single()
-        
-        // If updated_at column doesn't exist, try without it
+
         if (updateError && updateError.message?.includes('updated_at')) {
           console.warn('⚠️ updated_at column not found, updating without it')
-          const { data: updatedWithoutTimestamp, error: updateErrorWithoutTimestamp } = await this.supabase
+        }
+        if (updateError) {
+          // Fallback: try with updated_at in case table has it and expects it
+          const { data: withTs, error: err2 } = await this.supabase
             .from('credit_ownership')
-            .update(updateData)
+            .update({ ...updateData, updated_at: new Date().toISOString() })
             .eq('id', existingOwnership.id)
             .select()
             .single()
-          
-          if (updateErrorWithoutTimestamp) {
-            throw new Error(`Failed to update credit ownership: ${updateErrorWithoutTimestamp.message}`)
+          if (!err2 && withTs) {
+            updatedOwnership = withTs
+            updateError = null
           }
-          
-          updatedOwnership = updatedWithoutTimestamp
-          updateError = null
-        } else if (updateError) {
+        }
+        if (updateError) {
           throw new Error(`Failed to update credit ownership: ${updateError.message}`)
         }
 

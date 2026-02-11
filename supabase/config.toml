@@ -1,0 +1,11 @@
+# Supabase project config (optional overrides).
+# JWT verification must be OFF for paymongo-checkout so the browser's
+# CORS preflight (OPTIONS) request can succeed without an Authorization header.
+#
+# Deploy with:
+#   supabase functions deploy paymongo-checkout --no-verify-jwt
+# Then set the secret in Supabase (Dashboard or CLI):
+#   supabase secrets set PAYMONGO_SECRET_KEY=sk_test_your_key
+
+[functions.paymongo-checkout]
+verify_jwt = false

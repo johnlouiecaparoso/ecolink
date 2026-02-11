@@ -1,12 +1,16 @@
 /**
  * PayMongo Service - Real Payment Integration
  * Integrates with PayMongo payment gateway for GCash, Maya, and Cards
- * 
- * NOTE: For production, set up Supabase Edge Functions to hide secret key
- * For now, we support direct API calls for development/testing
+ *
+ * Production-safe behavior:
+ * - Uses Supabase Edge Function `paymongo-checkout` to talk to PayMongo from the server.
+ * - Falls back to direct PayMongo API calls only as a last resort (e.g. local dev without Supabase).
+ *
+ * This avoids CORS issues and keeps the secret key off the frontend.
  */
 
 import { getEnv } from '@/utils/env'
+import { getSupabaseAsync } from '@/services/supabaseClient'
 
 const PAYMONGO_CONFIG = {
   apiBaseUrl: 'https://api.paymongo.com/v1',
@@ -16,16 +20,18 @@ const PAYMONGO_CONFIG = {
 }
 
 /**
- * Initialize PayMongo service
+ * Initialize PayMongo service.
+ * Configured when public key is set; checkout uses Supabase Edge Function (secret key lives there).
  */
 export function initPayMongo() {
   try {
     PAYMONGO_CONFIG.publicKey = getEnv('VITE_PAYMONGO_PUBLIC_KEY', { optional: true })
     PAYMONGO_CONFIG.secretKey = getEnv('VITE_PAYMONGO_SECRET_KEY', { optional: true })
-    PAYMONGO_CONFIG.isConfigured = !!(PAYMONGO_CONFIG.publicKey && PAYMONGO_CONFIG.secretKey)
-    
+    // Use real PayMongo (Edge Function) when public key is set; no need for secret in frontend
+    PAYMONGO_CONFIG.isConfigured = !!PAYMONGO_CONFIG.publicKey
+
     if (PAYMONGO_CONFIG.isConfigured) {
-      console.log('✅ PayMongo service initialized')
+      console.log('✅ PayMongo service initialized (checkout via Edge Function)')
       return true
     } else {
       console.warn('⚠️ PayMongo keys not configured, using mock mode')
@@ -40,7 +46,7 @@ export function initPayMongo() {
 /**
  * Create a PayMongo Checkout Session
  * This returns a checkout URL that you redirect users to
- * 
+ *
  * @param {Object} sessionData - Checkout session details
  * @param {number} sessionData.amount - Amount in PHP (e.g., 100.00)
  * @param {string} sessionData.description - Payment description
@@ -50,8 +56,13 @@ export function initPayMongo() {
  */
 export async function createCheckoutSession(sessionData) {
   try {
-    const { amount, description, metadata, paymentMethodTypes = ['card', 'gcash', 'paymaya'] } = sessionData
-    
+    const {
+      amount,
+      description,
+      metadata,
+      paymentMethodTypes = ['card', 'gcash', 'paymaya'],
+    } = sessionData
+
     // Validate amount
     if (!amount || amount <= 0) {
       throw new Error('Invalid amount')
@@ -69,40 +80,42 @@ export async function createCheckoutSession(sessionData) {
         expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       }
     }
-    
+
     console.log('🔗 Creating PayMongo checkout session...')
-    
+
     // Extract quantity and price per credit from metadata if available
     // metadata is already destructured from sessionData above
     const purchaseMetadata = metadata || {}
     const quantity = purchaseMetadata.quantity || 1
     const pricePerCredit = purchaseMetadata.price_per_credit || amount
     const projectTitle = purchaseMetadata.project_title || 'Carbon Credits'
-    
+
     // Create detailed description with quantity and price info
-    const detailedDescription = purchaseMetadata.quantity && purchaseMetadata.price_per_credit
-      ? `${quantity} credit${quantity > 1 ? 's' : ''} @ ₱${pricePerCredit.toFixed(2)} each from ${projectTitle}`
-      : (description || 'EcoLink Credit Purchase')
-    
+    const detailedDescription =
+      purchaseMetadata.quantity && purchaseMetadata.price_per_credit
+        ? `${quantity} credit${quantity > 1 ? 's' : ''} @ ₱${pricePerCredit.toFixed(2)} each from ${projectTitle}`
+        : description || 'EcoLink Credit Purchase'
+
     // Create line items - show actual quantity and per-credit price if available
-    const lineItems = purchaseMetadata.quantity && purchaseMetadata.price_per_credit
-      ? [
-          {
-            name: `${projectTitle} - Carbon Credits`,
-            quantity: quantity,
-            amount: Math.round(pricePerCredit * 100), // Price per credit in centavos
-            currency: 'PHP',
-          }
-        ]
-      : [
-          {
-            name: description || 'EcoLink Carbon Credits',
-            quantity: 1,
-            amount: Math.round(amount * 100), // Total amount in centavos
-            currency: 'PHP',
-          }
-        ]
-    
+    const lineItems =
+      purchaseMetadata.quantity && purchaseMetadata.price_per_credit
+        ? [
+            {
+              name: `${projectTitle} - Carbon Credits`,
+              quantity: quantity,
+              amount: Math.round(pricePerCredit * 100), // Price per credit in centavos
+              currency: 'PHP',
+            },
+          ]
+        : [
+            {
+              name: description || 'EcoLink Carbon Credits',
+              quantity: 1,
+              amount: Math.round(amount * 100), // Total amount in centavos
+              currency: 'PHP',
+            },
+          ]
+
     const checkoutData = {
       data: {
         attributes: {
@@ -117,41 +130,47 @@ export async function createCheckoutSession(sessionData) {
         },
       },
     }
-    
+
     console.log('📋 PayMongo checkout details:', {
       description: detailedDescription,
       quantity: quantity,
       price_per_credit: pricePerCredit,
       total_amount: amount,
-      line_items: lineItems
+      line_items: lineItems,
     })
-    
-    // Call PayMongo API directly (secret key is in env, but should be in backend for production)
-    if (!PAYMONGO_CONFIG.secretKey) {
-      throw new Error('PayMongo secret key not configured. Please add VITE_PAYMONGO_SECRET_KEY to .env')
+
+    // Prefer calling Supabase Edge Function to avoid CORS and keep secrets server-side
+    let result
+    try {
+      const supabase = await getSupabaseAsync()
+      if (supabase) {
+        const { data, error } = await supabase.functions.invoke('paymongo-checkout', {
+          body: checkoutData,
+        })
+
+        if (error) {
+          console.error('❌ Supabase paymongo-checkout error:', error)
+          throw new Error(error.message || 'Failed to create checkout session via Supabase')
+        }
+
+        result = data
+      } else {
+        throw new Error('Supabase client not available for paymongo-checkout')
+      }
+    } catch (edgeError) {
+      console.error('❌ Supabase paymongo-checkout failed:', edgeError)
+      // Do not call PayMongo from the browser – it is blocked by CORS. The checkout
+      // must go through the Supabase Edge Function. Common cause: function deployed
+      // with JWT verification on, so the OPTIONS preflight gets 401.
+      throw new Error(
+        'Checkout is unavailable. Please deploy the paymongo-checkout Edge Function with JWT verification disabled (see supabase/config.toml or use: supabase functions deploy paymongo-checkout --no-verify-jwt) and set PAYMONGO_SECRET_KEY in Supabase.',
+      )
     }
-    
-    const response = await fetch(`${PAYMONGO_CONFIG.apiBaseUrl}/checkout_sessions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${btoa(PAYMONGO_CONFIG.secretKey + ':')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(checkoutData),
-    })
-    
-    if (!response.ok) {
-      const errorData = await response.json()
-      console.error('❌ PayMongo checkout session error:', errorData)
-      throw new Error(errorData.errors?.[0]?.detail || 'Failed to create checkout session')
-    }
-    
-    const result = await response.json()
-    
+
     console.log('✅ Checkout session created:', result.data.id)
     console.log('✅ Full session response:', JSON.stringify(result, null, 2))
     console.log('✅ Checkout URL:', result.data.attributes.checkout_url)
-    
+
     return {
       success: true,
       sessionId: result.data.id,
@@ -169,25 +188,32 @@ export async function createCheckoutSession(sessionData) {
 /**
  * Process a successful payment callback
  * This is called when user returns from PayMongo checkout
- * 
+ *
  * @param {string} sessionId - Checkout session ID
+ * @param {Object} options - Additional options
+ * @param {boolean} options.isMock - Whether this is a mock payment
+ * @param {number} options.mockAmount - Amount for mock payment (from URL query)
  * @returns {Promise<Object>} Payment result
  */
-export async function processPaymentCallback(sessionId) {
+export async function processPaymentCallback(sessionId, options = {}) {
   try {
-    console.log('🔍 Processing payment callback for session:', sessionId)
-    
+    console.log('🔍 Processing payment callback for session:', sessionId, options)
+
     // If mock mode
-    if (sessionId.startsWith('mock_')) {
+    if (sessionId.startsWith('mock_') || options.isMock) {
+      const mockAmount = options.mockAmount || 0
+      console.log('🎭 Processing mock payment:', { sessionId, amount: mockAmount })
       return {
         success: true,
         payment: {
           id: sessionId,
-          amount: 0,
+          amount: mockAmount,
           currency: 'PHP',
           status: 'paid',
+          payment_method: 'mock',
         },
         session: { id: sessionId },
+        paymentMethod: 'mock',
       }
     }
 
@@ -205,57 +231,76 @@ export async function processPaymentCallback(sessionId) {
         session: { id: sessionId },
       }
     }
-    
-    // Validate secret key
+
+    // Prefer Edge Function for verification (secret key stays in Supabase, not frontend)
     if (!PAYMONGO_CONFIG.secretKey) {
-      throw new Error('PayMongo secret key not configured')
+      const supabase = await getSupabaseAsync()
+      if (supabase) {
+        const { data: verifyResult, error: verifyError } = await supabase.functions.invoke(
+          'paymongo-checkout',
+          { body: { action: 'verify', sessionId } },
+        )
+        if (verifyError) {
+          console.error('❌ Edge Function verify error:', verifyError)
+          throw new Error(verifyError.message || 'Payment verification failed')
+        }
+        if (verifyResult && typeof verifyResult.success === 'boolean') {
+          console.log('✅ Payment verified via Edge Function')
+          return verifyResult
+        }
+      }
+      throw new Error('PayMongo secret key not configured. Set PAYMONGO_SECRET_KEY in Supabase Edge Function secrets.')
     }
-    
-    // Retrieve the checkout session
-    const sessionResponse = await fetch(`${PAYMONGO_CONFIG.apiBaseUrl}/checkout_sessions/${sessionId}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Basic ${btoa(PAYMONGO_CONFIG.secretKey + ':')}`,
+
+    // Fallback: verify from browser when secret key is in env (e.g. legacy dev)
+    const sessionResponse = await fetch(
+      `${PAYMONGO_CONFIG.apiBaseUrl}/checkout_sessions/${sessionId}`,
+      {
+        method: 'GET',
+        headers: {
+          Authorization: `Basic ${btoa(PAYMONGO_CONFIG.secretKey + ':')}`,
+        },
       },
-    })
-    
+    )
+
     if (!sessionResponse.ok) {
       throw new Error('Failed to retrieve checkout session')
     }
-    
+
     const sessionData = await sessionResponse.json()
-    
+
     console.log('✅ Session data retrieved:', JSON.stringify(sessionData, null, 2))
     console.log('✅ Payments array:', sessionData.data.attributes.payments)
-    
+
     // payments is an array of payment objects, get the first one's id
-    const paymentId = sessionData.data.attributes.payments?.[0]?.id || sessionData.data.attributes.payments?.[0]
-    
+    const paymentId =
+      sessionData.data.attributes.payments?.[0]?.id || sessionData.data.attributes.payments?.[0]
+
     console.log('✅ Extracted payment ID:', paymentId, 'Type:', typeof paymentId)
-    
+
     if (!paymentId) {
       console.error('❌ No payment found in session data')
       throw new Error('No payment found in session')
     }
-    
+
     // Retrieve payment details
     const paymentResponse = await fetch(`${PAYMONGO_CONFIG.apiBaseUrl}/payments/${paymentId}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Basic ${btoa(PAYMONGO_CONFIG.secretKey + ':')}`,
+        Authorization: `Basic ${btoa(PAYMONGO_CONFIG.secretKey + ':')}`,
       },
     })
-    
+
     if (!paymentResponse.ok) {
       throw new Error('Failed to retrieve payment')
     }
-    
+
     const paymentData = await paymentResponse.json()
-    
+
     // Extract the actual payment method used from PayMongo
     // PayMongo stores payment method in payment_data.attributes.source.type or payment_data.attributes.payment_method.type
     let actualPaymentMethod = 'unknown'
-    
+
     // Check payment_method attribute first (newer API)
     if (paymentData.data?.attributes?.payment_method?.type) {
       actualPaymentMethod = paymentData.data.attributes.payment_method.type
@@ -268,27 +313,29 @@ export async function processPaymentCallback(sessionId) {
     else if (paymentData.data?.attributes?.payment_method_details?.type) {
       actualPaymentMethod = paymentData.data.attributes.payment_method_details.type
     }
-    
+
     // Normalize payment method names
     // PayMongo uses: 'card', 'gcash', 'paymaya', 'grab_pay', etc.
     // Map to our standard names
     const paymentMethodMap = {
-      'card': 'card',
-      'credit_card': 'card',
-      'debit_card': 'card',
-      'gcash': 'gcash',
-      'paymaya': 'maya',
-      'grab_pay': 'grab_pay',
+      card: 'card',
+      credit_card: 'card',
+      debit_card: 'card',
+      gcash: 'gcash',
+      paymaya: 'maya',
+      grab_pay: 'grab_pay',
     }
-    
+
     actualPaymentMethod = paymentMethodMap[actualPaymentMethod] || actualPaymentMethod
-    
+
     console.log('💳 Detected payment method from PayMongo:', {
-      raw: paymentData.data?.attributes?.payment_method?.type || paymentData.data?.attributes?.source?.type,
+      raw:
+        paymentData.data?.attributes?.payment_method?.type ||
+        paymentData.data?.attributes?.source?.type,
       normalized: actualPaymentMethod,
-      full_payment_data: paymentData.data?.attributes
+      full_payment_data: paymentData.data?.attributes,
     })
-    
+
     const payment = {
       id: paymentData.data.id,
       amount: paymentData.data.attributes.amount / 100,
@@ -298,9 +345,9 @@ export async function processPaymentCallback(sessionId) {
       fee: paymentData.data.attributes.fee / 100,
       payment_method: actualPaymentMethod, // Include detected payment method
     }
-    
+
     console.log('✅ Payment retrieved:', payment)
-    
+
     return {
       success: payment.status === 'paid',
       payment: payment,

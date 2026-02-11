@@ -168,11 +168,18 @@ const router = createRouter({
       component: () => import('@/views/ReceiptView.vue'),
       meta: { requiresAuth: true },
     },
-    
-    // Payment Callback
+
+    // Payment Callback (PayMongo redirects here after payment)
     {
       path: '/payment/callback',
       name: 'payment-callback',
+      component: () => import('@/views/PaymentCallbackView.vue'),
+      meta: { requiresAuth: true },
+    },
+    // Mock / legacy completion URL (same handler; session id from localStorage)
+    {
+      path: '/payment/complete',
+      name: 'payment-complete',
       component: () => import('@/views/PaymentCallbackView.vue'),
       meta: { requiresAuth: true },
     },

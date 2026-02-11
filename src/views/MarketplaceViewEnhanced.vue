@@ -133,7 +133,9 @@
                     <h3 class="project-grid-title">{{ listing.project_title }}</h3>
                     <p class="project-grid-description">{{ listing.project_description }}</p>
                     <div class="project-grid-meta">
-                      <span class="material-symbols-outlined location-icon" aria-hidden="true">location_on</span>
+                      <span class="material-symbols-outlined location-icon" aria-hidden="true"
+                        >location_on</span
+                      >
                       <span>{{ listing.location }}</span>
                     </div>
                     <div class="project-grid-pricing">
@@ -158,10 +160,17 @@
                         size="sm"
                         @click.stop.prevent="adminDeleteListing(listing)"
                         @mousedown.stop
-                        style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
+                        style="
+                          margin-left: 0.5rem;
+                          z-index: 10;
+                          position: relative;
+                          cursor: pointer;
+                        "
                         :title="`Delete project: ${listing.project_title}`"
                       >
-                        <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+                        <span class="material-symbols-outlined" aria-hidden="true"
+                          >delete_forever</span
+                        >
                         <span>Delete</span>
                       </UiButton>
                     </div>
@@ -194,7 +203,9 @@
                     <p class="project-description">{{ listing.project_description }}</p>
                     <div class="project-meta">
                       <div class="meta-item">
-                        <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                        <span class="material-symbols-outlined" aria-hidden="true"
+                          >location_on</span
+                        >
                         <span class="meta-text">{{ listing.location }}</span>
                       </div>
                       <div class="meta-item">
@@ -224,10 +235,17 @@
                         size="sm"
                         @click.stop.prevent="adminDeleteListing(listing)"
                         @mousedown.stop
-                        style="margin-left: 0.5rem; z-index: 10; position: relative; cursor: pointer;"
+                        style="
+                          margin-left: 0.5rem;
+                          z-index: 10;
+                          position: relative;
+                          cursor: pointer;
+                        "
                         :title="`Delete project: ${listing.project_title}`"
                       >
-                        <span class="material-symbols-outlined" aria-hidden="true">delete_forever</span>
+                        <span class="material-symbols-outlined" aria-hidden="true"
+                          >delete_forever</span
+                        >
                         <span>Delete</span>
                       </UiButton>
                     </div>
@@ -310,8 +328,8 @@
             <div v-if="purchaseQuantity > maxPurchaseQuantity" class="error-message warning-inline">
               <span class="material-symbols-outlined" aria-hidden="true">error</span>
               <span>
-                Cannot purchase more than {{ formatNumber(maxPurchaseQuantity) }} credits. Available:
-                {{ formatNumber(selectedListing?.available_quantity || 0) }} credits
+                Cannot purchase more than {{ formatNumber(maxPurchaseQuantity) }} credits.
+                Available: {{ formatNumber(selectedListing?.available_quantity || 0) }} credits
               </span>
             </div>
           </div>
@@ -353,16 +371,22 @@
                   </div>
                   <div v-else class="payment-method-desc">{{ method.description }}</div>
                 </div>
-                <div v-if="method.value === 'wallet' && walletBalance < totalPrice" class="insufficient-balance">
+                <div
+                  v-if="method.value === 'wallet' && walletBalance < totalPrice"
+                  class="insufficient-balance"
+                >
                   Insufficient funds
                 </div>
               </div>
             </div>
-            <div v-if="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice" class="error-message warning-inline">
+            <div
+              v-if="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice"
+              class="error-message warning-inline"
+            >
               <span class="material-symbols-outlined" aria-hidden="true">error</span>
               <span>
-                Your wallet balance ({{ formatCurrency(walletBalance, 'PHP') }}) is insufficient for this purchase
-                ({{ formatCurrency(totalPrice, selectedListing?.currency) }})
+                Your wallet balance ({{ formatCurrency(walletBalance, 'PHP') }}) is insufficient for
+                this purchase ({{ formatCurrency(totalPrice, selectedListing?.currency) }})
               </span>
             </div>
           </div>
@@ -381,7 +405,7 @@
         </div>
       </div>
     </AccessibleModal>
-    
+
     <!-- Modern Prompt Modal -->
     <ModernPrompt
       :is-open="promptState.isOpen"
@@ -413,7 +437,16 @@ import MobileCard from '@/components/mobile/MobileCard.vue'
 import AccessibleModal from '@/components/ui/AccessibleModal.vue'
 import ModernPrompt from '@/components/ui/ModernPrompt.vue'
 
-const { promptState, confirm, success, error: showErrorPrompt, warning, handleConfirm, handleCancel, handleClose } = useModernPrompt()
+const {
+  promptState,
+  confirm,
+  success,
+  error: showErrorPrompt,
+  warning,
+  handleConfirm,
+  handleCancel,
+  handleClose,
+} = useModernPrompt()
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -425,7 +458,7 @@ const isUserAdmin = computed(() => {
     isAdmin: adminStatus,
     role: userStore.role,
     profile: userStore.profile,
-    session: !!userStore.session
+    session: !!userStore.session,
   })
   return adminStatus
 })
@@ -600,7 +633,7 @@ const totalPrice = computed(() => {
 // Maximum quantity that can be purchased (respects developer limit)
 const maxPurchaseQuantity = computed(() => {
   if (!selectedListing.value) return 0
-  
+
   // Use available_quantity which already respects developer limit
   return selectedListing.value.available_quantity || 0
 })
@@ -618,38 +651,49 @@ watch(purchaseQuantity, (newQuantity) => {
 async function loadMarketplaceData() {
   loading.value = true
   errorMessage.value = ''
-  
+
   // Clear old listings to prevent stale data
   listings.value = []
 
-  // Add timeout protection to prevent infinite loading
-  const timeoutPromise = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000)
-  )
+  // Load listings and stats in parallel; use 90s timeout (Supabase can be slow on first load / weak networks)
+  const timeoutMs = 90000
+  const withTimeout = (p, label) =>
+    Promise.race([
+      p,
+      new Promise((_, reject) =>
+        setTimeout(
+          () => reject(new Error(`${label} timed out after ${timeoutMs / 1000}s`)),
+          timeoutMs,
+        ),
+      ),
+    ])
 
   try {
-    // Race against timeout
-    const [listingsData, statsData] = await Promise.race([
-      Promise.all([
-        getMarketplaceListings(),
-        getMarketplaceStats(),
-      ]),
-      timeoutPromise,
+    const [listingsData, statsData] = await Promise.all([
+      withTimeout(getMarketplaceListings(), 'Listings'),
+      withTimeout(getMarketplaceStats(), 'Stats'),
     ])
 
     console.log('📦 Received listings data:', listingsData?.length || 0, 'listings')
-    console.log('📦 First listing price:', listingsData?.[0]?.price_per_credit)
-    
-    listings.value = listingsData || []
-    marketplaceStats.value = statsData
+    if (listingsData?.length) {
+      console.log('📦 First listing price:', listingsData[0]?.price_per_credit)
+    }
+
+    listings.value = Array.isArray(listingsData) ? listingsData : []
+    marketplaceStats.value = statsData || {
+      totalListings: 0,
+      totalCreditsAvailable: 0,
+      totalMarketValue: 0,
+      recentTransactions: 0,
+    }
   } catch (err) {
     console.error('Error loading marketplace data:', err)
-    if (err.message?.includes('timeout')) {
-      errorMessage.value = 'Request timed out. Please check your connection and try again.'
+    if (err.message?.includes('timed out')) {
+      errorMessage.value =
+        'Request took too long. Please check your connection and try "Try Again" below.'
     } else {
-      errorMessage.value = 'Failed to load marketplace data. Please try again.'
+      errorMessage.value = err.message || 'Failed to load marketplace data. Please try again.'
     }
-    // Ensure listings is empty on error
     listings.value = []
     marketplaceStats.value = {
       totalListings: 0,
@@ -721,19 +765,19 @@ async function showPurchaseModalFor(listing) {
   console.log('🔐 Checking authentication before opening modal:', {
     isAuthenticated: userStore.isAuthenticated,
     hasSession: !!userStore.session,
-    userEmail: userStore.session?.user?.email
+    userEmail: userStore.session?.user?.email,
   })
-  
+
   if (!userStore.isAuthenticated) {
     alert('Please log in to purchase credits')
     router.push({ name: 'login', query: { returnTo: '/marketplace' } })
     return
   }
-  
+
   selectedListing.value = listing
   purchaseQuantity.value = 1
   showPurchaseModal.value = true
-  
+
   // Load wallet balance
   try {
     const { getWalletBalance } = await import('@/services/walletService')
@@ -761,7 +805,7 @@ async function handlePurchase() {
     })
     return
   }
-  
+
   // Validate quantity doesn't exceed available credits
   if (purchaseQuantity.value > maxPurchaseQuantity.value) {
     await warning({
@@ -813,7 +857,7 @@ async function handlePurchase() {
 
     // Process the purchase with timeout protection
     const purchaseTimeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Purchase request timed out after 60 seconds')), 60000)
+      setTimeout(() => reject(new Error('Purchase request timed out after 60 seconds')), 60000),
     )
 
     const result = await Promise.race([
@@ -828,7 +872,7 @@ async function handlePurchase() {
       console.log('🔗 Redirecting to PayMongo checkout:', result.checkoutUrl)
       // Store the pending purchase
       localStorage.setItem('pending_purchase_session', result.sessionId)
-      
+
       // Redirect to PayMongo checkout immediately
       window.location.href = result.checkoutUrl
       return // Stop here, user will be redirected
@@ -836,7 +880,10 @@ async function handlePurchase() {
 
     // If we get here without redirect, check if checkoutUrl exists anyway (fallback)
     if (result.checkoutUrl && !result.redirect) {
-      console.log('⚠️ Found checkoutUrl but redirect flag not set, redirecting anyway:', result.checkoutUrl)
+      console.log(
+        '⚠️ Found checkoutUrl but redirect flag not set, redirecting anyway:',
+        result.checkoutUrl,
+      )
       localStorage.setItem('pending_purchase_session', result.sessionId || '')
       window.location.href = result.checkoutUrl
       return
@@ -919,7 +966,7 @@ async function adminDeleteListing(listing) {
   console.log('🔍 User store isAdmin:', userStore.isAdmin)
   console.log('🔍 User role:', userStore.role)
   console.log('🔍 User store object:', userStore)
-  
+
   // Check if user is admin
   if (!userStore.isAdmin) {
     console.warn('WARNING: Non-admin user attempted to delete project')
@@ -935,7 +982,7 @@ async function adminDeleteListing(listing) {
   const projectId = listing.project_id || listing.id || listing.projectId
   console.log('🔍 Project ID extracted:', projectId)
   console.log('🔍 Full listing object:', listing)
-  
+
   if (!projectId) {
     console.error('❌ No project ID found in listing:', listing)
     await showErrorPrompt({
@@ -960,19 +1007,19 @@ async function adminDeleteListing(listing) {
 
   try {
     console.log('Admin deleting project from marketplace:', projectId)
-    
+
     // Use admin delete function which handles all related data deletion
     const result = await projectService.adminDeleteProject(projectId)
-    
+
     if (!result) {
       throw new Error('Delete operation returned false')
     }
 
     console.log('✅ Project deleted successfully from marketplace:', projectId)
-    
+
     // Reload marketplace data
     await loadMarketplaceData()
-    
+
     await success({
       title: 'Project Deleted!',
       message: `"${listing.project_title}" has been permanently deleted from the marketplace and system.`,
@@ -982,7 +1029,8 @@ async function adminDeleteListing(listing) {
     console.error('❌ Error deleting project from marketplace:', err)
     await showErrorPrompt({
       title: 'Delete Failed',
-      message: err.message || 'Failed to delete project. Please check console for details and try again.',
+      message:
+        err.message || 'Failed to delete project. Please check console for details and try again.',
       confirmText: 'OK',
     })
   }
@@ -996,9 +1044,9 @@ onMounted(() => {
     role: userStore.role,
     profile: userStore.profile?.role,
     session: !!userStore.session,
-    userStore: userStore
+    userStore: userStore,
   })
-  
+
   loadMarketplaceData()
 })
 </script>

@@ -26,7 +26,8 @@
     "test:supabase": "node scripts/test/integration/test-supabase-integration.js",
     "test:integration": "node scripts/test/integration/test-complete-integration.js",
     "test:integration:fixed": "node scripts/test/integration/test-integration-fixed.js",
-    "test:simple": "node scripts/test/integration/simple-integration-test.js"
+    "test:simple": "node scripts/test/integration/simple-integration-test.js",
+    "deploy:paymongo": "supabase functions deploy paymongo-checkout --no-verify-jwt"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
