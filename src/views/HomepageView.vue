@@ -11,29 +11,6 @@
           </p>
         </div>
 
-        <!-- Search Bar -->
-        <div class="search-container">
-          <div class="search-bar">
-            <div class="search-input-wrapper">
-              <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                ></path>
-              </svg>
-              <input
-                placeholder="Search for a project"
-                v-model="searchQuery"
-                class="search-input"
-                @keypress="handleSearch"
-              />
-            </div>
-            <button @click="handleSearch" class="search-button">Search</button>
-          </div>
-        </div>
-
         <!-- Auth Actions (only show when not logged in) -->
         <div v-if="!store.isAuthenticated" class="auth-actions">
           <button @click="$router.push('/login')" class="auth-button primary">Sign In</button>
@@ -256,7 +233,6 @@ export default {
   },
   data() {
     return {
-      searchQuery: '',
       currentFeatured: 0,
       stats: [
         { label: 'Carbon Credits Retired', value: '2.3M', icon: 'compost' },
@@ -311,11 +287,6 @@ export default {
     }
   },
   methods: {
-    handleSearch() {
-      if (this.searchQuery.trim()) {
-        this.$router.push(`/marketplace?search=${encodeURIComponent(this.searchQuery)}`)
-      }
-    },
     handleRoleApplication(role) {
       try {
         const roleParam = role === 'verifier' ? 'verifier' : 'project_developer'
@@ -380,71 +351,6 @@ export default {
   color: var(--text-muted);
   margin-bottom: 2rem;
   line-height: 1.6;
-}
-
-/* Search Bar */
-.search-container {
-  max-width: 100%;
-  margin: 0 auto 4rem auto;
-  padding: 0 2rem;
-}
-
-.search-bar {
-  display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  background: var(--bg-primary);
-  border-radius: 50px;
-  box-shadow: var(--shadow-green-lg);
-  border: 2px solid var(--border-green-light);
-  max-width: 50rem;
-  margin: 0 auto;
-}
-
-.search-input-wrapper {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  left: 1rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--text-muted);
-  z-index: 1;
-}
-
-.search-input {
-  width: 100%;
-  padding: 1rem 1.5rem 1rem 3.5rem;
-  border: none;
-  outline: none;
-  font-size: var(--font-size-lg);
-  background: transparent;
-  font-weight: 500;
-}
-
-.search-button {
-  padding: 1rem 3rem;
-  background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-hover) 100%);
-  color: var(--text-light);
-  border: none;
-  border-radius: 50px;
-  font-weight: 700;
-  font-size: var(--font-size-lg);
-  cursor: pointer;
-  transition: var(--transition);
-  box-shadow: var(--shadow-green-lg);
-  min-width: 8rem;
-}
-
-.search-button:hover {
-  background: linear-gradient(135deg, var(--primary-hover) 0%, var(--primary-dark) 100%);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-green-lg);
 }
 
 /* Auth Actions */

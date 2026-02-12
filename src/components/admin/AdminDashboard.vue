@@ -41,8 +41,8 @@
             <div class="tool-icon" aria-hidden="true">
               <span class="material-symbols-outlined">build</span>
             </div>
-            <h3>Specialist Applications</h3>
-            <p>Review project developer and verifier requests</p>
+            <h3>Developer & Verifier Applications</h3>
+            <p>View and review accounts who applied to be a project developer or verifier (from /apply form)</p>
           </router-link>
 
           <router-link to="/admin/audit-logs" class="admin-tool-card">

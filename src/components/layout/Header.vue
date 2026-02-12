@@ -66,17 +66,6 @@
 
         <!-- Desktop Actions -->
         <div class="desktop-actions">
-          <div class="search-wrapper">
-            <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-              ></path>
-            </svg>
-            <input placeholder="Search projects..." v-model="searchQuery" class="search-input" />
-          </div>
         <div v-if="userStore.isAuthenticated" class="user-menu">
             <div class="user-info">
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
@@ -184,32 +173,6 @@
             </button>
           </div>
 
-          <!-- Search Bar -->
-          <div
-            style="
-              padding: 0.75rem !important;
-              background: #e8f5e8 !important;
-              margin: 1rem !important;
-              border-radius: 8px !important;
-              border: 1px solid #4caf50 !important;
-            "
-          >
-            <input
-              type="text"
-              placeholder="Search projects..."
-              v-model="searchQuery"
-              style="
-                width: 100% !important;
-                padding: 0.75rem !important;
-                border: 1px solid #ddd !important;
-                border-radius: 6px !important;
-                font-size: 0.9rem !important;
-                outline: none !important;
-                box-sizing: border-box !important;
-              "
-            />
-          </div>
-
           <!-- NAVIGATION LINKS -->
           <div style="padding: 1rem !important; background: white !important">
             <div
@@ -290,7 +253,6 @@ import { getUserInitials } from '@/services/profileService'
 const route = useRoute()
 const userStore = useUserStore()
 
-const searchQuery = ref('')
 const mobileMenuOpen = ref(false)
 const showUserMenu = ref(false)
 const avatarError = ref(false)
@@ -651,39 +613,6 @@ function onAvatarError() {
   width: auto;
 }
 
-.search-wrapper {
-  position: relative;
-}
-
-.search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-muted);
-}
-
-.search-input {
-  width: 16rem;
-  height: 2.25rem;
-  padding: 0.5rem 0.75rem 0.5rem 2.5rem;
-  font-size: var(--font-size-sm);
-  border: 2px solid var(--border-green-light);
-  border-radius: var(--radius-lg);
-  background: var(--bg-primary);
-  outline: none;
-  transition: var(--transition);
-  box-shadow: var(--shadow-sm);
-}
-
-.search-input:focus {
-  border-color: var(--primary-color);
-  box-shadow: var(--shadow-green);
-  background: var(--bg-primary);
-}
-
 .user-menu {
   position: relative;
   display: flex;
@@ -987,39 +916,6 @@ function onAvatarError() {
   width: auto;
 }
 
-.mobile-search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.mobile-search-icon {
-  position: absolute;
-  left: 0.5rem;
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-muted);
-  z-index: 1;
-}
-
-.mobile-search-input {
-  width: 100%;
-  max-width: 200px;
-  height: 2rem;
-  padding: 0.5rem 0.5rem 0.5rem 2rem;
-  font-size: 0.8rem;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-md);
-  background: var(--bg-primary);
-  outline: none;
-  transition: var(--transition);
-}
-
-.mobile-search-input:focus {
-  border-color: var(--primary-color);
-  box-shadow: 0 0 0 2px rgba(6, 158, 45, 0.1);
-}
-
 /* Removed old mobile user section styles - now integrated into hamburger menu */
 
 /* Desktop Header Layout */
@@ -1083,12 +979,6 @@ function onAvatarError() {
   .mobile-nav-item {
     font-size: 0.75rem;
     padding: 0.2rem 0.4rem;
-  }
-
-  .mobile-search-input {
-    width: 6rem;
-    height: 1.75rem;
-    font-size: 0.75rem;
   }
 
   .mobile-user-name {
@@ -1158,45 +1048,6 @@ function onAvatarError() {
 
 .mobile-close-btn:hover {
   background: rgba(45, 90, 45, 0.1);
-}
-
-.mobile-search-clean {
-  padding: 1rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  margin-bottom: 1rem;
-  border: 1px solid #e9ecef;
-}
-
-.mobile-search-clean .search-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
-.mobile-search-clean .search-icon {
-  position: absolute;
-  left: 0.75rem;
-  color: #666;
-  z-index: 1;
-}
-
-.search-input-clean {
-  width: 100%;
-  padding: 0.75rem 0.75rem 0.75rem 2.5rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  background: white;
-  outline: none;
-  transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.search-input-clean:focus {
-  border-color: #4caf50;
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
 }
 
 .mobile-user-section-clean {
@@ -1565,46 +1416,6 @@ function onAvatarError() {
 .close-icon {
   width: 1.25rem;
   height: 1.25rem;
-}
-
-.mobile-search {
-  position: relative;
-  display: flex;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding: 0.5rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
-}
-
-.mobile-search .search-icon {
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 1rem;
-  height: 1rem;
-  color: var(--text-muted);
-}
-
-.mobile-search .search-input {
-  width: 100%;
-  height: 2.5rem;
-  padding: 0.75rem 1rem 0.75rem 2.5rem;
-  font-size: 0.9rem;
-  border: none;
-  border-radius: 6px;
-  background: white;
-  outline: none;
-  font-weight: 500;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  color: #333;
-}
-
-.mobile-search .search-input:focus {
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
-  background: white;
 }
 
 .mobile-nav {

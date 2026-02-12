@@ -37,6 +37,11 @@ const router = createRouter({
       name: 'marketplace',
       component: () => import('@/views/MarketplaceViewEnhanced.vue'),
     },
+    {
+      path: '/apply',
+      name: 'role-application',
+      component: () => import('@/views/RoleApplicationView.vue'),
+    },
     { path: '/retire', redirect: '/wallet' },
     {
       path: '/mobile-test',
@@ -205,7 +210,7 @@ router.beforeEach(async (to, from, next) => {
   console.log('🔍 Router guard checking:', to.name, 'from:', from.name)
 
   // Skip auth check for public routes
-  const publicRoutes = ['login', 'register', 'homepage', 'home']
+  const publicRoutes = ['login', 'register', 'homepage', 'home', 'role-application']
   if (publicRoutes.includes(to.name)) {
     console.log('✅ Public route, allowing access')
     next()

@@ -28,6 +28,17 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
     <section class="auth-panel">
       <div class="panel-card">
         <RegisterForm />
+        <div class="apply-specialist">
+          <span class="apply-specialist__label">Want to join as a specialist?</span>
+          <div class="apply-specialist__links">
+            <router-link :to="{ path: '/apply', query: { role: 'project_developer' } }" class="apply-specialist__link">
+              Apply as Developer
+            </router-link>
+            <router-link :to="{ path: '/apply', query: { role: 'verifier' } }" class="apply-specialist__link">
+              Apply as Verifier
+            </router-link>
+          </div>
+        </div>
         <div class="panel-footer">
           <span class="panel-desc">Already have an account?</span>
           <router-link class="muted-link" to="/login">Sign in</router-link>
@@ -173,6 +184,44 @@ import RegisterForm from '@/components/auth/RegisterForm.vue'
   flex-direction: column;
   max-height: 100%;
   box-sizing: border-box;
+}
+
+/* Apply as Developer/Verifier */
+.apply-specialist {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  text-align: center;
+}
+
+.apply-specialist__label {
+  display: block;
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin-bottom: 0.75rem;
+}
+
+.apply-specialist__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+}
+
+.apply-specialist__link {
+  color: var(--primary-color, #069e2d);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--primary-color, #069e2d);
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.apply-specialist__link:hover {
+  background: var(--primary-color, #069e2d);
+  color: #fff;
 }
 
 /* Enhanced Footer */

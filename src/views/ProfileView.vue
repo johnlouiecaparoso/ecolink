@@ -4,7 +4,7 @@
     <div class="page-header">
       <div class="container">
         <h1 class="page-title">My Profile</h1>
-        <p class="page-description">Manage your account settings and view your carbon impact</p>
+        <p class="page-description">Manage your account settings</p>
       </div>
     </div>
 
@@ -89,77 +89,6 @@
                 </div>
                 <p class="profile-bio">{{ userProfile.bio }}</p>
                 <button class="edit-profile-button" @click="editProfile">Edit Profile</button>
-              </div>
-            </div>
-
-            <!-- Carbon Impact Card -->
-            <div class="carbon-impact-card">
-              <div class="card-header">
-                <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                  ></path>
-                </svg>
-                <h3 class="card-title">Carbon Impact</h3>
-              </div>
-              <div class="impact-metrics">
-                <div class="metric-item">
-                  <span class="metric-value">{{
-                    carbonImpact.tonnesRetired.toLocaleString()
-                  }}</span>
-                  <span class="metric-label">Tonnes Retired</span>
-                </div>
-                <div class="metric-item">
-                  <span class="metric-value">{{ carbonImpact.projectsSupported }}</span>
-                  <span class="metric-label">Projects Supported</span>
-                </div>
-              </div>
-              <div class="financial-summary">
-                <div class="summary-item">
-                  <span class="summary-label">Total Purchased:</span>
-                  <span class="summary-value"
-                    >{{ carbonImpact.totalPurchased.toLocaleString() }} tonnes</span
-                  >
-                </div>
-                <div class="summary-item">
-                  <span class="summary-label">Portfolio Value:</span>
-                  <span class="summary-value"
-                    >${{ carbonImpact.portfolioValue.toLocaleString() }}</span
-                  >
-                </div>
-              </div>
-            </div>
-
-            <!-- Achievements Card -->
-            <div class="achievements-card">
-              <div class="card-header">
-                <svg class="card-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
-                  ></path>
-                </svg>
-                <h3 class="card-title">Achievements</h3>
-              </div>
-              <div class="achievements-list">
-                <div
-                  v-for="(achievement, index) in achievements"
-                  :key="index"
-                  class="achievement-item"
-                >
-                  <div class="achievement-icon" :style="{ backgroundColor: achievement.color }">
-                    <span class="icon-emoji">{{ achievement.icon }}</span>
-                  </div>
-                  <div class="achievement-content">
-                    <h4 class="achievement-title">{{ achievement.title }}</h4>
-                    <p class="achievement-description">{{ achievement.description }}</p>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -442,32 +371,6 @@ export default {
         website: '',
         bio: '',
       },
-      carbonImpact: {
-        tonnesRetired: 1250,
-        projectsSupported: 8,
-        totalPurchased: 1500,
-        portfolioValue: 31250,
-      },
-      achievements: [
-        {
-          title: 'Climate Champion',
-          description: 'Retired 1000+ tonnes CO2e',
-          icon: '🏆',
-          color: '#f59e0b',
-        },
-        {
-          title: 'Early Adopter',
-          description: 'First 100 users on EcoLink',
-          icon: '🌱',
-          color: '#10b981',
-        },
-        {
-          title: 'Diversified Portfolio',
-          description: 'Credits from 5+ project types',
-          icon: '🏢',
-          color: '#3b82f6',
-        },
-      ],
       notificationSettings: {
         emailNotifications: {
           label: 'Email Notifications',
@@ -766,13 +669,6 @@ export default {
           // Show warning message to user
           this.errors.general = 'Profile could not be loaded due to database security settings. Some features may be limited. Please contact support if this persists.'
           
-          // Still try to load carbon impact (may fail but won't crash)
-          try {
-            await this.loadCarbonImpact()
-          } catch (err) {
-            console.warn('Could not load carbon impact without profile:', err)
-          }
-
           return
         }
 
@@ -829,84 +725,12 @@ export default {
           }
         }
 
-        // Load carbon impact data from Supabase
-        await this.loadCarbonImpact()
-
         console.log('Profile loaded successfully:', profile)
       } catch (error) {
         console.error('Error loading profile:', error)
         this.errors.general = 'Failed to load profile. Please try again.'
       } finally {
         this.loading = false
-      }
-    },
-
-    async loadCarbonImpact() {
-      try {
-        const userId = this.store.session?.user?.id
-        if (!userId) {
-          return
-        }
-
-        const { getSupabase } = await import('@/services/supabaseClient')
-        const { generateCarbonImpactReport } = await import('@/services/receiptService')
-        const { creditOwnershipService } = await import('@/services/creditOwnershipService')
-
-        // Get carbon impact report
-        const impactReport = await generateCarbonImpactReport(userId)
-
-        // Get credit stats
-        const creditStats = await creditOwnershipService.getUserCreditStats(userId)
-
-        // Get unique projects count
-        const supabase = getSupabase()
-        if (supabase) {
-          const { data: ownership } = await supabase
-            .from('credit_ownership')
-            .select('project_id')
-            .eq('user_id', userId)
-
-          const uniqueProjects = new Set(ownership?.map((o) => o.project_id) || [])
-          const projectsCount = uniqueProjects.size
-
-          // Update carbon impact with real data
-          this.carbonImpact = {
-            tonnesRetired: creditStats.total_retired || 0,
-            projectsSupported: projectsCount || 0,
-            totalPurchased: impactReport.summary?.totalCreditsPurchased || 0,
-            portfolioValue: impactReport.summary?.totalAmountSpent || 0,
-          }
-
-          // Dynamically generate achievements based on user stats
-          this.achievements = []
-          if (creditStats.total_retired >= 1000) {
-            this.achievements.push({
-              title: 'Climate Champion',
-              description: `Retired ${creditStats.total_retired.toLocaleString()}+ tonnes CO2e`,
-              icon: '🏆',
-              color: '#f59e0b',
-            })
-          }
-          if (projectsCount >= 5) {
-            this.achievements.push({
-              title: 'Diversified Portfolio',
-              description: `Credits from ${projectsCount}+ project types`,
-              icon: '🏢',
-              color: '#3b82f6',
-            })
-          }
-          if (impactReport.summary?.totalTransactions >= 10) {
-            this.achievements.push({
-              title: 'Active Trader',
-              description: `${impactReport.summary.totalTransactions}+ transactions completed`,
-              icon: '📈',
-              color: '#10b981',
-            })
-          }
-        }
-      } catch (error) {
-        console.error('Error loading carbon impact:', error)
-        // Keep default values on error
       }
     },
 
@@ -1439,139 +1263,6 @@ export default {
   color: white;
 }
 
-/* Carbon Impact Card */
-.carbon-impact-card {
-  background: var(--bg-primary);
-  border: 2px solid var(--border-green-light);
-  border-radius: var(--radius-xl);
-  padding: 2.5rem;
-  box-shadow: var(--shadow-green);
-  transition: all 0.3s ease;
-}
-
-.carbon-impact-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-green-lg);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-
-.card-icon {
-  width: 1.25rem;
-  height: 1.25rem;
-  color: var(--primary-color);
-}
-
-.card-title {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.impact-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.metric-item {
-  text-align: center;
-}
-
-.metric-value {
-  display: block;
-  font-size: var(--font-size-2xl);
-  font-weight: 700;
-  color: var(--primary-color);
-  margin-bottom: 0.25rem;
-}
-
-.metric-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-muted);
-}
-
-.financial-summary {
-  border-top: 1px solid var(--border-color);
-  padding-top: 1rem;
-}
-
-.summary-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-}
-
-.summary-label {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-}
-
-.summary-value {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-/* Achievements Card */
-.achievements-card {
-  background: var(--bg-primary);
-  border: 2px solid var(--border-green-light);
-  border-radius: var(--radius-xl);
-  padding: 2.5rem;
-  box-shadow: var(--shadow-green);
-  transition: all 0.3s ease;
-}
-
-.achievements-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-green-lg);
-}
-
-.achievements-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.achievement-item {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.achievement-icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.icon-emoji {
-  font-size: 1.25rem;
-}
-
-.achievement-title {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
-}
-
-.achievement-description {
-  font-size: var(--font-size-xs);
-  color: var(--text-muted);
-}
-
 /* Account Settings */
 .account-settings {
   min-height: 500px;
@@ -2035,8 +1726,5 @@ export default {
     padding: 1.5rem;
   }
 
-  .impact-metrics {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
