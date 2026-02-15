@@ -82,11 +82,10 @@
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
     <script>
-      // Register service worker for cache busting (after main app loads)
+      // Service worker is optional (skip if missing to avoid console errors on Vercel)
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(() => {
-          console.log('Service Worker registered for cache busting')
-        })
+        var swPromise = navigator.serviceWorker.register('/sw.js')
+        if (swPromise && swPromise.catch) swPromise.catch(function() {})
       }
     </script>
   </body>

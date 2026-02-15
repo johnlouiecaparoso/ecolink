@@ -14,6 +14,78 @@ let cachedMarketplaceListings = []
 let lastMarketplaceFetch = 0
 let cleanupTriggered = false
 
+/** Call after purchase so next getMarketplaceListings() fetches fresh data */
+export function invalidateMarketplaceCache() {
+  cachedMarketplaceListings = []
+  lastMarketplaceFetch = 0
+}
+
+/**
+ * Update marketplace stock after a purchase (credits_available + credit_listings).
+ * Call this from both in-app purchase and payment callback (PayMongo) so sold-out state is correct.
+ * @param {string} projectCreditId - project_credits.id
+ * @param {number} quantityPurchased - credits just purchased
+ * @param {{ listingQuantity?: number }} [opts] - optional fallback when credits_available/total_credits are null
+ */
+export async function updateMarketplaceAvailabilityAfterPurchase(
+  projectCreditId,
+  quantityPurchased,
+  opts = {},
+) {
+  const supabase = getSupabase()
+  if (!supabase) return
+
+  const { listingQuantity } = opts
+
+  try {
+    const { data: projectCredit } = await supabase
+      .from('project_credits')
+      .select('credits_available, total_credits')
+      .eq('id', projectCreditId)
+      .single()
+
+    const currentAvailable =
+      projectCredit?.credits_available ??
+      projectCredit?.total_credits ??
+      listingQuantity ??
+      0
+    const newCreditsAvailable = Math.max(0, currentAvailable - quantityPurchased)
+
+    const { error: creditsUpdateError } = await supabase
+      .from('project_credits')
+      .update({ credits_available: newCreditsAvailable })
+      .eq('id', projectCreditId)
+
+    if (creditsUpdateError) {
+      console.error('Error updating project_credits.credits_available:', creditsUpdateError)
+    }
+
+    const listingUpdate = {
+      quantity: newCreditsAvailable,
+      status: 'active',
+    }
+    const { error: allListingsUpdateError } = await supabase
+      .from('credit_listings')
+      .update(listingUpdate)
+      .eq('project_credit_id', projectCreditId)
+
+    if (allListingsUpdateError) {
+      console.error('Error syncing credit_listings quantities:', allListingsUpdateError)
+    }
+
+    invalidateMarketplaceCache()
+    if (isDev) {
+      console.log('Marketplace availability updated after purchase:', {
+        projectCreditId,
+        quantityPurchased,
+        newCreditsAvailable,
+      })
+    }
+  } catch (err) {
+    console.error('updateMarketplaceAvailabilityAfterPurchase error:', err)
+  }
+}
+
 /**
  * Get all active marketplace listings with project details
  * Real data implementation with proper error handling
@@ -260,6 +332,24 @@ export async function getMarketplaceListings(filters = {}) {
     }
   }
 
+  // Derive sold quantities from credit_transactions (source of truth) so sold-out is correct
+  // even when project_credits/credit_listings updates are blocked by RLS
+  const projectCreditIds = [...new Set((data || []).map((l) => l.project_credits?.id).filter(Boolean))]
+  const soldByProjectCredit = new Map()
+  if (projectCreditIds.length > 0) {
+    const { data: transactions } = await supabase
+      .from('credit_transactions')
+      .select('project_credit_id, quantity')
+      .in('project_credit_id', projectCreditIds)
+      .eq('status', 'completed')
+    if (transactions?.length) {
+      for (const t of transactions) {
+        const id = t.project_credit_id
+        soldByProjectCredit.set(id, (soldByProjectCredit.get(id) || 0) + (t.quantity || 0))
+      }
+    }
+  }
+
   const dedupeMap = new Map()
 
   for (const listing of data || []) {
@@ -276,13 +366,20 @@ export async function getMarketplaceListings(filters = {}) {
       continue
     }
 
+    const totalPool =
+      project.estimated_credits ?? credit.total_credits ?? listing.quantity ?? 0
+    const soldQuantity = soldByProjectCredit.get(credit.id) || 0
+    const availableFromTransactions = Math.max(0, totalPool - soldQuantity)
+
     let availableQuantity = listing.quantity ?? 0
     if (project.estimated_credits) {
       availableQuantity = Math.min(availableQuantity, project.estimated_credits)
     }
-        if (credit.credits_available !== null && credit.credits_available !== undefined) {
+    if (credit.credits_available !== null && credit.credits_available !== undefined) {
       availableQuantity = Math.min(availableQuantity, credit.credits_available)
     }
+    // Source of truth: never show more than (total pool - already sold)
+    availableQuantity = Math.min(availableQuantity, availableFromTransactions)
 
     const pricePerCredit =
       project.credit_price ??
@@ -555,11 +652,11 @@ export async function purchaseCredits(listingId, purchaseData) {
     const actualPricePerCredit = project?.credit_price || listing.price_per_credit
     const totalCost = actualPricePerCredit * purchaseData.quantity
 
-    // CRITICAL: Get current available credits from project_credits table
+    // CRITICAL: Get current available credits for THIS listing's project_credits row (by id)
     const { data: projectCredit } = await supabase
       .from('project_credits')
       .select('credits_available, total_credits')
-      .eq('project_id', listing.project_credits.project_id)
+      .eq('id', listing.project_credits.id)
       .single()
 
     // Calculate actual available quantity (respects developer limit)
@@ -804,21 +901,10 @@ export async function purchaseCredits(listingId, purchaseData) {
       // Continue - purchase is still valid, but ownership might need manual fix
     }
 
-    // Update listing quantity
-    const remainingQuantity = listing.quantity - purchaseData.quantity
-    const { error: updateError } = await supabase
-      .from('credit_listings')
-      .update({
-        quantity: remainingQuantity,
-        status: remainingQuantity > 0 ? 'active' : 'sold_out',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', listingId)
-
-    if (updateError) {
-    console.error('Error updating listing quantity:', updateError)
-      // Continue - purchase is still valid
-    }
+    // Update marketplace stock (project_credits.credits_available + all credit_listings) and invalidate cache
+    await updateMarketplaceAvailabilityAfterPurchase(listing.project_credits.id, purchaseData.quantity, {
+      listingQuantity: listing.quantity,
+    })
 
     // Create credit_transaction record (required for certificates and receipts)
     // This is CRITICAL - transaction must be created for certificates and history

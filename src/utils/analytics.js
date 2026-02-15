@@ -353,9 +353,11 @@ class AnalyticsTracker {
 
   /**
    * Send data to custom analytics endpoint
+   * Skips when endpoint is relative (e.g. /api/analytics) and no backend exists (e.g. Vercel static deploy)
    */
   async sendToCustomEndpoint(type, data) {
     if (!this.config.apiEndpoint) return
+    if (this.config.apiEndpoint.startsWith('/') && typeof window !== 'undefined') return
 
     try {
       await fetch(this.config.apiEndpoint, {
@@ -379,6 +381,7 @@ class AnalyticsTracker {
    */
   async flushEvents() {
     if (this.events.length === 0) return
+    if (this.config.apiEndpoint.startsWith('/') && typeof window !== 'undefined') return
 
     const eventsToSend = this.events.splice(0, this.config.batchSize)
 

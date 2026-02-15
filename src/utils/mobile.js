@@ -335,18 +335,11 @@ export const mobilePerformance = {
       navigator.serviceWorker
         .register('/sw.js')
         .then((registration) => {
-          // Only log if registration is still valid
           if (registration && registration.active) {
             console.log('✅ Service Worker registered successfully')
           }
         })
-        .catch((error) => {
-          // Silently ignore service worker errors - they're optional
-          // Only log specific errors that aren't DOMException
-          if (error.name !== 'DOMException') {
-            console.debug('Service Worker not available (optional):', error.message)
-          }
-        })
+        .catch(() => { /* optional: SW not available */ })
     }, 100)
   },
 }

@@ -139,10 +139,13 @@ export class CreditOwnershipService {
           .single()
 
         if (updateError && updateError.message?.includes('updated_at')) {
-          console.warn('⚠️ updated_at column not found, updating without it')
+          console.warn(
+            '⚠️ credit_ownership update failed: trigger expects updated_at column. ' +
+              'Run migration: supabase/migrations/20260215000000_fix_credit_ownership_updated_at.sql',
+          )
         }
         if (updateError) {
-          // Fallback: try with updated_at in case table has it and expects it
+          // Fallback: try sending updated_at so DB/trigger can use it (if column exists)
           const { data: withTs, error: err2 } = await this.supabase
             .from('credit_ownership')
             .update({ ...updateData, updated_at: new Date().toISOString() })
@@ -155,6 +158,11 @@ export class CreditOwnershipService {
           }
         }
         if (updateError) {
+          if (updateError.message?.includes('updated_at')) {
+            console.warn(
+              '💡 Fix: In Supabase SQL Editor run: ALTER TABLE credit_ownership ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();',
+            )
+          }
           throw new Error(`Failed to update credit ownership: ${updateError.message}`)
         }
 
@@ -188,36 +196,35 @@ export class CreditOwnershipService {
           minimalInsertData.purchase_price = purchasePrice
         }
         
-        // Try with all optional fields first
+        // Try minimal first (no timestamps) - many schemas lack updated_at and triggers reference it
         let insertAttempts = [
-          // Attempt 1: With all optional fields (including project_credit_id, purchase_price)
-          {
-            ...minimalInsertData,
-            ownership_type: ownershipType,
-            purchase_price: purchasePrice || 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          // Attempt 2: Without ownership_type, but with purchase_price
-          {
-            ...minimalInsertData,
-            purchase_price: purchasePrice || 0,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-          // Attempt 3: Without timestamps, but with purchase_price
-          {
-            ...minimalInsertData,
-            ownership_type: ownershipType,
-            purchase_price: purchasePrice || 0,
-          },
-          // Attempt 4: With purchase_price but minimal other fields
-          {
-            ...minimalInsertData,
-            purchase_price: purchasePrice || 0,
-          },
-          // Attempt 5: Minimal only (fallback if purchase_price column doesn't exist)
+          // Attempt 1: Minimal only (no created_at/updated_at - avoids "record 'new' has no field 'updated_at'")
           minimalInsertData,
+          // Attempt 2: With purchase_price, no timestamps
+          {
+            ...minimalInsertData,
+            purchase_price: purchasePrice || 0,
+          },
+          // Attempt 3: With ownership_type and purchase_price, no timestamps
+          {
+            ...minimalInsertData,
+            ownership_type: ownershipType,
+            purchase_price: purchasePrice || 0,
+          },
+          // Attempt 4: With created_at only (no updated_at)
+          {
+            ...minimalInsertData,
+            purchase_price: purchasePrice || 0,
+            created_at: new Date().toISOString(),
+          },
+          // Attempt 5: With both timestamps (if schema has them)
+          {
+            ...minimalInsertData,
+            ownership_type: ownershipType,
+            purchase_price: purchasePrice || 0,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
         ]
         
         // If project_credit_id is required but not provided, try to find it

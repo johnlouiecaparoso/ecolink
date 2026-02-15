@@ -237,6 +237,21 @@ onMounted(async () => {
                 transactionId = transaction.id
                 console.log('✅ Credit transaction created:', transactionId)
 
+                // Update marketplace stock so project shows correct remaining/sold-out (same as in-app purchase)
+                try {
+                  const { updateMarketplaceAvailabilityAfterPurchase } = await import(
+                    '@/services/marketplaceService'
+                  )
+                  await updateMarketplaceAvailabilityAfterPurchase(
+                    listing.project_credits.id,
+                    pd.quantity,
+                    { listingQuantity: listing.quantity },
+                  )
+                  console.log('✅ Marketplace availability updated after payment callback')
+                } catch (availErr) {
+                  console.error('⚠️ Failed to update marketplace availability (non-blocking):', availErr)
+                }
+
                 // NOW add credits to portfolio (after transaction is created)
                 // Note: This may fail due to schema issues, but we'll continue anyway
                 try {

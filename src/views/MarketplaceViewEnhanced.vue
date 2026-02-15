@@ -115,8 +115,10 @@
                   v-for="listing in paginatedListings"
                   :key="listing.listing_id"
                   class="project-grid-card"
+                  :class="{ 'is-sold-out': isSoldOut(listing) }"
                   @click="viewProject(listing)"
                 >
+                  <div v-if="isSoldOut(listing)" class="sold-out-badge">Not available</div>
                   <div class="project-grid-image">
                     <img
                       v-if="listing.project_image"
@@ -143,11 +145,24 @@
                         {{ formatCurrency(listing.price_per_credit, listing.currency) }}
                       </div>
                       <div class="quantity">
-                        {{ formatNumber(listing.available_quantity) }} credits
+                        <span v-if="isSoldOut(listing)" class="sold-out-label"
+                          >All credits have been bought</span
+                        >
+                        <span v-else>{{ formatNumber(listing.available_quantity) }} credits left</span>
                       </div>
                     </div>
                     <div class="project-grid-actions" @click.stop>
                       <UiButton
+                        v-if="isSoldOut(listing)"
+                        variant="secondary"
+                        size="sm"
+                        disabled
+                        class="sold-out-button"
+                      >
+                        Not available
+                      </UiButton>
+                      <UiButton
+                        v-else
                         variant="primary"
                         size="sm"
                         @click.stop="openPurchaseModal(listing)"
@@ -184,8 +199,10 @@
                   v-for="listing in paginatedListings"
                   :key="listing.listing_id"
                   class="project-list-item"
+                  :class="{ 'is-sold-out': isSoldOut(listing) }"
                   @click="viewProject(listing)"
                 >
+                  <div v-if="isSoldOut(listing)" class="sold-out-badge list-badge">Not available</div>
                   <div class="project-image">
                     <img
                       v-if="listing.project_image"
@@ -219,10 +236,23 @@
                       {{ formatCurrency(listing.price_per_credit, listing.currency) }}
                     </div>
                     <div class="quantity">
-                      {{ formatNumber(listing.available_quantity) }} credits
+                      <span v-if="isSoldOut(listing)" class="sold-out-label"
+                        >All credits have been bought</span
+                      >
+                      <span v-else>{{ formatNumber(listing.available_quantity) }} credits left</span>
                     </div>
                     <div class="project-actions-buttons" @click.stop>
                       <UiButton
+                        v-if="isSoldOut(listing)"
+                        variant="secondary"
+                        size="sm"
+                        disabled
+                        class="sold-out-button"
+                      >
+                        Not available
+                      </UiButton>
+                      <UiButton
+                        v-else
                         variant="primary"
                         size="sm"
                         @click.stop="openPurchaseModal(listing)"
@@ -308,7 +338,11 @@
           </div>
         </div>
 
-        <div class="purchase-form">
+          <div v-if="isSoldOut(selectedListing)" class="sold-out-modal-message">
+            <span class="material-symbols-outlined" aria-hidden="true">info</span>
+            <p>All credits for this project have been bought. This listing is no longer available for purchase.</p>
+          </div>
+          <div v-else class="purchase-form">
           <div class="form-group">
             <label for="quantity">Quantity (credits)</label>
             <input
@@ -396,7 +430,7 @@
             <UiButton
               variant="primary"
               :loading="purchaseLoading"
-              :disabled="selectedPaymentMethod === 'wallet' && walletBalance < totalPrice"
+              :disabled="isSoldOut(selectedListing) || (selectedPaymentMethod === 'wallet' && walletBalance < totalPrice)"
               @click="handlePurchase"
             >
               Complete Purchase
@@ -750,6 +784,10 @@ function navigateToBuyCredits(listing) {
   })
 }
 
+function isSoldOut(listing) {
+  return !listing || (listing.available_quantity !== undefined && listing.available_quantity <= 0)
+}
+
 function openPurchaseModal(listing) {
   console.log('Opening purchase modal for:', listing.project_title)
   showPurchaseModalFor(listing)
@@ -761,14 +799,14 @@ function navigateToSubmitProject() {
 }
 
 async function showPurchaseModalFor(listing) {
-  // Check if user is authenticated first
   console.log('🔐 Checking authentication before opening modal:', {
     isAuthenticated: userStore.isAuthenticated,
     hasSession: !!userStore.session,
     userEmail: userStore.session?.user?.email,
   })
 
-  if (!userStore.isAuthenticated) {
+  // Require login only when listing has credits to purchase
+  if (!isSoldOut(listing) && !userStore.isAuthenticated) {
     alert('Please log in to purchase credits')
     router.push({ name: 'login', query: { returnTo: '/marketplace' } })
     return
@@ -912,7 +950,9 @@ async function handlePurchase() {
 
     closePurchaseModal()
 
-    // Reload marketplace data to update available quantities
+    // Force reload marketplace so sold-out / remaining stock is correct (bypass cache)
+    const { invalidateMarketplaceCache } = await import('@/services/marketplaceService')
+    invalidateMarketplaceCache()
     await loadMarketplaceData()
   } catch (err) {
     console.error('❌ Purchase failed:', err)
@@ -1202,6 +1242,7 @@ onMounted(() => {
 }
 
 .project-grid-card {
+  position: relative;
   background: white;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
@@ -1215,6 +1256,64 @@ onMounted(() => {
 .project-grid-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.project-grid-card.is-sold-out .project-grid-image {
+  opacity: 0.85;
+}
+
+.sold-out-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 2;
+  background: #b91c1c;
+  color: white;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.sold-out-badge.list-badge {
+  top: 50%;
+  left: 1rem;
+  transform: translateY(-50%);
+}
+
+.sold-out-label {
+  color: #b91c1c;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.sold-out-button {
+  cursor: not-allowed;
+}
+
+.sold-out-modal-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  color: #991b1b;
+  margin-top: 1rem;
+}
+
+.sold-out-modal-message .material-symbols-outlined {
+  flex-shrink: 0;
+  font-size: 1.5rem;
+}
+
+.sold-out-modal-message p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.5;
 }
 
 .project-grid-image {
@@ -1305,6 +1404,7 @@ onMounted(() => {
 }
 
 .project-list-item {
+  position: relative;
   display: flex;
   background: white;
   border-radius: 12px;
