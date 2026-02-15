@@ -168,6 +168,12 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/carbon-calculator',
+      name: 'carbon-calculator',
+      component: () => import('@/views/CarbonCalculatorView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/receipts',
       name: 'receipts',
       component: () => import('@/views/ReceiptView.vue'),

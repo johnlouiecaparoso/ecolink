@@ -60,6 +60,8 @@ const pageTitle = computed(() => {
     '/projects': 'Projects',
     '/wallet': 'Wallet',
     '/marketplace': 'Marketplace',
+    '/certificates': 'Certificates',
+    '/carbon-calculator': 'Carbon Calculator',
     '/users': 'User Management',
     '/analytics': 'Analytics & Reports',
     '/verifier': 'Verifier Panel',

@@ -277,6 +277,7 @@ const navItems = computed(() => {
     ...baseItems,
     { path: '/wallet', label: 'Wallet' },
     { path: '/certificates', label: 'Certificates' },
+    { path: '/carbon-calculator', label: 'Carbon Calculator' },
   ]
 
   if (userStore.isAdmin) {

@@ -366,6 +366,8 @@ export const mobileNavigation = {
           <li><a href="/">Home</a></li>
           <li><a href="/marketplace">Marketplace</a></li>
           <li><a href="/wallet">Wallet</a></li>
+          <li><a href="/certificates">Certificates</a></li>
+          <li><a href="/carbon-calculator">Carbon Calculator</a></li>
           <li><a href="/profile">Profile</a></li>
         </ul>
       </div>
