@@ -1,6 +1,10 @@
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { isTestAccount } from '@/utils/testAccounts'
+import {
+  notifyNewMarketplaceProject,
+  notifyProjectDecision,
+} from '@/services/notificationService'
 
 /**
  * Simplified Project Approval Service
@@ -68,6 +72,20 @@ export class ProjectApprovalService {
       // Generate credits manually (in case trigger doesn't work)
       const creditsResult = await this.generateCreditsForProject(projectId)
 
+      try {
+        await notifyProjectDecision(updatedProject, 'approved', notes)
+      } catch (notificationError) {
+        console.error('Error creating approved-project notifications:', notificationError)
+      }
+
+      if (creditsResult?.listing && creditsResult?.listing_created) {
+        try {
+          await notifyNewMarketplaceProject(updatedProject, creditsResult.listing)
+        } catch (notificationError) {
+          console.error('Error creating marketplace project notifications:', notificationError)
+        }
+      }
+
       return {
         project: updatedProject,
         credits: creditsResult,
@@ -123,6 +141,12 @@ export class ProjectApprovalService {
 
       if (error) {
         throw new Error(error.message || 'Failed to update project status')
+      }
+
+      try {
+        await notifyProjectDecision(data, normalizedStatus, notes)
+      } catch (notificationError) {
+        console.error('Error creating project decision notifications:', notificationError)
       }
 
       return data
@@ -185,6 +209,7 @@ export class ProjectApprovalService {
 
       let credits = existingCredits
       let listing = null
+      let listingCreated = false
 
       // If credits exist, check for listing and return existing
       if (existingCredits) {
@@ -268,12 +293,14 @@ export class ProjectApprovalService {
             }
           } else {
             listing = newListing
+            listingCreated = true
           }
         }
         
         return {
           ...credits,
           listing: listing,
+          listing_created: listingCreated,
         }
       }
 
@@ -372,6 +399,7 @@ export class ProjectApprovalService {
             }
           } else {
             listing = newListing
+            listingCreated = true
           }
         }
       }
@@ -379,6 +407,7 @@ export class ProjectApprovalService {
       return {
         ...credits,
         listing: listing,
+        listing_created: listingCreated,
       }
     } catch (error) {
       console.error('Error generating credits:', error)

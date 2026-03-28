@@ -1,16 +1,23 @@
 <template>
   <div class="connection-status">
     <div class="status-header">
-      <h3>🔗 Connection Status</h3>
+      <h3>
+        <span class="material-symbols-outlined" aria-hidden="true">link</span>
+        Connection Status
+      </h3>
       <button @click="refreshStatus" :disabled="loading" class="refresh-btn">
-        {{ loading ? '🔄' : '🔄' }} {{ loading ? 'Checking...' : 'Refresh' }}
+        <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
+        {{ loading ? 'Checking...' : 'Refresh' }}
       </button>
     </div>
 
     <div class="status-grid">
       <div v-for="service in services" :key="service.name" :class="['status-item', service.status]">
         <div class="status-icon">
-          {{ getStatusIcon(service.status) }}
+          <span v-if="getStatusIcon(service.status) === 'check_circle'" class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+          <span v-else-if="getStatusIcon(service.status) === 'warning'" class="material-symbols-outlined" aria-hidden="true">warning</span>
+          <span v-else-if="getStatusIcon(service.status) === 'error'" class="material-symbols-outlined" aria-hidden="true">error</span>
+          <span v-else class="material-symbols-outlined" aria-hidden="true">hourglass_top</span>
         </div>
         <div class="status-content">
           <div class="service-name">{{ service.name }}</div>
@@ -67,13 +74,13 @@ const overallStatus = computed(() => {
 function getStatusIcon(status) {
   switch (status) {
     case 'connected':
-      return '✅'
+      return 'check_circle'
     case 'warning':
-      return '⚠️'
+      return 'warning'
     case 'error':
-      return '❌'
+      return 'error'
     default:
-      return '⏳'
+      return 'hourglass_top'
   }
 }
 

@@ -26,6 +26,62 @@ export class RealPaymentService {
   }
 
   /**
+   * Resolve buyer billing details for PayMongo checkout prefill
+   * @param {string} userId
+   * @returns {Promise<Object|null>}
+   */
+  async getBuyerBillingInfo(userId) {
+    try {
+      if (!userId) return null
+
+      let fullName = ''
+      let email = ''
+      let phone = ''
+
+      const { data: profile } = await this.supabase
+        .from('profiles')
+        .select('full_name, email, phone')
+        .eq('id', userId)
+        .maybeSingle()
+
+      if (profile) {
+        fullName = profile.full_name || ''
+        email = profile.email || ''
+        phone = profile.phone || ''
+      }
+
+      const {
+        data: { user },
+      } = await this.supabase.auth.getUser()
+
+      if (user && user.id === userId) {
+        fullName =
+          fullName ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          user.email?.split('@')?.[0] ||
+          ''
+        email = email || user.email || ''
+      }
+
+      const billing = {
+        name: fullName?.trim() || undefined,
+        email: email?.trim() || undefined,
+        phone: phone?.trim() || undefined,
+      }
+
+      if (!billing.name && !billing.email && !billing.phone) {
+        return null
+      }
+
+      return billing
+    } catch (error) {
+      console.warn('⚠️ Failed to resolve buyer billing info:', error)
+      return null
+    }
+  }
+
+  /**
    * Process GCash payment via PayMongo
    * @param {Object} paymentData - Payment information
    * @returns {Promise<Object>} Payment result with checkout URL
@@ -76,12 +132,15 @@ export class RealPaymentService {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
+      const billing = await this.getBuyerBillingInfo(paymentData.userId)
+
       // Create PayMongo checkout session
       // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
       const checkoutSession = await createCheckoutSession({
         amount: paymentData.amount,
         description: paymentData.description || 'EcoLink Credit Purchase',
         paymentMethodTypes: ['gcash'],
+        billing,
         metadata: {
           transaction_id: transaction.id,
           user_id: paymentData.userId,
@@ -171,6 +230,8 @@ export class RealPaymentService {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
+      const billing = await this.getBuyerBillingInfo(paymentData.userId)
+
       // Create PayMongo checkout session
       // PayMongo checkout supports card, gcash, and paymaya in the same session
       // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
@@ -178,6 +239,7 @@ export class RealPaymentService {
         amount: paymentData.amount,
         description: paymentData.description || 'EcoLink Credit Purchase',
         paymentMethodTypes: ['card', 'gcash', 'paymaya'], // Allow all methods, user chooses
+        billing,
         metadata: {
           transaction_id: transaction.id,
           user_id: paymentData.userId,
@@ -267,12 +329,15 @@ export class RealPaymentService {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
+      const billing = await this.getBuyerBillingInfo(paymentData.userId)
+
       // Create PayMongo checkout session
       // Include purchase metadata (quantity, price_per_credit, etc.) for checkout display
       const checkoutSession = await createCheckoutSession({
         amount: paymentData.amount,
         description: paymentData.description || 'EcoLink Credit Purchase',
         paymentMethodTypes: ['paymaya'],
+        billing,
         metadata: {
           transaction_id: transaction.id,
           user_id: paymentData.userId,

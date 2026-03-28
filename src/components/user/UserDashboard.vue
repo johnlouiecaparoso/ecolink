@@ -26,17 +26,17 @@ const projectStats = ref({
 
 const tabs = computed(() => {
   const baseTabs = [
-    { id: 'overview', label: 'Overview', icon: '📊' },
-    { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'overview', label: 'Overview', icon: 'dashboard' },
+    { id: 'profile', label: 'Profile', icon: 'person' },
   ]
 
   // Add role-specific tabs - only show for Project Developers
   if (userStore.isProjectDeveloper) {
-    baseTabs.push({ id: 'projects', label: 'My Projects', icon: '📁' })
+    baseTabs.push({ id: 'projects', label: 'My Projects', icon: 'folder' })
   }
 
   if (userStore.hasPermission(PERMISSIONS.MANAGE_WALLET)) {
-    baseTabs.push({ id: 'wallet', label: 'Wallet', icon: '💰' })
+    baseTabs.push({ id: 'wallet', label: 'Wallet', icon: 'account_balance_wallet' })
   }
 
   return baseTabs
@@ -67,7 +67,7 @@ const quickActions = computed(() => {
     actions.push({
       id: 'create-project',
       label: 'Create Project',
-      icon: '➕',
+      icon: 'add',
       action: () => {
         // Navigate to submit project page
         window.location.href = '/submit-project'
@@ -79,7 +79,7 @@ const quickActions = computed(() => {
     actions.push({
       id: 'browse-marketplace',
       label: 'Browse Marketplace',
-      icon: '🛒',
+      icon: 'storefront',
       action: () => {
         // Navigate to marketplace
         window.location.href = '/marketplace'
@@ -91,7 +91,7 @@ const quickActions = computed(() => {
     actions.push({
       id: 'manage-wallet',
       label: 'Manage Wallet',
-      icon: '💰',
+      icon: 'account_balance_wallet',
       action: () => {
         // Navigate to wallet
         window.location.href = '/wallet'
@@ -169,7 +169,7 @@ onMounted(() => {
         :class="['tab', { active: activeTab === tab.id }]"
         @click="activeTab = tab.id"
       >
-        <span class="tab-icon">{{ tab.icon }}</span>
+        <span class="tab-icon material-symbols-outlined" aria-hidden="true">{{ tab.icon }}</span>
         {{ tab.label }}
       </button>
     </div>
@@ -179,7 +179,7 @@ onMounted(() => {
       <div v-if="activeTab === 'overview'" class="overview">
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-icon">📁</div>
+            <div class="stat-icon"><span class="material-symbols-outlined" aria-hidden="true">folder</span></div>
             <div class="stat-content">
               <h3>{{ userStats.projects }}</h3>
               <p>Total Projects</p>
@@ -187,7 +187,7 @@ onMounted(() => {
           </div>
 
           <div class="stat-card">
-            <div class="stat-icon">⏳</div>
+            <div class="stat-icon"><span class="material-symbols-outlined" aria-hidden="true">schedule</span></div>
             <div class="stat-content">
               <h3>{{ projectStats.pending }}</h3>
               <p>Pending Review</p>
@@ -195,7 +195,7 @@ onMounted(() => {
           </div>
 
           <div class="stat-card">
-            <div class="stat-icon">✅</div>
+            <div class="stat-icon"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span></div>
             <div class="stat-content">
               <h3>{{ projectStats.approved }}</h3>
               <p>Approved</p>
@@ -203,7 +203,7 @@ onMounted(() => {
           </div>
 
           <div class="stat-card">
-            <div class="stat-icon">💰</div>
+            <div class="stat-icon"><span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span></div>
             <div class="stat-content">
               <h3>${{ userStats.walletBalance.toLocaleString() }}</h3>
               <p>Wallet Balance</p>
@@ -220,7 +220,7 @@ onMounted(() => {
               class="action-btn"
               @click="action.action"
             >
-              <span class="action-icon">{{ action.icon }}</span>
+              <span class="action-icon material-symbols-outlined" aria-hidden="true">{{ action.icon }}</span>
               {{ action.label }}
             </button>
           </div>
@@ -234,7 +234,7 @@ onMounted(() => {
               class="action-btn"
               @click="() => (window.location.href = '/projects?action=create')"
             >
-              <span class="action-icon">➕</span>
+              <span class="action-icon material-symbols-outlined" aria-hidden="true">add</span>
               Create Project
             </button>
           </div>
@@ -245,12 +245,18 @@ onMounted(() => {
               class="activity-item"
               @click="() => (window.location.href = '/projects')"
             >
-              <div class="activity-icon">📁</div>
+              <div class="activity-icon"><span class="material-symbols-outlined" aria-hidden="true">folder</span></div>
               <div class="activity-content">
                 <p>{{ project.title }}</p>
                 <span class="activity-time">
                   {{ new Date(project.created_at).toLocaleDateString() }}
                   • {{ project.status }}
+                </span>
+                <span
+                  v-if="project.status === 'rejected' && project.verification_notes"
+                  class="activity-note"
+                >
+                  Rejection note: {{ project.verification_notes }}
                 </span>
               </div>
             </div>
@@ -266,7 +272,7 @@ onMounted(() => {
       <!-- Projects Tab -->
       <div v-else-if="activeTab === 'projects'" class="projects">
         <div class="placeholder">
-          <div class="placeholder-icon">📁</div>
+          <div class="placeholder-icon"><span class="material-symbols-outlined" aria-hidden="true">folder</span></div>
           <h3>My Projects</h3>
           <p>Project management functionality will be implemented here</p>
         </div>
@@ -275,7 +281,7 @@ onMounted(() => {
       <!-- Wallet Tab -->
       <div v-else-if="activeTab === 'wallet'" class="wallet">
         <div class="placeholder">
-          <div class="placeholder-icon">💰</div>
+          <div class="placeholder-icon"><span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span></div>
           <h3>Wallet</h3>
           <p>Wallet management functionality will be implemented here</p>
         </div>
@@ -484,6 +490,13 @@ onMounted(() => {
 
 .activity-time {
   color: #64748b;
+  font-size: 12px;
+}
+
+.activity-note {
+  display: block;
+  margin-top: 4px;
+  color: #b45309;
   font-size: 12px;
 }
 

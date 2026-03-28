@@ -219,15 +219,80 @@ export async function sendEmailVerification(userEmail, userName) {
  * Notify when a project is submitted for review
  */
 export async function notifyProjectSubmitted(projectId, userId) {
-  console.log(`Notifying project submission for project ${projectId} by user ${userId}`)
+  const supabase = getSupabase()
+  if (!supabase) {
+    return {
+      success: false,
+      projectId,
+      userId,
+      type: 'project_submitted',
+      reason: 'Supabase not initialized',
+    }
+  }
 
-  // In a real implementation, this would send an email to the project submitter
+  const [{ data: project }, { data: submitter }, { data: recipients }] = await Promise.all([
+    supabase.from('projects').select('title, category, location').eq('id', projectId).single(),
+    supabase.from('profiles').select('full_name, email').eq('id', userId).single(),
+    supabase
+      .from('profiles')
+      .select('email, role')
+      .in('role', ['verifier'])
+      .not('email', 'is', null),
+  ])
+
+  if (!recipients?.length || !FUNCTIONS_URL) {
+    return {
+      success: false,
+      projectId,
+      userId,
+      type: 'project_submitted',
+      reason: 'No recipients or function URL missing',
+    }
+  }
+
+  const subject = `New Project Submission: ${project?.title || projectId}`
+  const html = `
+    <p>A new project has been submitted and needs verifier review.</p>
+    <p><strong>Project:</strong> ${project?.title || 'N/A'}</p>
+    <p><strong>Category:</strong> ${project?.category || 'N/A'}</p>
+    <p><strong>Location:</strong> ${project?.location || 'N/A'}</p>
+    <p><strong>Submitted by:</strong> ${submitter?.full_name || submitter?.email || userId}</p>
+    <p>Please review this project in the verifier panel.</p>
+  `
+
+  await Promise.allSettled(
+    recipients.map((recipient) =>
+      sendEmailViaFunction({
+        to: recipient.email,
+        subject,
+        html,
+      }),
+    ),
+  )
+
   return {
     success: true,
     messageId: `project_submitted_${Date.now()}`,
     projectId,
     userId,
+    recipients: recipients.length,
     type: 'project_submitted',
+  }
+}
+
+export async function notifyVerifiersOfRoleApplication(application) {
+  if (!application?.email) return { success: false, reason: 'Missing application data' }
+  if (!FUNCTIONS_URL) return { success: false, reason: 'Functions URL missing' }
+
+  await sendEmailViaFunction({
+    role_requested: application.role_requested,
+    applicant_full_name: application.applicant_full_name,
+    applicant_email: application.email,
+  })
+
+  return {
+    success: true,
+    type: 'role_application_submitted',
   }
 }
 
@@ -264,8 +329,67 @@ export async function updateUserEmailPreferences(userId, preferences) {
  * Notify applicant that their specialist role request was approved
  */
 const PROJECT_REF = import.meta.env.VITE_SUPABASE_PROJECT_REF
-const DEFAULT_FUNCTIONS_URL = PROJECT_REF ? `https://${PROJECT_REF}.functions.supabase.co` : ''
-const FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || DEFAULT_FUNCTIONS_URL
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+
+function deriveFunctionsUrl() {
+  if (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL) {
+    return import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+  }
+
+  if (PROJECT_REF) {
+    return `https://${PROJECT_REF}.functions.supabase.co`
+  }
+
+  if (SUPABASE_URL) {
+    try {
+      const parsedUrl = new URL(SUPABASE_URL)
+      const host = parsedUrl.hostname.replace('.supabase.co', '.functions.supabase.co')
+      return `${parsedUrl.protocol}//${host}`
+    } catch (error) {
+      console.warn('Could not derive Supabase Functions URL from VITE_SUPABASE_URL:', error)
+    }
+  }
+
+  return ''
+}
+
+const FUNCTIONS_URL = deriveFunctionsUrl()
+
+async function sendEmailViaFunction(payload) {
+  const functionsUrl = `${FUNCTIONS_URL.replace(/\/$/, '')}/send-approval-email`
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 12000)
+
+  try {
+    const response = await fetch(functionsUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(anonKey
+          ? {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+            }
+          : {}),
+      },
+      body: JSON.stringify({
+        from: 'EcoLink <notifications@resend.dev>',
+        ...payload,
+      }),
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(errorText || 'Failed to send email')
+    }
+
+    return response.json()
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 export async function sendRoleApplicationApprovalEmail(details) {
   const { email, applicantName, role, hasAccount = false, approvedAt = new Date() } = details || {}
@@ -293,46 +417,23 @@ export async function sendRoleApplicationApprovalEmail(details) {
 
   const html = `
     <p>Hi ${applicantName || 'EcoLink Specialist'},</p>
-    <p>Your EcoLink application to become a <strong>${roleLabel}</strong> has been approved.</p>
+    <p>Your EcoLink account for the <strong>${roleLabel}</strong> role has been verified and approved.</p>
     ${
       hasAccount
-        ? `<p>You can sign in and access your dashboard here:<br/><a href="${loginLink}">${loginLink}</a></p>`
+        ? `<p>You can now sign in and access your dashboard here:<br/><a href="${loginLink}">${loginLink}</a></p>`
         : `<p>To get started, create your EcoLink account using this link:<br/><a href="${signUpLink}">${signUpLink}</a></p>`
     }
-    <p>Approval date: ${approvedAt instanceof Date ? approvedAt.toLocaleString() : approvedAt}</p>
+    <p>Verification date: ${approvedAt instanceof Date ? approvedAt.toLocaleString() : approvedAt}</p>
     <p>If you believe this was sent in error, please contact the EcoLink support team.</p>
     <p>— The EcoLink Team</p>
   `
 
-  const functionsUrl = `${FUNCTIONS_URL.replace(/\/$/, '')}/send-approval-email`
-  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-  const response = await fetch(functionsUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(anonKey
-        ? {
-            apikey: anonKey,
-            Authorization: `Bearer ${anonKey}`,
-          }
-        : {}),
-    },
-    body: JSON.stringify({
-      to: email,
-      subject: `🎉 Your ${roleLabel} application has been approved`,
-      html,
-      from: 'EcoLink <notifications@resend.dev>',
-    }),
+  const result = await sendEmailViaFunction({
+    to: email,
+    subject: `Your ${roleLabel} account has been verified`,
+    html,
+    from: 'EcoLink <notifications@resend.dev>',
   })
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    console.error('send-approval-email failed:', errorText)
-    throw new Error(`Approval email failed: ${errorText}`)
-  }
-
-  const result = await response.json()
 
   return {
     ...result,

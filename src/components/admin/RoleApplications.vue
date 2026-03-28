@@ -20,9 +20,13 @@ const props = defineProps({
     type: Boolean,
     default: true,
   },
+  roleFilter: {
+    type: String,
+    default: '',
+  },
 })
 
-const { embedded, showHeader } = toRefs(props)
+const { embedded, showHeader, roleFilter } = toRefs(props)
 
 const userStore = useUserStore()
 
@@ -98,6 +102,7 @@ async function loadApplications() {
     const data = await fetchRoleApplications({
       status: statusFilter.value,
       search: searchTerm.value,
+      roleRequested: roleFilter.value || undefined,
     })
     applications.value = data
   } catch (error) {
@@ -252,6 +257,32 @@ function getRoleLabel(role) {
   }
 }
 
+function getProjectDeveloperProfile(application) {
+  if (!application || application.role_requested !== ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER) {
+    return null
+  }
+
+  const profile = application.metadata?.additional?.project_developer_profile
+  if (profile && typeof profile === 'object') {
+    return profile
+  }
+
+  return null
+}
+
+function getVerifierProfile(application) {
+  if (!application || application.role_requested !== ROLE_APPLICATION_ROLES.VERIFIER) {
+    return null
+  }
+
+  const profile = application.metadata?.additional?.verifier_profile
+  if (profile && typeof profile === 'object') {
+    return profile
+  }
+
+  return null
+}
+
 onMounted(() => {
   loadApplications()
 })
@@ -368,6 +399,43 @@ onMounted(() => {
                   {{ selectedApplication.website }}
                 </a>
               </li>
+            </ul>
+          </div>
+
+          <div
+            v-if="getProjectDeveloperProfile(selectedApplication)"
+            class="drawer__section"
+          >
+            <h3>Project Developer Application Details</h3>
+            <ul class="details">
+              <li><span>Company Name:</span> {{ getProjectDeveloperProfile(selectedApplication).company_name || '—' }}</li>
+              <li><span>Business Registration Number:</span> {{ getProjectDeveloperProfile(selectedApplication).business_registration_number || '—' }}</li>
+              <li><span>Country:</span> {{ getProjectDeveloperProfile(selectedApplication).country || '—' }}</li>
+              <li><span>Address:</span> {{ getProjectDeveloperProfile(selectedApplication).address || '—' }}</li>
+              <li><span>Contact Person Name:</span> {{ getProjectDeveloperProfile(selectedApplication).contact_person?.name || '—' }}</li>
+              <li><span>Contact Person Email:</span> {{ getProjectDeveloperProfile(selectedApplication).contact_person?.email || '—' }}</li>
+              <li><span>Contact Person Phone:</span> {{ getProjectDeveloperProfile(selectedApplication).contact_person?.phone || '—' }}</li>
+              <li><span>Certificate of Registration:</span> {{ getProjectDeveloperProfile(selectedApplication).legal_documents?.certificate_of_registration || '—' }}</li>
+              <li><span>Articles / Business Permit:</span> {{ getProjectDeveloperProfile(selectedApplication).legal_documents?.articles_of_incorporation_or_business_permit || '—' }}</li>
+              <li><span>TIN:</span> {{ getProjectDeveloperProfile(selectedApplication).legal_documents?.tin || '—' }}</li>
+              <li><span>Proof of Legal Existence:</span> {{ getProjectDeveloperProfile(selectedApplication).legal_documents?.proof_of_legal_existence || '—' }}</li>
+              <li><span>Company Background:</span> {{ getProjectDeveloperProfile(selectedApplication).business_profile?.company_background || '—' }}</li>
+              <li><span>Years of Operation:</span> {{ getProjectDeveloperProfile(selectedApplication).business_profile?.years_of_operation || '—' }}</li>
+              <li><span>Past/Ongoing Environmental Projects:</span> {{ getProjectDeveloperProfile(selectedApplication).business_profile?.past_or_ongoing_environmental_projects || '—' }}</li>
+              <li><span>Portfolio:</span> {{ getProjectDeveloperProfile(selectedApplication).business_profile?.portfolio || '—' }}</li>
+            </ul>
+          </div>
+
+          <div v-if="getVerifierProfile(selectedApplication)" class="drawer__section">
+            <h3>Verifier Application Details</h3>
+            <ul class="details">
+              <li><span>Organization / Firm:</span> {{ getVerifierProfile(selectedApplication).organization || '—' }}</li>
+              <li><span>Accreditation Body:</span> {{ getVerifierProfile(selectedApplication).accreditation_body || '—' }}</li>
+              <li><span>Accreditation Number:</span> {{ getVerifierProfile(selectedApplication).accreditation_number || '—' }}</li>
+              <li><span>Years of Verification Experience:</span> {{ getVerifierProfile(selectedApplication).years_of_verification_experience || '—' }}</li>
+              <li><span>Verification Specializations:</span> {{ getVerifierProfile(selectedApplication).verification_specializations || '—' }}</li>
+              <li><span>Past/Ongoing Verification Projects:</span> {{ getVerifierProfile(selectedApplication).past_or_ongoing_verification_projects || '—' }}</li>
+              <li><span>Contact Phone:</span> {{ getVerifierProfile(selectedApplication).contact_phone || '—' }}</li>
             </ul>
           </div>
 
@@ -925,4 +993,3 @@ tbody tr:hover {
   }
 }
 </style>
-

@@ -331,6 +331,10 @@ import {
   uploadAndUpdateProfilePhoto,
 } from '@/services/profileService'
 import { resizeImage } from '@/services/storageService'
+import {
+  ROLE_APPLICATION_ROLES,
+  getLatestRoleApplicationForUser,
+} from '@/services/roleApplicationService'
 
 export default {
   name: 'ProfileView',
@@ -593,6 +597,90 @@ export default {
     await this.loadProfile()
   },
   methods: {
+    buildProfileFromRoleApplication(application) {
+      if (!application) return null
+
+      const requestedRole = String(application.role_requested || '').toLowerCase().trim()
+      const additional = application.metadata?.additional || {}
+
+      if (requestedRole === ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER) {
+        const projectDeveloperProfile = additional.project_developer_profile || {}
+        const contactPerson = projectDeveloperProfile.contact_person || {}
+
+        return {
+          full_name: application.applicant_full_name || '',
+          email: application.email || '',
+          company: application.company || projectDeveloperProfile.company_name || '',
+          location: projectDeveloperProfile.country || projectDeveloperProfile.address || '',
+          phone: contactPerson.phone || '',
+          website: application.website || '',
+        }
+      }
+
+      if (requestedRole === ROLE_APPLICATION_ROLES.VERIFIER) {
+        const verifierProfile = additional.verifier_profile || {}
+
+        return {
+          full_name: application.applicant_full_name || '',
+          email: application.email || '',
+          company: verifierProfile.organization || application.company || '',
+          location: verifierProfile.accreditation_body || '',
+          phone: verifierProfile.contact_phone || '',
+          website: application.website || '',
+        }
+      }
+
+      return null
+    },
+
+    mergeProfileWithApplication(profile, applicationProfile) {
+      if (!applicationProfile) {
+        return profile
+      }
+
+      if (!profile) {
+        return { ...applicationProfile }
+      }
+
+      return {
+        ...profile,
+        full_name: profile.full_name || applicationProfile.full_name,
+        email: profile.email || applicationProfile.email,
+        company: profile.company || applicationProfile.company,
+        location: profile.location || applicationProfile.location,
+        phone: profile.phone || applicationProfile.phone,
+        website: profile.website || applicationProfile.website,
+      }
+    },
+
+    async getSpecialistApplicationProfile() {
+      const userId = this.store.session?.user?.id
+      const email = this.store.session?.user?.email
+      const normalizedRole = String(this.store.role || this.store.profile?.role || '')
+        .toLowerCase()
+        .trim()
+
+      if (
+        normalizedRole !== ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER &&
+        normalizedRole !== ROLE_APPLICATION_ROLES.VERIFIER
+      ) {
+        return null
+      }
+
+      try {
+        const latestApplication = await getLatestRoleApplicationForUser({
+          userId,
+          email,
+          roleRequested: normalizedRole,
+        })
+
+        return this.buildProfileFromRoleApplication(latestApplication)
+      } catch (error) {
+        console.warn('Unable to load specialist application profile fallback:', error)
+        return null
+      }
+    },
+
     async loadProfile() {
       if (!this.store.isAuthenticated) {
         this.$router.push('/login')
@@ -606,39 +694,44 @@ export default {
           throw new Error('User ID not found')
         }
 
-        const profile = await getProfile(userId)
-        this.latestProfile = profile || null
+        const [profile, specialistApplicationProfile] = await Promise.all([
+          getProfile(userId),
+          this.getSpecialistApplicationProfile(),
+        ])
+        const mergedProfile = this.mergeProfileWithApplication(profile, specialistApplicationProfile)
+        this.latestProfile = mergedProfile || null
 
         // Handle null profile (when RLS blocks creation)
-        if (!profile) {
+        if (!mergedProfile) {
           console.warn('Profile is null - likely blocked by RLS policy. Using defaults from auth session.')
           
           // Get user info from auth session as fallback
           const authUser = this.store.session?.user
           const userEmail = authUser?.email || ''
           const userName = authUser?.user_metadata?.name || authUser?.email?.split('@')[0] || 'User'
+          const fallbackProfile = specialistApplicationProfile || {}
 
           // Update user profile display with defaults
           this.userProfile = {
-            initials: getUserInitials(userName),
-            fullName: userName,
-            email: userEmail,
-            company: '',
-            location: '',
-            phone: '',
-            website: '',
+            initials: getUserInitials(fallbackProfile.full_name || userName),
+            fullName: fallbackProfile.full_name || userName,
+            email: fallbackProfile.email || userEmail,
+            company: fallbackProfile.company || '',
+            location: fallbackProfile.location || '',
+            phone: fallbackProfile.phone || '',
+            website: fallbackProfile.website || '',
             bio: '',
             avatarUrl: null,
           }
 
           // Update edit form with defaults
           this.editForm = {
-            full_name: userName,
-            email: userEmail,
-            company: '',
-            location: '',
-            phone: '',
-            website: '',
+            full_name: fallbackProfile.full_name || userName,
+            email: fallbackProfile.email || userEmail,
+            company: fallbackProfile.company || '',
+            location: fallbackProfile.location || '',
+            phone: fallbackProfile.phone || '',
+            website: fallbackProfile.website || '',
             bio: '',
           }
 
@@ -673,34 +766,34 @@ export default {
         }
 
         // Profile exists - proceed normally
-        this.store.profile = profile
+        this.store.profile = mergedProfile
         // Update user profile display
         this.userProfile = {
-          initials: getUserInitials(profile.full_name),
-          fullName: profile.full_name || '',
-          email: profile.email || '',
-          company: profile.company || '',
-          location: profile.location || '',
-          phone: profile.phone || '',
-          website: profile.website || '',
-          bio: profile.bio || '',
-          avatarUrl: profile.avatar_url || null,
+          initials: getUserInitials(mergedProfile.full_name),
+          fullName: mergedProfile.full_name || '',
+          email: mergedProfile.email || '',
+          company: mergedProfile.company || '',
+          location: mergedProfile.location || '',
+          phone: mergedProfile.phone || '',
+          website: mergedProfile.website || '',
+          bio: mergedProfile.bio || '',
+          avatarUrl: mergedProfile.avatar_url || null,
         }
 
         // Update edit form
         this.editForm = {
-          full_name: profile.full_name || '',
-          email: profile.email || '',
-          company: profile.company || '',
-          location: profile.location || '',
-          phone: profile.phone || '',
-          website: profile.website || '',
-          bio: profile.bio || '',
+          full_name: mergedProfile.full_name || '',
+          email: mergedProfile.email || '',
+          company: mergedProfile.company || '',
+          location: mergedProfile.location || '',
+          phone: mergedProfile.phone || '',
+          website: mergedProfile.website || '',
+          bio: mergedProfile.bio || '',
         }
 
         // Load notification settings from Supabase
-        if (profile.notification_preferences) {
-          const prefs = profile.notification_preferences
+        if (mergedProfile.notification_preferences) {
+          const prefs = mergedProfile.notification_preferences
           this.notificationSettings = {
             emailNotifications: {
               label: 'Email Notifications',
@@ -725,7 +818,7 @@ export default {
           }
         }
 
-        console.log('Profile loaded successfully:', profile)
+        console.log('Profile loaded successfully:', mergedProfile)
       } catch (error) {
         console.error('Error loading profile:', error)
         this.errors.general = 'Failed to load profile. Please try again.'

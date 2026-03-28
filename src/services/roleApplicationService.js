@@ -1,6 +1,12 @@
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { updateUserRole } from '@/services/roleService'
 import { sendRoleApplicationApprovalEmail } from '@/services/emailService'
+import { notifyVerifiersOfRoleApplication } from '@/services/emailService'
+import {
+  notifyReviewersOfRoleApplicationInApp,
+  notifyRoleApplicationDecision,
+} from '@/services/notificationService'
+import { ROLES } from '@/constants/roles'
 
 export const ROLE_APPLICATION_TABLE = 'role_applications'
 
@@ -29,6 +35,7 @@ export const ROLE_APPLICATION_ERRORS = Object.freeze({
   SUPABASE_NOT_INITIALIZED: 'SUPABASE_NOT_INITIALIZED',
   INVALID_ROLE: 'INVALID_ROLE_SELECTION',
   DUPLICATE_PENDING: 'ROLE_APPLICATION_ALREADY_EXISTS',
+  UNAUTHORIZED_REVIEW: 'UNAUTHORIZED_REVIEW_ACTION',
 })
 
 const ROLE_ALIASES = {
@@ -68,12 +75,55 @@ async function ensureSupabase() {
   return supabase
 }
 
+function canReviewApplicationRole(actorRole, requestedRole) {
+  if (requestedRole === ROLE_APPLICATION_ROLES.VERIFIER) {
+    return actorRole === ROLES.ADMIN
+  }
+
+  if (requestedRole === ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER) {
+    return actorRole === ROLES.VERIFIER || actorRole === ROLES.ADMIN
+  }
+
+  return false
+}
+
+async function getCurrentReviewerContext(supabase) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user?.id) {
+    const error = new Error('You must be signed in to review applications.')
+    error.code = ROLE_APPLICATION_ERRORS.UNAUTHORIZED_REVIEW
+    throw error
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile?.role) {
+    const error = new Error('Unable to verify your reviewer permissions.')
+    error.code = ROLE_APPLICATION_ERRORS.UNAUTHORIZED_REVIEW
+    throw error
+  }
+
+  return {
+    reviewerId: user.id,
+    reviewerRole: String(profile.role).toLowerCase().trim(),
+  }
+}
+
 /**
  * Submit a role application request.
  * @param {Object} application
  * @param {string} application.role - Requested role (project_developer | verifier)
  * @param {string} application.fullName - Applicant full name
  * @param {string} application.email - Applicant contact email
+ * @param {string} [application.password] - Password to create applicant auth account when not signed in
  * @param {string} [application.company] - Optional company or organization
  * @param {string} [application.website] - Optional website or portfolio link
  * @param {string} [application.experience] - Summary of relevant experience
@@ -85,6 +135,7 @@ async function ensureSupabase() {
  */
 export async function submitRoleApplication(application) {
   const supabase = await ensureSupabase()
+  let createdAuthSessionDuringApply = false
 
   const normalizedRole = normalizeRequestedRole(application.role)
   if (!normalizedRole) {
@@ -124,7 +175,54 @@ export async function submitRoleApplication(application) {
     additional: application.metadata?.additional || null,
   }
 
-  const normalizedUserId = sanitizeString(application.userId)
+  let normalizedUserId = sanitizeString(application.userId)
+
+  if (!normalizedUserId && application.password) {
+    const password = String(application.password)
+    if (password.length < 8) {
+      throw new Error('Password must be at least 8 characters.')
+    }
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    })
+
+    if (signUpError) {
+      const signUpMessage = String(signUpError.message || '')
+      const accountAlreadyExists =
+        /already registered|already exists|user already registered/i.test(signUpMessage)
+
+      if (accountAlreadyExists) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (signInError || !signInData?.user?.id) {
+          throw new Error(
+            'This email already has an EcoLink account. Please log in first, or use the correct password for that account before applying.',
+          )
+        }
+
+        normalizedUserId = sanitizeString(signInData.user.id)
+        createdAuthSessionDuringApply = Boolean(signInData?.session)
+      } else {
+        throw new Error(signUpError.message || 'Unable to create applicant account. Please try again.')
+      }
+    }
+
+    if (!normalizedUserId) {
+      normalizedUserId = sanitizeString(signUpData?.user?.id)
+      createdAuthSessionDuringApply = Boolean(signUpData?.session)
+    }
+  }
+
   const record = {
     user_id: normalizedUserId,
     applicant_full_name: fullName,
@@ -155,6 +253,12 @@ export async function submitRoleApplication(application) {
   }
 
   if (error) {
+    if (createdAuthSessionDuringApply) {
+      await supabase.auth.signOut().catch((signOutError) => {
+        console.warn('Failed to clear temporary application signup session:', signOutError)
+      })
+    }
+
     if (error.code === '23505') {
       const duplicateError = new Error(
         'You already have a pending application for this role. Our team will review it shortly.',
@@ -167,6 +271,26 @@ export async function submitRoleApplication(application) {
   }
 
   if (data) {
+    if (createdAuthSessionDuringApply) {
+      await supabase.auth.signOut().catch((signOutError) => {
+        console.warn('Failed to clear temporary application signup session:', signOutError)
+      })
+    }
+
+    Promise.resolve().then(async () => {
+      try {
+        await notifyVerifiersOfRoleApplication(data)
+      } catch (notifyError) {
+        console.warn('Failed to notify verifiers/admin about role application:', notifyError)
+      }
+
+      try {
+        await notifyReviewersOfRoleApplicationInApp(data)
+      } catch (notifyError) {
+        console.warn('Failed to create in-app reviewer notification for role application:', notifyError)
+      }
+    })
+
     return data
   }
 
@@ -180,6 +304,82 @@ export function getRoleApplicationStatusLabel(status) {
   return ROLE_APPLICATION_STATUS_LABELS[status] || 'Unknown'
 }
 
+export async function getBlockingRoleApplicationForUser({ userId, email }) {
+  const supabase = await ensureSupabase()
+
+  const normalizedEmail = sanitizeString(email)?.toLowerCase()
+  let query = supabase
+    .from(ROLE_APPLICATION_TABLE)
+    .select('*')
+    .in('role_requested', [
+      ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER,
+      ROLE_APPLICATION_ROLES.VERIFIER,
+    ])
+    .order('created_at', { ascending: false })
+
+  if (userId && normalizedEmail) {
+    query = query.or(`user_id.eq.${userId},email.eq.${normalizedEmail}`)
+  } else if (userId) {
+    query = query.eq('user_id', userId)
+  } else if (normalizedEmail) {
+    query = query.eq('email', normalizedEmail)
+  } else {
+    return null
+  }
+
+  const { data, error } = await query.limit(1)
+
+  if (error) {
+    throw new Error(error.message || 'Failed to check role application status.')
+  }
+
+  const latestApplication = data?.[0] || null
+
+  if (!latestApplication || latestApplication.status === ROLE_APPLICATION_STATUS.APPROVED) {
+    return null
+  }
+
+  return latestApplication
+}
+
+export async function getLatestRoleApplicationForUser({ userId, email, roleRequested } = {}) {
+  const supabase = await ensureSupabase()
+
+  const normalizedEmail = sanitizeString(email)?.toLowerCase()
+  let query = supabase
+    .from(ROLE_APPLICATION_TABLE)
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  const normalizedRole = normalizeRequestedRole(roleRequested)
+  if (normalizedRole) {
+    query = query.eq('role_requested', normalizedRole)
+  } else {
+    query = query.in('role_requested', [
+      ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER,
+      ROLE_APPLICATION_ROLES.VERIFIER,
+    ])
+  }
+
+  if (userId && normalizedEmail) {
+    query = query.or(`user_id.eq.${userId},email.eq.${normalizedEmail}`)
+  } else if (userId) {
+    query = query.eq('user_id', userId)
+  } else if (normalizedEmail) {
+    query = query.eq('email', normalizedEmail)
+  } else {
+    return null
+  }
+
+  const { data, error } = await query.limit(1)
+
+  if (error) {
+    throw new Error(error.message || 'Failed to load the latest role application.')
+  }
+
+  return data?.[0] || null
+}
+
 function sanitizeSearchTerm(term) {
   if (!term) return null
   return term.replace(/[%"]/g, '').trim()
@@ -188,11 +388,16 @@ function sanitizeSearchTerm(term) {
 export async function fetchRoleApplications(options = {}) {
   const supabase = await ensureSupabase()
 
-  const { status, limit, offset, search } = options
+  const { status, roleRequested, limit, offset, search } = options
   let query = supabase.from(ROLE_APPLICATION_TABLE).select('*', { count: 'exact' })
 
   if (status && status !== 'all' && VALID_STATUSES.has(status)) {
     query = query.eq('status', status)
+  }
+
+  const normalizedRole = normalizeRequestedRole(roleRequested)
+  if (normalizedRole) {
+    query = query.eq('role_requested', normalizedRole)
   }
 
   const searchTerm = sanitizeSearchTerm(search)
@@ -251,11 +456,44 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
     throw new Error(fetchError?.message || 'Application not found.')
   }
 
+  const { reviewerId, reviewerRole } = await getCurrentReviewerContext(supabase)
+  const requestedRole = normalizeRequestedRole(existing.role_requested)
+
+  if (!canReviewApplicationRole(reviewerRole, requestedRole)) {
+    const targetRoleLabel = requestedRole === ROLE_APPLICATION_ROLES.VERIFIER ? 'Verifier' : 'Project Developer'
+    const error = new Error(`You are not allowed to review ${targetRoleLabel} applications.`)
+    error.code = ROLE_APPLICATION_ERRORS.UNAUTHORIZED_REVIEW
+    throw error
+  }
+
+  let roleUpdated = false
+  let roleUpdateError = null
+  if (
+    status === ROLE_APPLICATION_STATUS.APPROVED &&
+    options.assignRole !== false
+  ) {
+    if (!existing.user_id) {
+      throw new Error('This applicant does not have a linked account yet, so the role cannot be assigned.')
+    }
+
+    try {
+      await updateUserRole(existing.user_id, existing.role_requested, {
+        fullName: existing.applicant_full_name,
+        email: existing.email,
+      })
+      roleUpdated = true
+    } catch (err) {
+      roleUpdateError = err
+      console.error('Failed to assign role during approval:', err)
+      throw new Error(err?.message || 'Failed to assign the requested role.')
+    }
+  }
+
   const updatePayload = {
     status,
     admin_notes: sanitizeString(options.notes),
     decision_reason: sanitizeString(options.decisionReason),
-    reviewed_by: sanitizeString(options.adminId) || null,
+    reviewed_by: reviewerId,
     reviewed_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
@@ -269,22 +507,6 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
 
   if (error) {
     throw new Error(error.message || 'Failed to update application status.')
-  }
-
-  let roleUpdated = false
-  let roleUpdateError = null
-  if (
-    status === ROLE_APPLICATION_STATUS.APPROVED &&
-    options.assignRole !== false &&
-    existing.user_id
-  ) {
-    try {
-      await updateUserRole(existing.user_id, existing.role_requested)
-      roleUpdated = true
-    } catch (err) {
-      roleUpdateError = err
-      console.error('Failed to assign role during approval:', err)
-    }
   }
 
   let notificationInfo = null
@@ -301,6 +523,14 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
     } catch (notificationError) {
       console.error('Failed to send role application approval email:', notificationError)
       notificationInfo = { sent: false, error: notificationError }
+    }
+  }
+
+  if ([ROLE_APPLICATION_STATUS.APPROVED, ROLE_APPLICATION_STATUS.REJECTED].includes(status)) {
+    try {
+      await notifyRoleApplicationDecision(data, status)
+    } catch (notificationError) {
+      console.error('Failed to create in-app role application notification:', notificationError)
     }
   }
 

@@ -9,7 +9,7 @@ export class RoleService {
     // Silently get Supabase - errors are already logged in supabaseClient
     try {
       this.supabase = getSupabase()
-    } catch (err) {
+    } catch {
       // Supabase not available - service will work in limited mode
       this.supabase = null
     }
@@ -176,7 +176,7 @@ export class RoleService {
   /**
    * Update user role
    */
-  async updateUserRole(userId, newRole) {
+  async updateUserRole(userId, newRole, options = {}) {
     const supabase = getSupabase()
 
     if (!supabase) {
@@ -189,20 +189,23 @@ export class RoleService {
         throw new Error('Invalid role')
       }
 
-      // Update user role in profiles table
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({ role: newRole })
-        .eq('id', userId)
-        .select()
-        .single()
+      const { data: rpcProfile, error: rpcError } = await supabase.rpc('assign_user_role', {
+        target_user_id: userId,
+        target_role: newRole,
+        target_email: options.email || null,
+        target_full_name: options.fullName || null,
+      })
 
-      if (error) {
-        console.error('Error updating user role:', error)
-        throw new Error('Failed to update user role')
+      if (rpcError) {
+        console.error('Error assigning user role through RPC:', rpcError)
+        throw new Error(
+          rpcError.message?.includes('function public.assign_user_role')
+            ? 'Role assignment RPC is not available yet. Please run the latest Supabase migration before approving applications.'
+            : rpcError.message || 'Failed to assign user role',
+        )
       }
 
-      return data
+      return rpcProfile || { id: userId, role: newRole }
     } catch (error) {
       console.error('Error in updateUserRole:', error)
       throw error

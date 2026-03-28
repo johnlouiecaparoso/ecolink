@@ -273,7 +273,7 @@ watch(
 
         <!-- Error Message -->
         <div v-if="error" class="error-message">
-          <div class="error-icon">⚠️</div>
+          <div class="error-icon"><span class="material-symbols-outlined" aria-hidden="true">warning</span></div>
           <p>{{ error }}</p>
         </div>
 

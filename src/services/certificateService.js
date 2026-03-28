@@ -655,7 +655,7 @@ export async function getUserCertificates(userId) {
 /**
  * Get certificate by ID
  */
-export async function getCertificate(certificateId) {
+export async function getCertificate(certificateId, options = {}) {
   const supabase = getSupabase()
 
   if (!supabase) {
@@ -663,11 +663,28 @@ export async function getCertificate(certificateId) {
   }
 
   try {
-    const { data: certificate, error } = await supabase
-      .from('certificates')
-      .select('*')
-      .eq('id', certificateId)
-      .single()
+    const includeAll = options.includeAll === true
+
+    let query = supabase.from('certificates').select('*').eq('id', certificateId)
+
+    if (!includeAll) {
+      let ownerId = options.userId || null
+
+      if (!ownerId) {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        ownerId = user?.id || null
+      }
+
+      if (!ownerId) {
+        throw new Error('User not authenticated')
+      }
+
+      query = query.eq('user_id', ownerId)
+    }
+
+    const { data: certificate, error } = await query.single()
 
     if (error) {
       throw new Error('Certificate not found')

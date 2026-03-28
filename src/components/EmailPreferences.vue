@@ -88,7 +88,7 @@ onMounted(() => {
 
     <!-- Error State -->
     <div v-else-if="error" class="error-state">
-      <div class="error-icon">⚠️</div>
+      <div class="error-icon"><span class="material-symbols-outlined" aria-hidden="true">warning</span></div>
       <h3>Failed to Load Preferences</h3>
       <p>{{ error }}</p>
       <UiButton @click="loadPreferences">Retry</UiButton>
@@ -98,7 +98,7 @@ onMounted(() => {
     <div v-else class="preferences-form">
       <!-- Success Message -->
       <div v-if="success" class="success-message">
-        <div class="success-icon">✅</div>
+        <div class="success-icon"><span class="material-symbols-outlined" aria-hidden="true">check_circle</span></div>
         <p>{{ success }}</p>
       </div>
 

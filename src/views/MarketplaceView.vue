@@ -135,7 +135,7 @@
               </div>
               <h3>Error Loading Marketplace</h3>
               <p>{{ error }}</p>
-              <button @click="loadMarketplaceData" class="retry-button">Retry</button>
+              <button @click="refreshMarketplaceData" class="retry-button">Retry</button>
             </div>
 
             <!-- Empty State -->
@@ -360,7 +360,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import {
@@ -406,27 +406,35 @@ export default {
     const selectedPaymentMethod = ref('')
 
     // Options
-    const categories = [
-      { value: 'all', label: 'All' },
-      { value: 'Forestry', label: 'Forestry' },
-      { value: 'Renewable Energy', label: 'Renewable Energy' },
-      { value: 'Blue Carbon', label: 'Blue Carbon' },
-      { value: 'Energy Efficiency', label: 'Energy Efficiency' },
-    ]
+    const categories = computed(() => {
+      const availableCategories = Array.from(
+        new Set(
+          listings.value
+            .map((listing) => listing.category)
+            .filter((category) => typeof category === 'string' && category.trim().length > 0)
+            .map((category) => category.trim()),
+        ),
+      ).sort((a, b) => a.localeCompare(b))
 
-    const countries = [
-      'Brazil',
-      'Paraguay',
-      'Kenya',
-      'India',
-      'Indonesia',
-      'Costa Rica',
-      'Peru',
-      'Colombia',
-      'Philippines',
-      'Malaysia',
-      'Thailand',
-    ]
+      return [
+        { value: 'all', label: 'All Categories' },
+        ...availableCategories.map((category) => ({
+          value: category,
+          label: category,
+        })),
+      ]
+    })
+
+    const countries = computed(() =>
+      Array.from(
+        new Set(
+          listings.value
+            .map((listing) => listing.location)
+            .filter((location) => typeof location === 'string' && location.trim().length > 0)
+            .map((location) => location.trim()),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    )
 
     // Computed properties
     const filteredListings = computed(() => {
@@ -551,7 +559,7 @@ export default {
           // Race against timeout
           ;[listingsData, statsData] = await Promise.race([
             Promise.all([
-              getMarketplaceListings(filters),
+              getMarketplaceListings({ forceRefresh: true }),
               getMarketplaceStats(),
             ]),
             timeoutPromise,
@@ -564,7 +572,7 @@ export default {
           console.warn('⚠️ Main marketplace service failed, trying simple approach:', error)
           // Fallback to simple marketplace service with timeout
           listingsData = await Promise.race([
-            getSimpleMarketplaceListings(filters),
+            getSimpleMarketplaceListings({ forceRefresh: true }),
             timeoutPromise,
           ])
           statsData = {
@@ -606,12 +614,12 @@ export default {
       }
     }
 
-    function handleSearch() {
-      loadMarketplaceData()
-    }
+    function handleSearch() {}
 
-    function applyFilters() {
-      loadMarketplaceData()
+    function applyFilters() {}
+
+    function refreshMarketplaceData() {
+      return loadMarketplaceData()
     }
 
     function applySorting(listings) {
@@ -636,15 +644,6 @@ export default {
     function viewProject(listing) {
       // Navigate to project detail page
       router.push(`/project/${listing.project_id}`)
-    }
-
-    function showPurchaseModalFor(listing) {
-      if (!userStore.isAuthenticated) {
-        router.push('/login')
-        return
-      }
-      // For now, just show an alert
-      alert('Purchase functionality coming soon!')
     }
 
     function formatCurrency(amount, currency = 'PHP') {
@@ -745,6 +744,22 @@ export default {
       }
     }
 
+    watch(categories, (nextCategories) => {
+      const hasSelectedCategory = nextCategories.some(
+        (category) => category.value === selectedCategory.value,
+      )
+
+      if (!hasSelectedCategory) {
+        selectedCategory.value = 'all'
+      }
+    })
+
+    watch(countries, (nextCountries) => {
+      if (selectedCountry.value && !nextCountries.includes(selectedCountry.value)) {
+        selectedCountry.value = ''
+      }
+    })
+
     // Lifecycle
     onMounted(async () => {
       console.log('Marketplace mounted, loading data...')
@@ -771,6 +786,7 @@ export default {
       countries,
       filteredListings,
       loadMarketplaceData,
+      refreshMarketplaceData,
       handleSearch,
       applyFilters,
       applySorting,

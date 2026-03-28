@@ -72,6 +72,9 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     const contentY = 100
     const contentHeight = 140
     const marginX = 20
+    const labelX = marginX + 10
+    const valueX = marginX + 95
+    const valueMaxWidth = 170
 
     // Draw border
     doc.setDrawColor(...primaryColor)
@@ -82,52 +85,53 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...textColor)
-    doc.text('This certifies that:', marginX + 10, contentY + 15)
+    doc.text('This certifies that:', labelX, contentY + 15)
 
     // Beneficiary Name (YOUR NAME - prominently displayed)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text('Beneficiary:', marginX + 10, contentY + 25)
+    doc.text('Beneficiary:', labelX, contentY + 25)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(13)
     doc.setTextColor(...primaryColor)
-    doc.text(beneficiaryName, marginX + 50, contentY + 25)
+    doc.text(beneficiaryName, valueX, contentY + 25)
     doc.setTextColor(...textColor)
     let currentY = contentY + 38
     
     // Project Name (prominently displayed)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text('Project Name:', marginX + 10, currentY)
+    doc.text('Project Name:', labelX, currentY)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text(certificate.project_title || 'N/A', marginX + 50, currentY)
-    currentY += 12
+    const projectNameLines = doc.splitTextToSize(certificate.project_title || 'N/A', valueMaxWidth)
+    doc.text(projectNameLines.slice(0, 2), valueX, currentY)
+    currentY += projectNameLines.slice(0, 2).length * 6 + 3
 
     // Project Description (full description)
     if (projectDescription) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Project Description:', marginX + 10, currentY)
+      doc.text('Project Description:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       // Split long descriptions into multiple lines
-      const descLines = doc.splitTextToSize(projectDescription, 200)
-      doc.text(descLines, marginX + 50, currentY)
+      const descLines = doc.splitTextToSize(projectDescription, valueMaxWidth)
+      doc.text(descLines, valueX, currentY)
       currentY += descLines.length * 6 + 5
       doc.setFontSize(11)
     } else {
       currentY += 5
     }
 
-    // Tonnes of CO₂ Retired (prominently displayed)
+    // Tonnes of CO2 Retired (prominently displayed)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    doc.text('Tonnes of CO₂ Retired:', marginX + 10, currentY)
+    doc.text('Tonnes of CO2 Retired:', labelX, currentY)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(13)
     doc.setTextColor(...primaryColor)
-    doc.text(`${tonnesCO2.toLocaleString()} tonnes CO₂`, marginX + 50, currentY)
+    doc.text(`${tonnesCO2.toLocaleString()} tonnes CO2`, valueX, currentY)
     doc.setTextColor(...textColor)
     currentY += 12
 
@@ -138,21 +142,21 @@ export async function generateCertificatePDF(certificate, transaction = null) {
         : 'Purpose of Purchase:'
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text(purposeLabel, marginX + 10, currentY)
+      doc.text(purposeLabel, labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      const purposeLines = doc.splitTextToSize(purpose, 200)
-      doc.text(purposeLines, marginX + 50, currentY)
+      const purposeLines = doc.splitTextToSize(purpose, valueMaxWidth)
+      doc.text(purposeLines, valueX, currentY)
       currentY += purposeLines.length * 6 + 5
       doc.setFontSize(11)
     } else if (certificate.certificate_type === 'retirement') {
       // Default purpose for retirement if not specified
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Purpose of Retirement:', marginX + 10, currentY)
+      doc.text('Purpose of Retirement:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text('Carbon Offset', marginX + 50, currentY)
+      doc.text('Carbon Offset', valueX, currentY)
       currentY += 12
     }
 
@@ -166,39 +170,39 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     if (transactionId || paymentRef) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Transaction ID:', marginX + 10, currentY)
+      doc.text('Transaction ID:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       const txId = transactionId || paymentRef
       // Split long transaction IDs if needed
-      const txIdLines = doc.splitTextToSize(txId, 200)
-      doc.text(txIdLines, marginX + 50, currentY)
+      const txIdLines = doc.splitTextToSize(txId, valueMaxWidth)
+      doc.text(txIdLines, valueX, currentY)
       currentY += txIdLines.length * 6 + 5
       
       // Onchain verification (prominently displayed)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
       doc.setTextColor(...primaryColor)
-      doc.text('✓ Onchain Verification:', marginX + 10, currentY)
+      doc.text('✓ Onchain Verification:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...mutedColor)
       if (walletAddress) {
-        doc.text('This transaction is verified on-chain via wallet address', marginX + 50, currentY)
+        doc.text('This transaction is verified on-chain via wallet address', valueX, currentY)
       } else if (paymentRef) {
-        doc.text('This transaction is verified via payment reference', marginX + 50, currentY)
+        doc.text('This transaction is verified via payment reference', valueX, currentY)
       } else {
-        doc.text('Transaction verification available via transaction ID', marginX + 50, currentY)
+        doc.text('Transaction verification available via transaction ID', valueX, currentY)
       }
       currentY += 10
       doc.setTextColor(...textColor)
     } else {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Transaction ID:', marginX + 10, currentY)
+      doc.text('Transaction ID:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text('N/A', marginX + 50, currentY)
+      doc.text('N/A', valueX, currentY)
       currentY += 12
     }
 
@@ -211,11 +215,11 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
-    doc.text('Purchase Date & Time:', marginX + 10, currentY)
+    doc.text('Purchase Date & Time:', labelX, currentY)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(...primaryColor)
-    doc.text(formatDate(timestamp), marginX + 50, currentY)
+    doc.text(formatDate(timestamp), valueX, currentY)
     doc.setTextColor(...textColor)
     currentY += 12
     
@@ -223,10 +227,10 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(...mutedColor)
-    doc.text('Certificate Issued:', marginX + 10, currentY)
+    doc.text('Certificate Issued:', labelX, currentY)
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
-    doc.text(formatDate(certificate.issued_at || timestamp), marginX + 50, currentY)
+    doc.text(formatDate(certificate.issued_at || timestamp), valueX, currentY)
     doc.setTextColor(...textColor)
     currentY += 10
 
@@ -234,21 +238,21 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     if (walletAddress) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Wallet Address:', marginX + 10, currentY)
+      doc.text('Wallet Address:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       // Split long wallet addresses if needed
-      const walletLines = doc.splitTextToSize(walletAddress, 200)
-      doc.text(walletLines, marginX + 50, currentY)
-      currentY += walletLines.length * 5 + 5
+      const walletLines = doc.splitTextToSize(walletAddress, valueMaxWidth)
+      doc.text(walletLines.slice(0, 3), valueX, currentY)
+      currentY += walletLines.slice(0, 3).length * 5 + 5
     } else {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(11)
-      doc.text('Wallet Address:', marginX + 10, currentY)
+      doc.text('Wallet Address:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       doc.setTextColor(...mutedColor)
-      doc.text('Not linked to a wallet', marginX + 50, currentY)
+      doc.text('Not linked to a wallet', valueX, currentY)
       doc.setTextColor(...textColor)
       currentY += 10
     }

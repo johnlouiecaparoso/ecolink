@@ -1,6 +1,53 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { USE_DATABASE } from '@/config/database'
 
+async function attachAuditLogUsers(supabase, logs = []) {
+  const normalizedLogs = Array.isArray(logs) ? logs : []
+  const userIds = [...new Set(normalizedLogs.map((log) => log.user_id).filter(Boolean))]
+
+  if (!userIds.length) {
+    return normalizedLogs.map((log) => ({
+      ...log,
+      user_name: 'Unknown User',
+      user_role: 'unknown',
+    }))
+  }
+
+  try {
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, email, role')
+      .in('id', userIds)
+
+    if (error) {
+      console.error('Error fetching audit log user profiles:', error)
+      return normalizedLogs.map((log) => ({
+        ...log,
+        user_name: 'Unknown User',
+        user_role: 'unknown',
+      }))
+    }
+
+    const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]))
+
+    return normalizedLogs.map((log) => {
+      const profile = profileMap.get(log.user_id)
+      return {
+        ...log,
+        user_name: profile?.full_name || 'Unknown User',
+        user_role: profile?.role || 'unknown',
+      }
+    })
+  } catch (error) {
+    console.error('Error attaching audit log user profiles:', error)
+    return normalizedLogs.map((log) => ({
+      ...log,
+      user_name: 'Unknown User',
+      user_role: 'unknown',
+    }))
+  }
+}
+
 /**
  * Log user actions for audit trail
  */
@@ -211,16 +258,7 @@ export async function searchAuditLogs(filters = {}, limit = 100) {
   const supabase = getSupabase()
 
   try {
-    let query = supabase
-      .from('audit_logs')
-      .select(
-        `
-        *,
-        profiles!audit_logs_user_id_fkey(full_name, email, role)
-      `,
-      )
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    let query = supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(limit)
 
     // Apply filters
     if (filters.action) {
@@ -250,14 +288,16 @@ export async function searchAuditLogs(filters = {}, limit = 100) {
       return []
     }
 
-    return (data || []).map((log) => ({
+    const enrichedLogs = await attachAuditLogUsers(supabase, data || [])
+
+    return enrichedLogs.map((log) => ({
       id: log.id,
       action: log.action,
       resource_type: log.resource_type || log.entity_type,
       resource_id: log.resource_id || log.entity_id,
       user_id: log.user_id,
-      user_name: log.profiles?.full_name || 'Unknown User',
-      user_role: log.profiles?.role || 'unknown',
+      user_name: log.user_name || 'Unknown User',
+      user_role: log.user_role || 'unknown',
       ip_address: log.ip_address,
       metadata: log.metadata,
       created_at: log.created_at || log.timestamp,
@@ -370,12 +410,7 @@ export async function getRecentAuditLogs(limit = 50) {
   try {
     const { data, error } = await supabase
       .from('audit_logs')
-      .select(
-        `
-        *,
-        profiles!audit_logs_user_id_fkey(full_name, email, role)
-      `,
-      )
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(limit)
 
@@ -384,14 +419,16 @@ export async function getRecentAuditLogs(limit = 50) {
       return []
     }
 
-    return (data || []).map((log) => ({
+    const enrichedLogs = await attachAuditLogUsers(supabase, data || [])
+
+    return enrichedLogs.map((log) => ({
       id: log.id,
       action: log.action,
       resource_type: log.resource_type || log.entity_type,
       resource_id: log.resource_id || log.entity_id,
       user_id: log.user_id,
-      user_name: log.profiles?.full_name || 'Unknown User',
-      user_role: log.profiles?.role || 'unknown',
+      user_name: log.user_name || 'Unknown User',
+      user_role: log.user_role || 'unknown',
       ip_address: log.ip_address,
       metadata: log.metadata,
       created_at: log.created_at || log.timestamp,

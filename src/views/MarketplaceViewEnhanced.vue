@@ -10,14 +10,36 @@
 
         <!-- Search and Action Controls -->
         <div class="search-controls">
-          <button
-            @click="showAdvancedSearch = !showAdvancedSearch"
-            class="advanced-search-toggle"
-            :class="{ active: showAdvancedSearch }"
+          <div class="search-input-wrap">
+            <span class="material-symbols-outlined search-icon" aria-hidden="true">search</span>
+            <input
+              v-model="searchQuery"
+              type="search"
+              class="search-input"
+              placeholder="Search projects"
+              aria-label="Search projects"
+            />
+          </div>
+          <select v-model="selectedCategory" class="filter-select" aria-label="Filter by category">
+            <option value="">All Categories</option>
+            <option v-for="category in categoryOptions" :key="category" :value="category">
+              {{ category }}
+            </option>
+          </select>
+          <select
+            v-model="availabilityFilter"
+            class="filter-select"
+            aria-label="Filter by availability"
           >
-            <span class="material-symbols-outlined" aria-hidden="true">tune</span>
-            <span>Advanced Search</span>
-          </button>
+            <option value="all">All Availability</option>
+            <option value="available">Available</option>
+            <option value="unavailable">Not Available</option>
+          </select>
+          <select v-model="sortBy" class="filter-select" aria-label="Sort listings">
+            <option value="name">Name (A-Z)</option>
+            <option value="price-low">Cheapest to Expensive</option>
+            <option value="price-high">Expensive to Cheapest</option>
+          </select>
           <button
             v-if="userStore.isProjectDeveloper"
             @click="navigateToSubmitProject"
@@ -27,20 +49,6 @@
             <span>Submit Project</span>
           </button>
         </div>
-      </div>
-    </div>
-
-    <!-- Advanced Search Panel -->
-    <div v-if="showAdvancedSearch" class="advanced-search-panel">
-      <div class="container">
-        <AdvancedSearch
-          v-model="searchFilters"
-          :categories="categories"
-          :countries="countries"
-          :verification-standards="verificationStandards"
-          @search="handleAdvancedSearch"
-          @reset="handleSearchReset"
-        />
       </div>
     </div>
 
@@ -457,17 +465,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getMarketplaceListings, getMarketplaceStats } from '@/services/marketplaceService'
 import { projectService } from '@/services/projectService'
-import { getSupabase } from '@/services/supabaseClient'
 import { useModernPrompt } from '@/composables/useModernPrompt'
 import UiButton from '@/components/ui/Button.vue'
-import AdvancedSearch from '@/components/search/AdvancedSearch.vue'
 import Pagination from '@/components/ui/Pagination.vue'
-import MobileCard from '@/components/mobile/MobileCard.vue'
 import AccessibleModal from '@/components/ui/AccessibleModal.vue'
 import ModernPrompt from '@/components/ui/ModernPrompt.vue'
 
@@ -511,23 +516,11 @@ const selectedCategory = ref('')
 const selectedCountry = ref('')
 const priceRange = ref({ min: '', max: '' })
 const sortBy = ref('name')
-const showAdvancedSearch = ref(false)
+const availabilityFilter = ref('all')
 const viewMode = ref('grid') // 'grid' or 'list'
 const currentPage = ref(1)
 const itemsPerPage = ref(12)
-
-// Search filters for advanced search
-const searchFilters = ref({
-  query: '',
-  category: '',
-  country: '',
-  standard: '',
-  priceMin: '',
-  priceMax: '',
-  vintageYear: '',
-  sortBy: 'relevance',
-  sortOrder: 'desc',
-})
+const marketplaceRefreshTimer = ref(null)
 
 // Purchase modal state
 const showPurchaseModal = ref(false)
@@ -559,37 +552,14 @@ const paymentMethods = [
   },
 ]
 
-// Categories and countries
-const categories = ref([
-  { value: 'all', label: 'All Categories' },
-  { value: 'Forestry', label: 'Forestry' },
-  { value: 'Renewable Energy', label: 'Renewable Energy' },
-  { value: 'Blue Carbon', label: 'Blue Carbon' },
-  { value: 'Energy Efficiency', label: 'Energy Efficiency' },
-  { value: 'Waste Management', label: 'Waste Management' },
-])
-
-const countries = ref([
-  'Brazil',
-  'Kenya',
-  'Philippines',
-  'India',
-  'Scotland',
-  'Indonesia',
-  'Vietnam',
-  'Nepal',
-  'Mexico',
-  'Peru',
-  'Colombia',
-  'Thailand',
-])
-
-const verificationStandards = ref([
-  { value: 'VCS', label: 'Verified Carbon Standard' },
-  { value: 'Gold Standard', label: 'Gold Standard' },
-  { value: 'CAR', label: 'Climate Action Reserve' },
-  { value: 'ACR', label: 'American Carbon Registry' },
-])
+const categoryOptions = computed(() => {
+  const categories = new Set(
+    (listings.value || [])
+      .map((listing) => listing.category)
+      .filter((category) => typeof category === 'string' && category.trim().length > 0),
+  )
+  return Array.from(categories).sort((a, b) => a.localeCompare(b))
+})
 
 // Computed properties
 const filteredListings = computed(() => {
@@ -611,6 +581,13 @@ const filteredListings = computed(() => {
     filtered = filtered.filter((listing) => listing.category === selectedCategory.value)
   }
 
+  // Apply availability filter
+  if (availabilityFilter.value === 'available') {
+    filtered = filtered.filter((listing) => !isSoldOut(listing))
+  } else if (availabilityFilter.value === 'unavailable') {
+    filtered = filtered.filter((listing) => isSoldOut(listing))
+  }
+
   // Apply country filter
   if (selectedCountry.value) {
     filtered = filtered.filter((listing) =>
@@ -628,6 +605,11 @@ const filteredListings = computed(() => {
     filtered = filtered.filter(
       (listing) => listing.price_per_credit <= parseFloat(priceRange.value.max),
     )
+  }
+
+  // Sort by availability first for "all": available on top, unavailable at bottom
+  if (availabilityFilter.value === 'all') {
+    filtered.sort((a, b) => Number(isSoldOut(a)) - Number(isSoldOut(b)))
   }
 
   // Apply sorting
@@ -682,7 +664,7 @@ watch(purchaseQuantity, (newQuantity) => {
 })
 
 // Methods
-async function loadMarketplaceData() {
+async function loadMarketplaceData(forceRefresh = false) {
   loading.value = true
   errorMessage.value = ''
 
@@ -704,7 +686,7 @@ async function loadMarketplaceData() {
 
   try {
     const [listingsData, statsData] = await Promise.all([
-      withTimeout(getMarketplaceListings(), 'Listings'),
+      withTimeout(getMarketplaceListings({ forceRefresh }), 'Listings'),
       withTimeout(getMarketplaceStats(), 'Stats'),
     ])
 
@@ -740,27 +722,18 @@ async function loadMarketplaceData() {
   }
 }
 
-function handleAdvancedSearch(filters) {
-  searchQuery.value = filters.query
-  selectedCategory.value = filters.category
-  selectedCountry.value = filters.country
-  priceRange.value = { min: filters.priceMin, max: filters.priceMax }
-  sortBy.value = filters.sortBy
-  currentPage.value = 1
-}
-
 function handleSearchReset() {
   searchQuery.value = ''
   selectedCategory.value = ''
   selectedCountry.value = ''
   priceRange.value = { min: '', max: '' }
+  availabilityFilter.value = 'all'
   sortBy.value = 'name'
   currentPage.value = 1
 }
 
 function clearFilters() {
   handleSearchReset()
-  showAdvancedSearch.value = false
 }
 
 function viewProject(listing) {
@@ -1088,6 +1061,17 @@ onMounted(() => {
   })
 
   loadMarketplaceData()
+
+  marketplaceRefreshTimer.value = setInterval(() => {
+    loadMarketplaceData(true)
+  }, 15000)
+})
+
+onUnmounted(() => {
+  if (marketplaceRefreshTimer.value) {
+    clearInterval(marketplaceRefreshTimer.value)
+    marketplaceRefreshTimer.value = null
+  }
 })
 </script>
 
@@ -1121,33 +1105,55 @@ onMounted(() => {
   display: flex;
   justify-content: center;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.advanced-search-toggle {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-  backdrop-filter: blur(10px);
+.search-input-wrap {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  min-width: 240px;
 }
 
-.advanced-search-toggle .material-symbols-outlined {
-  font-size: 1.25rem;
+.search-icon {
+  position: absolute;
+  left: 0.65rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.15rem;
 }
 
-.advanced-search-toggle:hover {
-  background: rgba(255, 255, 255, 0.3);
+.search-input {
+  width: 100%;
+  min-width: 240px;
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0.6rem 0.75rem 0.6rem 2.25rem;
 }
 
-.advanced-search-toggle.active {
-  background: rgba(255, 255, 255, 0.9);
-  color: var(--primary-color);
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.search-input:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.filter-select {
+  height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 0 0.75rem;
+  min-width: 180px;
+}
+
+.filter-select option {
+  color: #111827;
 }
 
 .submit-project-button {
@@ -1165,12 +1171,6 @@ onMounted(() => {
 
 .submit-project-button .material-symbols-outlined {
   font-size: 1.25rem;
-}
-
-.advanced-search-panel {
-  background: white;
-  border-bottom: 1px solid var(--border-color);
-  padding: 2rem 0;
 }
 
 .marketplace-content {

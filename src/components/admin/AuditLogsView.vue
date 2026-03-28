@@ -41,7 +41,8 @@
         <div v-if="loading" class="loading-state">Loading audit logs...</div>
         <div v-else-if="error" class="error-state">{{ error }}</div>
         <div v-else class="logs-table">
-          <table>
+          <div class="logs-table__scroll">
+            <table>
             <thead>
               <tr>
                 <th>Timestamp</th>
@@ -62,11 +63,12 @@
                 </td>
                 <td>{{ log.resource_type || 'N/A' }}</td>
                 <td class="details-cell">
-                  <span :title="formatDetails(log.details)">{{ formatDetails(log.details) }}</span>
+                  <span :title="formatDetails(log.metadata)">{{ formatDetails(log.metadata) }}</span>
                 </td>
               </tr>
             </tbody>
-          </table>
+            </table>
+          </div>
           <div v-if="logs.length === 0" class="empty-state">No audit logs found.</div>
         </div>
       </div>
@@ -108,7 +110,7 @@ const filteredLogs = computed(() => {
         log.user_name?.toLowerCase().includes(query) ||
         log.action_type?.toLowerCase().includes(query) ||
         log.resource_type?.toLowerCase().includes(query) ||
-        JSON.stringify(log.details)?.toLowerCase().includes(query),
+        JSON.stringify(log.metadata)?.toLowerCase().includes(query),
     )
   }
 
@@ -242,9 +244,15 @@ onMounted(() => {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.logs-table__scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 720px;
 }
 
 thead {
@@ -314,5 +322,22 @@ th {
   text-align: center;
   padding: 2rem;
 }
-</style>
 
+@media (max-width: 768px) {
+  .filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .search-input,
+  .filter-select,
+  .refresh-btn {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .logs-table {
+    border-radius: 12px;
+  }
+}
+</style>

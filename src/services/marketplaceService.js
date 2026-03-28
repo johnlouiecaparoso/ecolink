@@ -8,7 +8,7 @@ import { creditOwnershipService } from '@/services/creditOwnershipService'
 import { getCurrentUserId } from '@/utils/authHelper'
 
 const isDev = import.meta.env?.DEV ?? false
-const MARKETPLACE_CACHE_TTL = 60000 // 60 seconds
+const MARKETPLACE_CACHE_TTL = 10000 // 10 seconds
 
 let cachedMarketplaceListings = []
 let lastMarketplaceFetch = 0

@@ -1,7 +1,10 @@
 <template>
   <div class="test-verifier">
     <div class="verifier-header">
-      <h3>🧪 Test Account Verifier</h3>
+      <h3>
+        <span class="material-symbols-outlined" aria-hidden="true">science</span>
+        Test Account Verifier
+      </h3>
       <p>Verify that your Supabase test accounts are set up correctly</p>
     </div>
 
@@ -18,7 +21,7 @@
       <h4>Results:</h4>
       <div class="result-list">
         <div v-for="(result, index) in results" :key="index" :class="['result-item', result.type]">
-          <span class="result-icon">{{ result.icon }}</span>
+          <span class="result-icon material-symbols-outlined" aria-hidden="true">{{ result.icon }}</span>
           <span class="result-message">{{ result.message }}</span>
         </div>
       </div>
@@ -28,17 +31,26 @@
       <h4>Expected Test Accounts:</h4>
       <div class="account-list">
         <div class="account-item">
-          <span class="account-role">👑 Admin</span>
+          <span class="account-role">
+            <span class="material-symbols-outlined" aria-hidden="true">crown</span>
+            Admin
+          </span>
           <span class="account-email">admin@ecolink.test</span>
           <span class="account-password">admin123</span>
         </div>
         <div class="account-item">
-          <span class="account-role">✅ Verifier</span>
+          <span class="account-role">
+            <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+            Verifier
+          </span>
           <span class="account-email">verifier@ecolink.test</span>
           <span class="account-password">verifier123</span>
         </div>
         <div class="account-item">
-          <span class="account-role">👤 User</span>
+          <span class="account-role">
+            <span class="material-symbols-outlined" aria-hidden="true">person</span>
+            User
+          </span>
           <span class="account-email">user@ecolink.test</span>
           <span class="account-password">user123</span>
         </div>
@@ -67,17 +79,17 @@ async function verifyAccounts() {
   clearResults()
 
   try {
-    addResult('info', '🔍', 'Starting verification...')
+    addResult('info', 'search', 'Starting verification...')
     const success = await verifyTestAccounts()
 
     if (success) {
-      addResult('success', '✅', 'All test accounts verified successfully!')
+      addResult('success', 'check_circle', 'All test accounts verified successfully!')
     } else {
-      addResult('error', '❌', 'Some test accounts are missing or misconfigured')
-      addResult('info', '📝', 'Please run the SQL setup script in Supabase')
+      addResult('error', 'error', 'Some test accounts are missing or misconfigured')
+      addResult('info', 'description', 'Please run the SQL setup script in Supabase')
     }
   } catch (error) {
-    addResult('error', '❌', `Verification failed: ${error.message}`)
+    addResult('error', 'error', `Verification failed: ${error.message}`)
   } finally {
     loading.value = false
   }
@@ -88,11 +100,11 @@ async function testLogins() {
   clearResults()
 
   try {
-    addResult('info', '🔐', 'Testing login functionality...')
+    addResult('info', 'lock', 'Testing login functionality...')
     await testAccountLogins()
-    addResult('success', '🎉', 'Login testing completed - check console for details')
+    addResult('success', 'task_alt', 'Login testing completed - check console for details')
   } catch (error) {
-    addResult('error', '❌', `Login testing failed: ${error.message}`)
+    addResult('error', 'error', `Login testing failed: ${error.message}`)
   } finally {
     loading.value = false
   }

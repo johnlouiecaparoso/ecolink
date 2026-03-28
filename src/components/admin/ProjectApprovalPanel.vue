@@ -16,6 +16,12 @@
         >
           Pending ({{ allProjects.filter(p => p.status === 'pending').length }})
         </button>
+        <button
+          :class="['filter-tab', { active: statusFilter === 'under_review' }]"
+          @click="statusFilter = 'under_review'"
+        >
+          Under Review ({{ allProjects.filter(p => p.status === 'under_review').length }})
+        </button>
         <button 
           :class="['filter-tab', { active: statusFilter === 'approved' }]"
           @click="statusFilter = 'approved'"
@@ -29,6 +35,14 @@
           Rejected ({{ allProjects.filter(p => p.status === 'rejected').length }})
         </button>
       </div>
+    </div>
+
+    <div v-if="decisionCard" :class="['decision-card', `decision-card--${decisionCard.tone}`]">
+      <div>
+        <strong>{{ decisionCard.title }}</strong>
+        <p>{{ decisionCard.message }}</p>
+      </div>
+      <button class="decision-card__close" type="button" @click="clearDecisionCard">×</button>
     </div>
 
     <!-- Loading State -->
@@ -69,42 +83,79 @@
       </aside>
 
       <section v-if="activeProject" class="project-detail">
-        <header class="detail-header">
-          <h3 class="detail-title">{{ activeProject.title }}</h3>
-          <span :class="['status-badge', activeProject.status]">
-            {{ getStatusLabel(activeProject.status) }}
-          </span>
-        </header>
+        <div class="detail-scroll-content">
+          <header class="detail-header">
+            <h3 class="detail-title">{{ activeProject.title }}</h3>
+            <span :class="['status-badge', activeProject.status]">
+              {{ getStatusLabel(activeProject.status) }}
+            </span>
+          </header>
 
-        <div class="detail-meta">
-          <div class="meta-item">
-            <span class="material-symbols-outlined" aria-hidden="true">category</span>
-            <span>{{ activeProject.category || 'Uncategorized' }}</span>
+          <div class="detail-meta">
+            <div class="meta-item">
+              <span class="material-symbols-outlined" aria-hidden="true">category</span>
+              <span>{{ activeProject.category || 'Uncategorized' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+              <span>{{ activeProject.location || 'No location provided' }}</span>
+            </div>
+            <div class="meta-item">
+              <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
+              <span>Submitted {{ formatDate(activeProject.created_at) }}</span>
+            </div>
           </div>
-          <div class="meta-item">
-            <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
-            <span>{{ activeProject.location || 'No location provided' }}</span>
-          </div>
-          <div class="meta-item">
-            <span class="material-symbols-outlined" aria-hidden="true">calendar_month</span>
-            <span>Submitted {{ formatDate(activeProject.created_at) }}</span>
-          </div>
-        </div>
 
-        <div class="detail-section">
-          <h4>
-            <span class="material-symbols-outlined" aria-hidden="true">insights</span>
-            <span>Expected Impact</span>
-          </h4>
-          <p>{{ activeProject.expected_impact || 'No expected impact provided.' }}</p>
-        </div>
+          <div class="detail-section">
+            <h4>
+              <span class="material-symbols-outlined" aria-hidden="true">insights</span>
+              <span>Expected Impact</span>
+            </h4>
+            <p>{{ activeProject.expected_impact || 'No expected impact provided.' }}</p>
+          </div>
 
-        <div class="detail-section">
-          <h4>
-            <span class="material-symbols-outlined" aria-hidden="true">description</span>
-            <span>Description</span>
-          </h4>
-          <p>{{ activeProject.description || 'No description provided.' }}</p>
+          <div class="detail-section">
+            <h4>
+              <span class="material-symbols-outlined" aria-hidden="true">description</span>
+              <span>Description</span>
+            </h4>
+            <p>{{ activeProject.description || 'No description provided.' }}</p>
+          </div>
+
+          <div
+            v-if="activeProject.project_image || parsedSupportingDocuments(activeProject).length"
+            class="detail-section"
+          >
+            <h4>
+              <span class="material-symbols-outlined" aria-hidden="true">attach_file</span>
+              <span>Submitted Media & Documents</span>
+            </h4>
+
+            <div v-if="activeProject.project_image" class="submitted-image-wrap">
+              <img
+                :src="activeProject.project_image"
+                :alt="`${activeProject.title} project image`"
+                class="submitted-image"
+              />
+            </div>
+
+            <ul v-if="parsedSupportingDocuments(activeProject).length" class="submitted-doc-list">
+              <li v-for="(doc, index) in parsedSupportingDocuments(activeProject)" :key="`${doc.name || 'doc'}-${index}`">
+                <a v-if="doc.url" :href="doc.url" target="_blank" rel="noopener noreferrer">
+                  {{ doc.name || `Document ${index + 1}` }}
+                </a>
+                <span v-else>{{ doc.name || `Document ${index + 1}` }}</span>
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="activeProject.status === 'rejected' && activeProject.verification_notes" class="detail-section">
+            <h4>
+              <span class="material-symbols-outlined" aria-hidden="true">info</span>
+              <span>Rejection Notes</span>
+            </h4>
+            <p>{{ activeProject.verification_notes }}</p>
+          </div>
         </div>
 
         <div class="detail-actions">
@@ -207,7 +258,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { projectApprovalService } from '@/services/projectApprovalService'
 import { useUserStore } from '@/store/userStore'
 import { useModernPrompt } from '@/composables/useModernPrompt'
-import { getSupabase } from '@/services/supabaseClient'
 import { projectService } from '@/services/projectService'
 import ModernPrompt from '@/components/ui/ModernPrompt.vue'
 
@@ -222,6 +272,7 @@ const statusFilter = ref('all')
 const processing = ref(false)
 const processingProjects = ref([])
 const activeProjectId = ref(null)
+const decisionCard = ref(null)
 
 // Computed property for displayed projects based on filter
 const displayedProjects = computed(() => {
@@ -390,6 +441,38 @@ async function deleteProject(projectId) {
   }
 }
 
+function clearDecisionCard() {
+  decisionCard.value = null
+}
+
+function setDecisionCard(project, status) {
+  const projectTitle = project?.title || 'The project'
+
+  if (status === 'approved') {
+    decisionCard.value = {
+      tone: 'approved',
+      title: 'Project Approved',
+      message: `${projectTitle} has been approved and the owner can now continue with the approved project flow.`,
+    }
+    return
+  }
+
+  if (status === 'rejected') {
+    decisionCard.value = {
+      tone: 'rejected',
+      title: 'Project Rejected',
+      message: `${projectTitle} has been rejected and the owner can review the verifier decision.`,
+    }
+    return
+  }
+
+  decisionCard.value = {
+    tone: 'review',
+    title: 'Project Under Review',
+    message: `${projectTitle} has been moved into under review status.`,
+  }
+}
+
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {
     year: 'numeric',
@@ -412,6 +495,22 @@ function getStatusLabel(status) {
       return 'Rejected'
     default:
       return status.toUpperCase()
+  }
+}
+
+function parsedSupportingDocuments(project) {
+  if (!project?.supporting_documents) return []
+
+  try {
+    const parsed =
+      typeof project.supporting_documents === 'string'
+        ? JSON.parse(project.supporting_documents)
+        : project.supporting_documents
+
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.warn('Failed to parse supporting documents:', error)
+    return []
   }
 }
 
@@ -447,6 +546,8 @@ async function openVerificationModal(project, newStatus) {
     // Reload the list to ensure consistency
     await loadPendingProjects()
 
+    setDecisionCard(project, newStatus)
+
     // Show modern success prompt
     await success({
       title: `${statusLabel} Complete`,
@@ -477,6 +578,54 @@ async function openVerificationModal(project, newStatus) {
   margin-bottom: 24px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--ecolink-border, #e5e7eb);
+}
+
+.decision-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 1rem 1.2rem;
+  border-radius: 16px;
+  border: 1px solid transparent;
+}
+
+.decision-card strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.decision-card p {
+  margin: 0;
+  color: inherit;
+}
+
+.decision-card--approved {
+  background: #ecfdf3;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.decision-card--rejected {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.decision-card--review {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.decision-card__close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .panel-header h2 {
@@ -685,7 +834,17 @@ async function openVerificationModal(project, newStatus) {
   min-height: 380px;
   min-width: 0;
   max-height: calc(100vh - 260px);
+  overflow: hidden;
+}
+
+.detail-scroll-content {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-right: 6px;
 }
 
 .project-detail.empty-detail {
@@ -752,15 +911,33 @@ async function openVerificationModal(project, newStatus) {
   line-height: 1.6;
 }
 
+.submitted-image-wrap {
+  margin-top: 0.5rem;
+}
+
+.submitted-image {
+  max-width: min(100%, 420px);
+  border-radius: 10px;
+  border: 1px solid var(--ecolink-border, #e5e7eb);
+}
+
+.submitted-doc-list {
+  margin: 0.35rem 0 0;
+  padding-left: 1rem;
+}
+
+.submitted-doc-list li {
+  margin-bottom: 0.35rem;
+}
+
 .detail-actions {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 1.5rem;
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #ffffff 35%);
-  padding: 16px 0 8px;
+  margin-top: auto;
+  border-top: 1px solid var(--ecolink-border, #e5e7eb);
+  background: #ffffff;
+  padding: 12px 0 0;
 }
 
 .action-btn {
@@ -861,7 +1038,12 @@ async function openVerificationModal(project, newStatus) {
   .project-detail {
     border-top-left-radius: 0;
     max-height: none;
+    overflow: visible;
+  }
+
+  .detail-scroll-content {
     overflow-y: visible;
+    padding-right: 0;
   }
 }
 
@@ -890,4 +1072,3 @@ async function openVerificationModal(project, newStatus) {
   }
 }
 </style>
-

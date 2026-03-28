@@ -156,7 +156,59 @@ export async function getTransactions(userId = null, limit = 50) {
   if (error) {
     throw new Error(error.message || 'Failed to fetch transactions')
   }
-  return data || []
+
+  const transactions = data || []
+
+  // Backfill legacy marketplace entries stuck in pending:
+  // if a pending wallet transaction has an external_reference that matches
+  // a completed credit_transaction.payment_reference, mark it completed.
+  const pendingWithReference = transactions.filter(
+    (transaction) => transaction.status === 'pending' && transaction.external_reference,
+  )
+
+  if (pendingWithReference.length > 0) {
+    const references = Array.from(
+      new Set(pendingWithReference.map((transaction) => String(transaction.external_reference))),
+    )
+
+    const { data: completedCredits, error: completedCreditsError } = await supabase
+      .from('credit_transactions')
+      .select('payment_reference')
+      .eq('buyer_id', userId)
+      .eq('status', 'completed')
+      .in('payment_reference', references)
+
+    if (!completedCreditsError && completedCredits?.length) {
+      const completedReferences = Array.from(
+        new Set(
+          completedCredits
+            .map((record) => record.payment_reference)
+            .filter((reference) => reference != null)
+            .map((reference) => String(reference)),
+        ),
+      )
+
+      if (completedReferences.length) {
+        await supabase
+          .from('wallet_transactions')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('account_id', walletAccount.id)
+          .eq('status', 'pending')
+          .in('external_reference', completedReferences)
+
+        return transactions.map((transaction) =>
+          completedReferences.includes(String(transaction.external_reference))
+            ? { ...transaction, status: 'completed' }
+            : transaction,
+        )
+      }
+    }
+  }
+
+  return transactions
 }
 
 export async function createTransaction(transactionData) {

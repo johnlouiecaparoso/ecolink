@@ -196,8 +196,8 @@ const isFormValid = computed(() => {
   
   // Log validation results for debugging
   if (!isValid) {
-    console.log('❌ Form validation failed. Field status:', JSON.parse(JSON.stringify(validationResults)))
-    console.log('📋 Current form data:', JSON.parse(JSON.stringify({
+    console.log('[ERROR] Form validation failed. Field status:', JSON.parse(JSON.stringify(validationResults)))
+    console.log('[DEBUG] Current form data:', JSON.parse(JSON.stringify({
       title: formData.value.title,
       description: formData.value.description,
       category: formData.value.category,
@@ -211,7 +211,7 @@ const isFormValid = computed(() => {
     // Log which fields are failing
     Object.keys(validationResults).forEach(field => {
       if (!validationResults[field].valid) {
-        console.log(`  ❌ ${field}: ${validationResults[field].reason}`)
+        console.log(`  [ERROR] ${field}: ${validationResults[field].reason}`)
       }
     })
   }
@@ -538,24 +538,24 @@ function onFileZoneClick(event) {
 }
 
 async function handleSubmit() {
-  console.log('🚀 Form submit button clicked!')
-  console.log('📋 Form data:', formData.value)
-  console.log('✅ isFormValid:', isFormValid.value)
+  console.log('[DEBUG] Form submit button clicked!')
+  console.log('[DEBUG] Form data:', formData.value)
+  console.log('[OK] isFormValid:', isFormValid.value)
   
   clearErrors()
 
   // Log validation status
   const validationResult = validateForm()
-  console.log('🔍 validateForm() result:', validationResult)
-  console.log('❌ Current errors:', errors.value)
+  console.log('[DEBUG] validateForm() result:', validationResult)
+  console.log('[ERROR] Current errors:', errors.value)
   
   if (!validationResult) {
-    console.warn('⚠️ Form validation failed, preventing submission')
+    console.warn('[WARN] Form validation failed, preventing submission')
     return
   }
 
   if (!isFormValid.value) {
-    console.warn('⚠️ isFormValid is false, preventing submission')
+    console.warn('[WARN] isFormValid is false, preventing submission')
     // Log which fields are failing validation
     Object.keys(validationRules).forEach((field) => {
       const value = formData.value[field]
@@ -574,7 +574,7 @@ async function handleSubmit() {
     return
   }
   
-  console.log('✅ All validations passed, proceeding with submission...')
+  console.log('[OK] All validations passed, proceeding with submission...')
 
   loading.value = true
 
@@ -629,7 +629,7 @@ async function handleSubmit() {
         } = await supabase.auth.getUser()
         if (user && !userError) {
           userId = user.id
-          console.log('✅ Using user ID from Supabase getUser():', userId)
+          console.log('[OK] Using user ID from Supabase getUser():', userId)
         } else {
           console.log('getUser() failed:', userError)
         }
@@ -646,7 +646,7 @@ async function handleSubmit() {
           } = await supabase.auth.getSession()
           if (session?.user && !sessionError) {
             userId = session.user.id
-            console.log('✅ Using user ID from Supabase getSession():', userId)
+            console.log('[OK] Using user ID from Supabase getSession():', userId)
           } else {
             console.log('getSession() failed:', sessionError)
           }
@@ -658,7 +658,7 @@ async function handleSubmit() {
       // Method 3: Try userStore session as fallback
       if (!userId && userStore.session?.user?.id) {
         userId = userStore.session.user.id
-        console.log('✅ Using user ID from userStore session:', userId)
+        console.log('[OK] Using user ID from userStore session:', userId)
       }
 
       // If we still don't have a user ID, throw an error
@@ -666,7 +666,7 @@ async function handleSubmit() {
         throw new Error('Unable to get user ID. Please log in again and try submitting the project.')
       }
 
-      console.log('✅ Final user ID to use for project submission:', userId)
+      console.log('[OK] Final user ID to use for project submission:', userId)
 
       // Verify the profile exists before submitting
       try {
@@ -677,41 +677,41 @@ async function handleSubmit() {
           .single()
 
         if (profileError || !profile) {
-          console.error('❌ Profile not found for user ID:', userId, profileError)
+          console.error('[ERROR] Profile not found for user ID:', userId, profileError)
           throw new Error(
             'Your user profile was not found. Please contact support or try logging out and logging back in.'
           )
         }
-        console.log('✅ Profile verified for user ID:', userId)
+        console.log('[OK] Profile verified for user ID:', userId)
       } catch (profileCheckError) {
         if (profileCheckError.message.includes('profile was not found')) {
           throw profileCheckError
         }
-        console.warn('⚠️ Could not verify profile, but continuing with submission:', profileCheckError)
+        console.warn('[WARN] Could not verify profile, but continuing with submission:', profileCheckError)
       }
 
       try {
         // Try the workflow service first
         submittedProject = await projectWorkflowService.submitProject(projectData, userId)
-        console.log('✅ Project submitted via workflow service:', submittedProject)
+        console.log('[OK] Project submitted via workflow service:', submittedProject)
       } catch (workflowError) {
-        console.error('❌ Workflow service failed:', workflowError)
+        console.error('[ERROR] Workflow service failed:', workflowError)
         console.log('Trying direct submission as fallback...')
 
         // Fallback to direct project service
         try {
           submittedProject = await projectService.createProject(projectData, userId)
-          console.log('✅ Project submitted via direct service:', submittedProject)
+          console.log('[OK] Project submitted via direct service:', submittedProject)
         } catch (directError) {
-          console.error('❌ Direct service failed:', directError)
+          console.error('[ERROR] Direct service failed:', directError)
           console.log('Trying approval service as final fallback...')
 
           // Final fallback to approval service
           try {
             submittedProject = await projectApprovalService.submitProject(projectData, userId)
-            console.log('✅ Project submitted via approval service:', submittedProject)
+            console.log('[OK] Project submitted via approval service:', submittedProject)
           } catch (approvalError) {
-            console.error('❌ All submission methods failed:', {
+            console.error('[ERROR] All submission methods failed:', {
               workflow: workflowError.message,
               direct: directError.message,
               approval: approvalError.message,
@@ -735,7 +735,7 @@ async function handleSubmit() {
       resetForm()
     }
   } catch (error) {
-    console.error('❌ Error saving project:', error)
+    console.error('[ERROR] Error saving project:', error)
     console.error('Error details:', {
       message: error.message,
       stack: error.stack,
@@ -745,7 +745,7 @@ async function handleSubmit() {
     // Check if it's an auth error
     if (error.message && (error.message.includes('session') || error.message.includes('auth') || error.message.includes('unauthorized'))) {
       errors.value.general = 'Your session may have expired. Please refresh the page and try again.'
-      console.warn('⚠️ Auth-related error detected during project submission')
+      console.warn('[WARN] Auth-related error detected during project submission')
     } else {
       errors.value.general = error.message || 'Failed to save project. Please try again.'
     }
@@ -946,7 +946,9 @@ onMounted(() => {
           <template v-else>
             <div v-if="projectImagePreview" class="image-preview-container">
               <img :src="projectImagePreview" alt="Project preview" class="image-preview" />
-              <button type="button" class="remove-image-btn" @click.stop="removeProjectImage">✕</button>
+              <button type="button" class="remove-image-btn" @click.stop="removeProjectImage">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+              </button>
             </div>
             <div v-else class="upload-placeholder">
               <span class="material-symbols-outlined upload-icon" aria-hidden="true">add_photo_alternate</span>

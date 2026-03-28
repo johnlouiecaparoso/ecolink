@@ -66,6 +66,45 @@
 
         <!-- Desktop Actions -->
         <div class="desktop-actions">
+        <div v-if="userStore.isAuthenticated" class="notifications-menu">
+          <button class="notifications-button" @click="toggleNotificationMenu" type="button">
+            <span class="material-symbols-outlined" aria-hidden="true">notifications</span>
+            <span v-if="unreadNotificationCount > 0" class="notifications-badge">
+              {{ unreadNotificationCount > 99 ? '99+' : unreadNotificationCount }}
+            </span>
+          </button>
+          <div v-if="showNotificationMenu" class="notifications-dropdown">
+            <div class="notifications-header-row">
+              <strong>Notifications</strong>
+              <button
+                class="mark-all-read-btn"
+                type="button"
+                @click="markAllAsRead"
+                :disabled="unreadNotificationCount === 0"
+              >
+                Mark all read
+              </button>
+            </div>
+
+            <div v-if="notificationItems.length === 0" class="notifications-empty">
+              No notifications yet.
+            </div>
+
+            <button
+              v-for="notification in notificationItems"
+              :key="notification.id"
+              type="button"
+              class="notification-item"
+              :class="{ unread: !notification.is_read }"
+              @click="openNotification(notification)"
+            >
+              <span class="notification-title">{{ notification.title }}</span>
+              <span class="notification-message">{{ notification.message }}</span>
+              <span class="notification-time">{{ formatNotificationTime(notification.created_at) }}</span>
+            </button>
+          </div>
+        </div>
+
         <div v-if="userStore.isAuthenticated" class="user-menu">
             <div class="user-info">
               <span class="user-name">{{ userStore.profile?.full_name || 'User' }}</span>
@@ -244,18 +283,26 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getRoleDisplayName } from '@/constants/roles'
 import { getUserInitials } from '@/services/profileService'
+import {
+  getUserNotifications,
+  markAllNotificationsAsRead,
+  markNotificationAsRead,
+} from '@/services/notificationService'
 
 const route = useRoute()
 const userStore = useUserStore()
 
 const mobileMenuOpen = ref(false)
 const showUserMenu = ref(false)
+const showNotificationMenu = ref(false)
 const avatarError = ref(false)
+const notificationItems = ref([])
+const notificationPollTimer = ref(null)
 
 // Toggle mobile menu
 const toggleMobileMenu = () => {
@@ -275,10 +322,17 @@ const navItems = computed(() => {
 
   const items = [
     ...baseItems,
-    { path: '/wallet', label: 'Wallet' },
-    { path: '/certificates', label: 'Certificates' },
-    { path: '/carbon-calculator', label: 'Carbon Calculator' },
   ]
+
+  const hideFinanceAndCertificateNav =
+    userStore.isAdmin || userStore.isVerifier || userStore.isProjectDeveloper
+
+  if (!hideFinanceAndCertificateNav) {
+    items.push({ path: '/wallet', label: 'Wallet' })
+    items.push({ path: '/receipts', label: 'Receipts' })
+    items.push({ path: '/certificates', label: 'Certificates' })
+    items.push({ path: '/carbon-calculator', label: 'Carbon Calculator' })
+  }
 
   if (userStore.isAdmin) {
     items.push({ path: '/admin', label: 'Admin Dashboard' })
@@ -287,6 +341,7 @@ const navItems = computed(() => {
 
   if (userStore.isProjectDeveloper) {
     items.push({ path: '/submit-project', label: 'Submit Project' })
+    items.push({ path: '/developer/projects', label: 'My Project Dashboard' })
   }
 
   if (userStore.isVerifier) {
@@ -372,6 +427,132 @@ watch(avatarUrl, () => {
 function onAvatarError() {
   avatarError.value = true
 }
+
+const unreadNotificationCount = computed(
+  () => notificationItems.value.filter((notification) => !notification.is_read).length,
+)
+
+async function loadNotifications() {
+  const userId = userStore.session?.user?.id
+  if (!userStore.isAuthenticated || !userId) {
+    notificationItems.value = []
+    return
+  }
+
+  try {
+    notificationItems.value = await getUserNotifications(userId, 20)
+  } catch (error) {
+    console.error('Failed to load notifications:', error)
+  }
+}
+
+async function markAllAsRead() {
+  const userId = userStore.session?.user?.id
+  if (!userId || unreadNotificationCount.value === 0) return
+
+  try {
+    await markAllNotificationsAsRead(userId)
+    notificationItems.value = notificationItems.value.map((item) => ({
+      ...item,
+      is_read: true,
+      read_at: item.read_at || new Date().toISOString(),
+    }))
+  } catch (error) {
+    console.error('Failed to mark all notifications as read:', error)
+  }
+}
+
+function toggleNotificationMenu() {
+  showNotificationMenu.value = !showNotificationMenu.value
+  showUserMenu.value = false
+
+  if (showNotificationMenu.value) {
+    loadNotifications()
+  }
+}
+
+async function openNotification(notification) {
+  const userId = userStore.session?.user?.id
+  if (!notification || !userId) return
+
+  try {
+    if (!notification.is_read) {
+      await markNotificationAsRead(notification.id, userId)
+      notificationItems.value = notificationItems.value.map((item) =>
+        item.id === notification.id
+          ? { ...item, is_read: true, read_at: new Date().toISOString() }
+          : item,
+      )
+    }
+
+    showNotificationMenu.value = false
+    const targetPath = notification.link || '/'
+    if (route.path !== targetPath) {
+      window.location.assign(targetPath)
+    }
+  } catch (error) {
+    console.error('Failed to open notification:', error)
+  }
+}
+
+function formatNotificationTime(value) {
+  if (!value) return ''
+  return new Date(value).toLocaleString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function startNotificationPolling() {
+  if (notificationPollTimer.value) {
+    clearInterval(notificationPollTimer.value)
+  }
+
+  if (!userStore.isAuthenticated) {
+    return
+  }
+
+  notificationPollTimer.value = setInterval(() => {
+    loadNotifications()
+  }, 15000)
+}
+
+onMounted(() => {
+  loadNotifications()
+  startNotificationPolling()
+})
+
+onUnmounted(() => {
+  if (notificationPollTimer.value) {
+    clearInterval(notificationPollTimer.value)
+    notificationPollTimer.value = null
+  }
+})
+
+watch(
+  () => userStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (!isAuthenticated) {
+      notificationItems.value = []
+      showNotificationMenu.value = false
+    } else {
+      loadNotifications()
+    }
+    startNotificationPolling()
+  },
+)
+
+watch(
+  () => route.path,
+  () => {
+    showNotificationMenu.value = false
+    showUserMenu.value = false
+    loadNotifications()
+  },
+)
 </script>
 
 <style scoped>
@@ -612,6 +793,121 @@ function onAvatarError() {
   margin: 0;
   padding: 0.5rem 1rem;
   width: auto;
+}
+
+.notifications-menu {
+  position: relative;
+}
+
+.notifications-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  position: relative;
+}
+
+.notifications-button .material-symbols-outlined {
+  font-size: 1.2rem;
+}
+
+.notifications-badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.35rem;
+  min-width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.6rem;
+  line-height: 1rem;
+  padding: 0 0.2rem;
+  font-weight: 700;
+}
+
+.notifications-dropdown {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  width: min(340px, calc(100vw - 1rem));
+  max-height: 380px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+}
+
+.notifications-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.mark-all-read-btn {
+  border: none;
+  background: transparent;
+  color: var(--primary-color);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.mark-all-read-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.notifications-empty {
+  padding: 1rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.notification-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.75rem 0.85rem;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.notification-item:last-child {
+  border-bottom: none;
+}
+
+.notification-item.unread {
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.notification-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.notification-message {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.notification-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .user-menu {
@@ -1003,6 +1299,12 @@ function onAvatarError() {
   .mobile-auth-link {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
+  }
+
+  .notifications-dropdown {
+    right: -0.25rem;
+    width: min(320px, calc(100vw - 0.75rem));
+    max-height: min(70vh, 380px);
   }
 }
 

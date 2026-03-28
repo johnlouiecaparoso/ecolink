@@ -1,6 +1,11 @@
 import { getSupabase } from '@/services/supabaseClient'
-import { logUserAction, logSystemEvent } from '@/services/auditService'
+import { logUserAction } from '@/services/auditService'
 import { sendWelcomeEmail } from '@/services/emailService'
+import { notifyWelcomeUser } from '@/services/notificationService'
+import {
+  getBlockingRoleApplicationForUser,
+  getRoleApplicationStatusLabel,
+} from '@/services/roleApplicationService'
 
 export async function loginWithEmail({ email, password }) {
   const supabase = getSupabase()
@@ -9,6 +14,37 @@ export async function loginWithEmail({ email, password }) {
     // Log failed login attempt
     await logUserAction('LOGIN_FAILED', 'user', null, null, { email, error: error.message })
     throw new Error(error.message || 'Invalid credentials or account not registered.')
+  }
+
+  try {
+    const blockingApplication = await getBlockingRoleApplicationForUser({
+      userId: data.user?.id,
+      email,
+    })
+
+    if (blockingApplication) {
+      await supabase.auth.signOut({ scope: 'global' })
+
+      const roleLabel =
+        blockingApplication.role_requested === 'verifier' ? 'Verifier' : 'Project Developer'
+      const statusLabel = getRoleApplicationStatusLabel(blockingApplication.status).toLowerCase()
+
+      await logUserAction('LOGIN_BLOCKED_UNVERIFIED_ROLE', 'user', data.user?.id, null, {
+        email,
+        requested_role: blockingApplication.role_requested,
+        application_status: blockingApplication.status,
+      })
+
+      throw new Error(
+        `Your ${roleLabel} account is ${statusLabel} and cannot sign in until it is approved. We will email you once your account is verified.`,
+      )
+    }
+  } catch (approvalError) {
+    if (approvalError?.message?.includes('cannot sign in until it is approved')) {
+      throw approvalError
+    }
+
+    console.error('Error checking role application approval during login:', approvalError)
   }
 
   // Log successful login
@@ -100,6 +136,13 @@ async function createUserProfile(userId, profileData) {
       // Don't fail the registration if email sending fails
     }
 
+    try {
+      await notifyWelcomeUser(userId, profile.full_name)
+      console.log('Welcome notification created for new user')
+    } catch (notificationError) {
+      console.error('Error creating welcome notification:', notificationError)
+    }
+
     return profile
   } catch (error) {
     console.error('Profile creation error during registration:', error)
@@ -176,7 +219,7 @@ export async function signOut() {
           // Ignore audit log errors
         })
       }
-    } catch (logError) {
+    } catch {
       // Ignore - we're already in error handling
     }
   }
@@ -190,7 +233,7 @@ export async function signOut() {
         }
       })
     }
-  } catch (e) {
+  } catch {
     // Ignore localStorage errors
   }
 }

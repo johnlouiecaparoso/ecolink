@@ -51,7 +51,7 @@ provide('errorHandler', {
     <!-- Error Fallback UI -->
     <div v-if="hasError" class="error-fallback">
       <div class="error-fallback-content">
-        <div class="error-icon">⚠️</div>
+        <div class="error-icon"><span class="material-symbols-outlined" aria-hidden="true">warning</span></div>
         <h2>Something went wrong</h2>
         <p>We're sorry, but something unexpected happened. Please try refreshing the page.</p>
         <div class="error-actions">

@@ -1,6 +1,7 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { notifyProjectSubmitted } from '@/services/emailService'
+import { notifyProjectSubmittedForReview } from '@/services/notificationService'
 
 export class ProjectService {
   constructor() {
@@ -79,6 +80,16 @@ export class ProjectService {
         ...(projectData.image_name && { image_name: projectData.image_name }),
         ...(projectData.image_type && { image_type: projectData.image_type }),
         ...(projectData.image_size && { image_size: projectData.image_size }),
+        ...(documents?.length && {
+          supporting_documents: JSON.stringify(
+            documents.map((doc) => ({
+              name: doc.name,
+              type: doc.type,
+              size: doc.size,
+              url: doc.url,
+            })),
+          ),
+        }),
       }
 
       console.log('🔍 Creating project with data:', {
@@ -88,11 +99,21 @@ export class ProjectService {
         fullInsertData: insertData
       })
 
-      const { data, error } = await this.supabase
-        .from('projects')
-        .insert([insertData])
-        .select()
-        .single()
+      let { data, error } = await this.supabase.from('projects').insert([insertData]).select().single()
+
+      if (
+        error &&
+        (error.message?.includes('supporting_documents') ||
+          error.details?.includes('supporting_documents') ||
+          error.hint?.includes('supporting_documents'))
+      ) {
+        const fallbackData = { ...insertData }
+        delete fallbackData.supporting_documents
+
+        const retryResult = await this.supabase.from('projects').insert([fallbackData]).select().single()
+        data = retryResult.data
+        error = retryResult.error
+      }
 
       if (error) {
         throw new Error(error.message || 'Failed to create project')
@@ -105,6 +126,12 @@ export class ProjectService {
       } catch (emailError) {
         console.error('Error sending project submission notification:', emailError)
         // Don't fail the entire operation if email sending fails
+      }
+
+      try {
+        await notifyProjectSubmittedForReview(data)
+      } catch (notificationError) {
+        console.error('Error creating in-app project submission notifications:', notificationError)
       }
 
       return data
@@ -148,17 +175,25 @@ export class ProjectService {
    * @param {string} projectId - Project ID
    * @returns {Promise<Object>} Project data
    */
-  async getProject(projectId) {
+  async getProject(projectId, options = {}) {
     if (!projectId) {
       throw new Error('Project ID missing')
     }
 
     try {
-      const { data, error } = await this.supabase
-        .from('projects')
-        .select('*')
-        .eq('id', projectId)
-        .single()
+      const includeAll = options.includeAll === true
+
+      let query = this.supabase.from('projects').select('*').eq('id', projectId)
+
+      if (!includeAll) {
+        const userId = await getCurrentUserId()
+        if (!userId) {
+          throw new Error('User not authenticated')
+        }
+        query = query.eq('user_id', userId)
+      }
+
+      const { data, error } = await query.single()
 
       if (error) {
         throw new Error(error.message || 'Failed to fetch project')
@@ -184,7 +219,7 @@ export class ProjectService {
 
     try {
       // First check if project exists and is pending
-      const project = await this.getProject(projectId)
+      const project = await this.getProject(projectId, { includeAll: isAdmin })
       if (project.status !== 'pending') {
         throw new Error('Only pending projects can be updated')
       }
@@ -534,25 +569,36 @@ export class ProjectService {
    * Get project statistics
    * @returns {Promise<Object>} Project statistics
    */
-  async getProjectStats() {
+  async getProjectStats(options = {}) {
     try {
-      const { data, error } = await this.supabase
-        .from('projects')
-        .select('status, category, created_at')
+      const includeAll = options.includeAll === true
+      const explicitUserId = options.userId || null
+
+      let query = this.supabase.from('projects').select('status, category, created_at')
+
+      if (!includeAll) {
+        const userId = explicitUserId || (await getCurrentUserId())
+        if (!userId) {
+          throw new Error('User not authenticated')
+        }
+        query = query.eq('user_id', userId)
+      }
+
+      const { data, error } = await query
 
       if (error) {
         throw new Error(error.message || 'Failed to fetch project statistics')
       }
 
       const stats = {
-        total: data.length,
+        total: data?.length || 0,
         byStatus: {},
         byCategory: {},
         recent: 0,
       }
 
       // Calculate statistics
-      data.forEach((project) => {
+      ;(data || []).forEach((project) => {
         // By status
         stats.byStatus[project.status] = (stats.byStatus[project.status] || 0) + 1
 

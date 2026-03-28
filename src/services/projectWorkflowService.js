@@ -65,13 +65,33 @@ export class ProjectWorkflowService {
         ...(projectData.image_name && { image_name: projectData.image_name }),
         ...(projectData.image_type && { image_type: projectData.image_type }),
         ...(projectData.image_size && { image_size: projectData.image_size }),
+        ...(documents?.length && {
+          supporting_documents: JSON.stringify(
+            documents.map((doc) => ({
+              name: doc.name,
+              type: doc.type,
+              size: doc.size,
+              url: doc.url,
+            })),
+          ),
+        }),
       }
 
-      const { data, error } = await this.supabase
-        .from('projects')
-        .insert([insertData])
-        .select()
-        .single()
+      let { data, error } = await this.supabase.from('projects').insert([insertData]).select().single()
+
+      if (
+        error &&
+        (error.message?.includes('supporting_documents') ||
+          error.details?.includes('supporting_documents') ||
+          error.hint?.includes('supporting_documents'))
+      ) {
+        const fallbackData = { ...insertData }
+        delete fallbackData.supporting_documents
+
+        const retryResult = await this.supabase.from('projects').insert([fallbackData]).select().single()
+        data = retryResult.data
+        error = retryResult.error
+      }
 
       if (error) {
         throw new Error(error.message || 'Failed to submit project')

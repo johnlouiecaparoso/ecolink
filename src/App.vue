@@ -3,7 +3,6 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
-import ConnectionIndicator from '@/components/ui/ConnectionIndicator.vue'
 import { usePreferencesStore } from '@/store/preferencesStore'
 import { useUserStore } from '@/store/userStore'
 // import { useErrorStore } from '@/store/errorStore' // Temporarily disabled
@@ -16,7 +15,7 @@ const isInitialized = ref(false)
 
 const showHeader = computed(() => {
   // Don't show header on auth pages
-  return !['login', 'register'].includes(route.name)
+  return !['login', 'register', 'role-application'].includes(route.name)
 })
 
 const isAppReady = computed(() => {
@@ -48,6 +47,15 @@ onMounted(async () => {
       supabase.auth.onAuthStateChange(async (event, session) => {
         try {
           console.log('🔄 Auth state change:', event, session ? 'has session' : 'no session')
+
+          if (event === 'SIGNED_OUT') {
+            userStore.session = null
+            userStore.profile = null
+            userStore.role = 'general_user'
+            userStore.permissions = []
+            userStore.loading = false
+            return
+          }
 
           // If we have a session from the event, use it directly instead of fetching
           if (session && session.user) {

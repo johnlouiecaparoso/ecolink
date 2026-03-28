@@ -111,6 +111,8 @@ async function handleSubmit() {
     const msg = String(err?.message || '')
     if (/email_not_confirmed|confirm your email/i.test(msg)) {
       errorMessage.value = 'Please confirm your email before logging in.'
+    } else if (/cannot sign in until it is approved|account is .* and cannot sign in/i.test(msg)) {
+      errorMessage.value = msg
     } else if (/Invalid login credentials|invalid/i.test(msg)) {
       errorMessage.value = 'Email or password is incorrect.'
     } else if (/User not found|user not registered/i.test(msg)) {

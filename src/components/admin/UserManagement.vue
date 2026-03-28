@@ -59,7 +59,7 @@
                     class="action-btn edit-btn"
                     title="Edit User"
                   >
-                    ✏️
+                    <span class="material-symbols-outlined" aria-hidden="true">edit</span>
                   </button>
                 </td>
               </tr>
@@ -79,7 +79,6 @@
               <label>Role</label>
               <select v-model="selectedUser.role">
                 <option value="general_user">General User</option>
-                <option value="project_developer">Project Developer</option>
                 <option value="verifier">Verifier</option>
                 <option value="admin">Admin</option>
               </select>

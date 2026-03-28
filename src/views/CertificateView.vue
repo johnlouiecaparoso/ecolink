@@ -206,11 +206,11 @@
                 </div>
 
                 <div class="certificate-actions">
-                  <button class="btn btn-primary btn-sm" @click="downloadCertificate(selectedCertificate)">
-                    Download PDF
+                  <button class="btn btn-primary btn-sm" @click="downloadReceiptForCertificate(selectedCertificate)">
+                    Download Receipt
                   </button>
-                  <button class="btn btn-outline btn-sm" @click="verifyCertificate(selectedCertificate)">
-                    Verify
+                  <button class="btn btn-outline btn-sm" @click="downloadCertificate(selectedCertificate)">
+                    Download PDF
                   </button>
                 </div>
               </div>
@@ -235,6 +235,7 @@ import { ref, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getUserCertificates } from '@/services/certificateService'
+import { getUserReceipts, downloadReceipt as downloadReceiptFile } from '@/services/receiptService'
 
 const router = useRouter()
 const route = useRoute()
@@ -348,6 +349,35 @@ function openCertificateDetail(certificate, shouldUpdateRoute = true) {
   router.replace({
     query: updatedQuery,
   })
+}
+
+async function downloadReceiptForCertificate(certificate) {
+  try {
+    const userId = userStore.session?.user?.id
+    if (!userId) {
+      throw new Error('Please log in to download your receipt.')
+    }
+
+    const receipts = await getUserReceipts(userId)
+    const transactionId = certificate?.transaction_id || certificate?.transaction_id_ref
+
+    const matchedReceipt = (receipts || []).find((receipt) => {
+      if (!transactionId) return false
+      return String(receipt.transaction_id) === String(transactionId)
+    })
+
+    if (!matchedReceipt?.id) {
+      await router.push('/receipts')
+      alert('Receipt was not found for this certificate. Please check your Receipts page.')
+      return
+    }
+
+    await downloadReceiptFile(matchedReceipt.id)
+    alert('Receipt downloaded successfully!')
+  } catch (err) {
+    console.error('Error downloading receipt:', err)
+    alert(err.message || 'Failed to download receipt. Please try again.')
+  }
 }
 
 async function downloadCertificate(certificate) {
@@ -528,14 +558,6 @@ watch(
     }
   },
 )
-
-function verifyCertificate(certificate) {
-  // Open verification in new tab or show verification modal
-  router.push({
-    path: '/',
-    query: { verify: certificate.certificate_number },
-  })
-}
 
 function formatDate(dateString) {
   return new Date(dateString).toLocaleDateString('en-US', {

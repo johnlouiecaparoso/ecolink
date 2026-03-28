@@ -166,7 +166,7 @@ const goToMarketplace = () => {
 
 const goToDashboard = () => {
   showSuccessCard.value = false
-  router.push('/')
+  router.push('/developer/projects')
 }
 
 const submitAnother = () => {

@@ -66,6 +66,16 @@ function getErrorType() {
 
   return 'error'
 }
+
+function getErrorIcon() {
+  const iconMap = {
+    error: 'error',
+    warning: 'warning',
+    info: 'info',
+  }
+
+  return iconMap[getErrorType()] || iconMap.error
+}
 </script>
 
 <template>
@@ -73,9 +83,7 @@ function getErrorType() {
     <div v-if="isVisible" :class="['error-notification', `error-notification--${getErrorType()}`]">
       <div class="error-content">
         <div class="error-icon">
-          <span v-if="getErrorType() === 'error'">⚠️</span>
-          <span v-else-if="getErrorType() === 'warning'">⚠️</span>
-          <span v-else>ℹ️</span>
+          <span class="material-symbols-outlined" aria-hidden="true">{{ getErrorIcon() }}</span>
         </div>
 
         <div class="error-message">
@@ -91,7 +99,9 @@ function getErrorType() {
           <p>{{ getErrorMessage() }}</p>
         </div>
 
-        <button v-if="closable" @click="close" class="error-close" aria-label="Close">✕</button>
+        <button v-if="closable" @click="close" class="error-close" aria-label="Close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
       </div>
     </div>
   </Transition>

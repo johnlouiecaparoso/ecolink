@@ -38,6 +38,10 @@
           <div class="approval-section">
             <ProjectApprovalPanel />
           </div>
+
+          <div class="approval-section role-review-section">
+            <DeveloperApplicationsDashboard />
+          </div>
         </div>
       </div>
     </div>
@@ -47,6 +51,7 @@
 <script setup>
 import { useUserStore } from '@/store/userStore'
 import ProjectApprovalPanel from '@/components/admin/ProjectApprovalPanel.vue'
+import DeveloperApplicationsDashboard from '@/components/verifier/DeveloperApplicationsDashboard.vue'
 
 const store = useUserStore()
 </script>
@@ -153,6 +158,10 @@ const store = useUserStore()
   border-radius: 0;
   padding: 0;
   box-shadow: none;
+}
+
+.role-review-section {
+  margin-top: 2rem;
 }
 
 @media (max-width: 768px) {

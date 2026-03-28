@@ -60,11 +60,11 @@ onMounted(() => {
 
 function getIcon() {
   const icons = {
-    confirm: '⚠️',
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: 'ℹ️',
+    confirm: 'help',
+    success: 'check_circle',
+    error: 'error',
+    warning: 'warning',
+    info: 'info',
   }
   return icons[props.type] || icons.confirm
 }
@@ -111,7 +111,7 @@ function formatMessage(message) {
       >
         <div class="prompt-card" @click.stop>
           <div class="prompt-icon-wrapper" :style="{ backgroundColor: getIconColor() + '15' }">
-            <span class="prompt-icon" :style="{ color: getIconColor() }">{{ getIcon() }}</span>
+            <span class="prompt-icon material-symbols-outlined" :style="{ color: getIconColor() }" aria-hidden="true">{{ getIcon() }}</span>
           </div>
           
           <div class="prompt-content">

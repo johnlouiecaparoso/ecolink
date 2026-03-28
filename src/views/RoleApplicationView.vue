@@ -39,12 +39,39 @@ const ROLE_DETAILS = {
 const defaultRole =
   normalizeRequestedRole(route.query.role) || ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER
 const selectedRole = ref(defaultRole)
+const isProjectDeveloperApplication = computed(
+  () => selectedRole.value === ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER,
+)
+const isVerifierApplication = computed(() => selectedRole.value === ROLE_APPLICATION_ROLES.VERIFIER)
 
 const form = reactive({
   fullName: '',
   email: '',
+  password: '',
+  confirmPassword: '',
   company: '',
   website: '',
+  businessRegistrationNumber: '',
+  country: '',
+  address: '',
+  contactPersonName: '',
+  contactPersonEmail: '',
+  contactPersonPhone: '',
+  certificateRegistration: '',
+  articlesOrBusinessPermit: '',
+  tin: '',
+  proofOfLegalExistence: '',
+  companyBackground: '',
+  yearsOfOperation: '',
+  pastEnvironmentalProjects: '',
+  portfolio: '',
+  verifierOrganization: '',
+  verifierAccreditationBody: '',
+  verifierAccreditationNumber: '',
+  verifierYearsExperience: '',
+  verifierSpecializations: '',
+  verifierPastProjects: '',
+  verifierContactPhone: '',
   experience: '',
   motivation: '',
   supportingDocuments: '',
@@ -53,6 +80,30 @@ const form = reactive({
 const errors = reactive({
   fullName: '',
   email: '',
+  password: '',
+  confirmPassword: '',
+  company: '',
+  businessRegistrationNumber: '',
+  country: '',
+  address: '',
+  contactPersonName: '',
+  contactPersonEmail: '',
+  contactPersonPhone: '',
+  certificateRegistration: '',
+  articlesOrBusinessPermit: '',
+  tin: '',
+  proofOfLegalExistence: '',
+  companyBackground: '',
+  yearsOfOperation: '',
+  pastEnvironmentalProjects: '',
+  portfolio: '',
+  verifierOrganization: '',
+  verifierAccreditationBody: '',
+  verifierAccreditationNumber: '',
+  verifierYearsExperience: '',
+  verifierSpecializations: '',
+  verifierPastProjects: '',
+  verifierContactPhone: '',
   experience: '',
   motivation: '',
 })
@@ -113,8 +164,14 @@ function prefillFromProfile() {
     if (!form.email) form.email = profile.email || session?.user?.email || ''
     if (!form.company) form.company = profile.company || ''
     if (!form.website) form.website = profile.website || ''
+    if (!form.contactPersonName) form.contactPersonName = profile.full_name || ''
+    if (!form.contactPersonEmail) form.contactPersonEmail = profile.email || session?.user?.email || ''
+    if (!form.contactPersonPhone) form.contactPersonPhone = profile.phone || ''
+    if (!form.verifierContactPhone) form.verifierContactPhone = profile.phone || ''
+    if (!form.verifierOrganization) form.verifierOrganization = profile.company || ''
   } else if (session?.user?.email && !form.email) {
     form.email = session.user.email
+    if (!form.contactPersonEmail) form.contactPersonEmail = session.user.email
   }
 }
 
@@ -152,22 +209,181 @@ function validate() {
     isValid = false
   }
 
-  if (!form.experience || form.experience.trim().length < 20) {
-    errors.experience = 'Share a brief summary of your relevant experience (at least 20 characters).'
-    isValid = false
+  if (!userStore.isAuthenticated) {
+    if (!form.password || form.password.length < 8) {
+      errors.password = 'Password is required and must be at least 8 characters.'
+      isValid = false
+    }
+    if (!form.confirmPassword) {
+      errors.confirmPassword = 'Please confirm your password.'
+      isValid = false
+    } else if (form.password !== form.confirmPassword) {
+      errors.confirmPassword = 'Passwords do not match.'
+      isValid = false
+    }
   }
 
-  if (!form.motivation || form.motivation.trim().length < 20) {
-    errors.motivation = 'Let us know why you want this role (at least 20 characters).'
-    isValid = false
+  if (!isProjectDeveloperApplication.value) {
+    if (!form.experience || form.experience.trim().length < 20) {
+      errors.experience =
+        'Share a brief summary of your relevant experience (at least 20 characters).'
+      isValid = false
+    }
+
+    if (!form.motivation || form.motivation.trim().length < 20) {
+      errors.motivation = 'Let us know why you want this role (at least 20 characters).'
+      isValid = false
+    }
+  }
+
+  if (isVerifierApplication.value) {
+    if (!form.verifierOrganization || form.verifierOrganization.trim().length < 2) {
+      errors.verifierOrganization = 'Organization / firm is required for verifier applications.'
+      isValid = false
+    }
+
+    if (!form.verifierAccreditationBody || form.verifierAccreditationBody.trim().length < 2) {
+      errors.verifierAccreditationBody = 'Accreditation / certifying body is required.'
+      isValid = false
+    }
+
+    if (!form.verifierAccreditationNumber || form.verifierAccreditationNumber.trim().length < 2) {
+      errors.verifierAccreditationNumber = 'Accreditation or license number is required.'
+      isValid = false
+    }
+
+    if (!form.verifierYearsExperience || form.verifierYearsExperience.trim().length < 1) {
+      errors.verifierYearsExperience = 'Years of verification experience is required.'
+      isValid = false
+    }
+
+    if (!form.verifierSpecializations || form.verifierSpecializations.trim().length < 10) {
+      errors.verifierSpecializations = 'Please list your verification specializations.'
+      isValid = false
+    }
+
+    if (!form.verifierPastProjects || form.verifierPastProjects.trim().length < 20) {
+      errors.verifierPastProjects =
+        'Please provide past or ongoing verification projects (at least 20 characters).'
+      isValid = false
+    }
+
+    if (!form.verifierContactPhone || form.verifierContactPhone.trim().length < 7) {
+      errors.verifierContactPhone = 'Contact phone is required.'
+      isValid = false
+    }
+  }
+
+  if (isProjectDeveloperApplication.value) {
+    if (!form.company || form.company.trim().length < 2) {
+      errors.company = 'Company name is required for project developer applications.'
+      isValid = false
+    }
+
+    if (!form.businessRegistrationNumber || form.businessRegistrationNumber.trim().length < 3) {
+      errors.businessRegistrationNumber = 'Business registration number is required.'
+      isValid = false
+    }
+
+    if (!form.country || form.country.trim().length < 2) {
+      errors.country = 'Country is required.'
+      isValid = false
+    }
+
+    if (!form.address || form.address.trim().length < 5) {
+      errors.address = 'Business address is required.'
+      isValid = false
+    }
+
+    if (!form.contactPersonName || form.contactPersonName.trim().length < 2) {
+      errors.contactPersonName = 'Contact person name is required.'
+      isValid = false
+    }
+
+    if (!form.contactPersonEmail) {
+      errors.contactPersonEmail = 'Contact person email is required.'
+      isValid = false
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contactPersonEmail)) {
+      errors.contactPersonEmail = 'Please enter a valid contact person email.'
+      isValid = false
+    }
+
+    if (!form.contactPersonPhone || form.contactPersonPhone.trim().length < 7) {
+      errors.contactPersonPhone = 'Contact person phone is required.'
+      isValid = false
+    }
+
+    if (!form.certificateRegistration || form.certificateRegistration.trim().length < 3) {
+      errors.certificateRegistration = 'Certificate of Registration details are required.'
+      isValid = false
+    }
+
+    if (!form.articlesOrBusinessPermit || form.articlesOrBusinessPermit.trim().length < 3) {
+      errors.articlesOrBusinessPermit = 'Articles of Incorporation / Business Permit details are required.'
+      isValid = false
+    }
+
+    if (!form.tin || form.tin.trim().length < 3) {
+      errors.tin = 'Tax Identification Number (TIN) is required.'
+      isValid = false
+    }
+
+    if (!form.proofOfLegalExistence || form.proofOfLegalExistence.trim().length < 3) {
+      errors.proofOfLegalExistence = 'Proof of legal existence is required.'
+      isValid = false
+    }
+
+    if (!form.companyBackground || form.companyBackground.trim().length < 20) {
+      errors.companyBackground = 'Company background / overview is required (at least 20 characters).'
+      isValid = false
+    }
+
+    if (!form.yearsOfOperation || form.yearsOfOperation.trim().length < 1) {
+      errors.yearsOfOperation = 'Years of operation is required.'
+      isValid = false
+    }
+
+    if (!form.pastEnvironmentalProjects || form.pastEnvironmentalProjects.trim().length < 20) {
+      errors.pastEnvironmentalProjects =
+        'Past or ongoing environmental projects are required (at least 20 characters).'
+      isValid = false
+    }
+
+    if (!form.portfolio || form.portfolio.trim().length < 5) {
+      errors.portfolio = 'Portfolio information is required.'
+      isValid = false
+    }
   }
 
   return isValid
 }
 
 function resetForm() {
+  form.password = ''
+  form.confirmPassword = ''
   form.company = ''
   form.website = ''
+  form.businessRegistrationNumber = ''
+  form.country = ''
+  form.address = ''
+  form.contactPersonName = ''
+  form.contactPersonEmail = ''
+  form.contactPersonPhone = ''
+  form.certificateRegistration = ''
+  form.articlesOrBusinessPermit = ''
+  form.tin = ''
+  form.proofOfLegalExistence = ''
+  form.companyBackground = ''
+  form.yearsOfOperation = ''
+  form.pastEnvironmentalProjects = ''
+  form.portfolio = ''
+  form.verifierOrganization = ''
+  form.verifierAccreditationBody = ''
+  form.verifierAccreditationNumber = ''
+  form.verifierYearsExperience = ''
+  form.verifierSpecializations = ''
+  form.verifierPastProjects = ''
+  form.verifierContactPhone = ''
   form.experience = ''
   form.motivation = ''
   form.supportingDocuments = ''
@@ -182,11 +398,97 @@ async function handleSubmit() {
   supabaseUnavailable.value = false
 
   try {
+    const projectDeveloperProfile = isProjectDeveloperApplication.value
+      ? {
+          company_name: form.company,
+          business_registration_number: form.businessRegistrationNumber,
+          country: form.country,
+          address: form.address,
+          contact_person: {
+            name: form.contactPersonName,
+            email: form.contactPersonEmail,
+            phone: form.contactPersonPhone,
+          },
+          legal_documents: {
+            certificate_of_registration: form.certificateRegistration,
+            articles_of_incorporation_or_business_permit: form.articlesOrBusinessPermit,
+            tin: form.tin,
+            proof_of_legal_existence: form.proofOfLegalExistence,
+          },
+          business_profile: {
+            company_background: form.companyBackground,
+            years_of_operation: form.yearsOfOperation,
+            past_or_ongoing_environmental_projects: form.pastEnvironmentalProjects,
+            portfolio: form.portfolio,
+          },
+        }
+      : null
+
+    const verifierProfile = isVerifierApplication.value
+      ? {
+          organization: form.verifierOrganization,
+          accreditation_body: form.verifierAccreditationBody,
+          accreditation_number: form.verifierAccreditationNumber,
+          years_of_verification_experience: form.verifierYearsExperience,
+          verification_specializations: form.verifierSpecializations,
+          past_or_ongoing_verification_projects: form.verifierPastProjects,
+          contact_phone: form.verifierContactPhone,
+        }
+      : null
+
+    const experienceSummary = isProjectDeveloperApplication.value
+      ? [
+          `Company background: ${form.companyBackground}`,
+          `Years of operation: ${form.yearsOfOperation}`,
+          `Past or ongoing projects: ${form.pastEnvironmentalProjects}`,
+          `Portfolio: ${form.portfolio}`,
+        ].join('\n')
+      : isVerifierApplication.value
+        ? [
+            `Organization: ${form.verifierOrganization}`,
+            `Accreditation body: ${form.verifierAccreditationBody}`,
+            `Accreditation number: ${form.verifierAccreditationNumber}`,
+            `Years of verification experience: ${form.verifierYearsExperience}`,
+            `Specializations: ${form.verifierSpecializations}`,
+            `Past/Ongoing verification projects: ${form.verifierPastProjects}`,
+          ].join('\n')
+      : form.experience
+
+    const motivationSummary = isProjectDeveloperApplication.value
+      ? 'Project developer application submitted with complete company and legal information.'
+      : isVerifierApplication.value
+        ? 'Verifier application submitted with accreditation and experience details.'
+      : form.motivation
+
+    const supportingDocumentsSummary = isProjectDeveloperApplication.value
+      ? [
+          `Certificate of Registration: ${form.certificateRegistration}`,
+          `Articles / Business Permit: ${form.articlesOrBusinessPermit}`,
+          `TIN: ${form.tin}`,
+          `Proof of legal existence: ${form.proofOfLegalExistence}`,
+        ].join('\n')
+      : isVerifierApplication.value
+        ? [
+            `Contact phone: ${form.verifierContactPhone}`,
+            `Supporting links: ${form.supportingDocuments || 'None provided'}`,
+          ].join('\n')
+      : form.supportingDocuments
+
     const metadata = {
       source: 'web_form',
       submitted_from_path: route.fullPath,
       additional: {
         is_authenticated: userStore.isAuthenticated,
+        ...(projectDeveloperProfile
+          ? {
+              project_developer_profile: projectDeveloperProfile,
+            }
+          : {}),
+        ...(verifierProfile
+          ? {
+              verifier_profile: verifierProfile,
+            }
+          : {}),
       },
     }
 
@@ -194,11 +496,12 @@ async function handleSubmit() {
       role: selectedRole.value,
       fullName: form.fullName,
       email: form.email,
+      password: form.password,
       company: form.company,
       website: form.website,
-      experience: form.experience,
-      motivation: form.motivation,
-      supportingDocuments: form.supportingDocuments,
+      experience: experienceSummary,
+      motivation: motivationSummary,
+      supportingDocuments: supportingDocumentsSummary,
       userId: userStore.session?.user?.id,
       metadata,
     })
@@ -352,80 +655,425 @@ function startNewApplication(role) {
                 <p v-if="errors.email" class="form__error">{{ errors.email }}</p>
               </div>
 
-              <div class="form__field">
-                <label for="company" class="form__label"
-                  >Organization / Company
-                  <span class="form__label-optional">(optional)</span>
-                </label>
+              <div class="form__field" v-if="!userStore.isAuthenticated">
+                <label for="password" class="form__label">Account password</label>
                 <input
-                  id="company"
-                  v-model="form.company"
-                  type="text"
-                  name="company"
+                  id="password"
+                  v-model="form.password"
+                  type="password"
+                  name="password"
                   class="form__input"
-                  autocomplete="organization"
+                  autocomplete="new-password"
+                  required
+                  @input="errors.password = ''"
                 />
+                <p v-if="errors.password" class="form__error">{{ errors.password }}</p>
               </div>
 
-              <div class="form__field">
-                <label for="website" class="form__label"
-                  >Website or portfolio
-                  <span class="form__label-optional">(optional)</span>
-                </label>
+              <div class="form__field" v-if="!userStore.isAuthenticated">
+                <label for="confirmPassword" class="form__label">Confirm password</label>
                 <input
-                  id="website"
-                  v-model="form.website"
-                  type="url"
-                  name="website"
+                  id="confirmPassword"
+                  v-model="form.confirmPassword"
+                  type="password"
+                  name="confirmPassword"
                   class="form__input"
-                  placeholder="https://"
-                />
-              </div>
-
-              <div class="form__field form__field--textarea">
-                <label for="experience" class="form__label">Relevant experience</label>
-                <textarea
-                  id="experience"
-                  v-model="form.experience"
-                  name="experience"
-                  class="form__textarea"
-                  rows="5"
-                  placeholder="Share your background, certifications, and project experience."
+                  autocomplete="new-password"
                   required
-                  @input="errors.experience = ''"
+                  @input="errors.confirmPassword = ''"
                 />
-                <p v-if="errors.experience" class="form__error">{{ errors.experience }}</p>
+                <p v-if="errors.confirmPassword" class="form__error">{{ errors.confirmPassword }}</p>
               </div>
 
-              <div class="form__field form__field--textarea">
-                <label for="motivation" class="form__label">Why do you want this role?</label>
-                <textarea
-                  id="motivation"
-                  v-model="form.motivation"
-                  name="motivation"
-                  class="form__textarea"
-                  rows="5"
-                  placeholder="Tell us how you plan to support EcoLink users in this role."
-                  required
-                  @input="errors.motivation = ''"
-                />
-                <p v-if="errors.motivation" class="form__error">{{ errors.motivation }}</p>
-              </div>
+              <template v-if="isProjectDeveloperApplication">
+                <div class="form__field">
+                  <label for="company" class="form__label">Company name</label>
+                  <input
+                    id="company"
+                    v-model="form.company"
+                    type="text"
+                    name="company"
+                    class="form__input"
+                    autocomplete="organization"
+                    required
+                    @input="errors.company = ''"
+                  />
+                  <p v-if="errors.company" class="form__error">{{ errors.company }}</p>
+                </div>
 
-              <div class="form__field form__field--textarea">
-                <label for="supportingDocuments" class="form__label"
-                  >Supporting links
-                  <span class="form__label-optional">(optional)</span>
-                </label>
-                <textarea
-                  id="supportingDocuments"
-                  v-model="form.supportingDocuments"
-                  name="supportingDocuments"
-                  class="form__textarea"
-                  rows="3"
-                  placeholder="Share relevant documents, registry IDs, or reference URLs."
-                />
-              </div>
+                <div class="form__field">
+                  <label for="businessRegistrationNumber" class="form__label">Business registration number</label>
+                  <input
+                    id="businessRegistrationNumber"
+                    v-model="form.businessRegistrationNumber"
+                    type="text"
+                    name="businessRegistrationNumber"
+                    class="form__input"
+                    required
+                    @input="errors.businessRegistrationNumber = ''"
+                  />
+                  <p v-if="errors.businessRegistrationNumber" class="form__error">{{ errors.businessRegistrationNumber }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="country" class="form__label">Country</label>
+                  <input
+                    id="country"
+                    v-model="form.country"
+                    type="text"
+                    name="country"
+                    class="form__input"
+                    required
+                    @input="errors.country = ''"
+                  />
+                  <p v-if="errors.country" class="form__error">{{ errors.country }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="address" class="form__label">Business address</label>
+                  <textarea
+                    id="address"
+                    v-model="form.address"
+                    name="address"
+                    class="form__textarea"
+                    rows="3"
+                    required
+                    @input="errors.address = ''"
+                  />
+                  <p v-if="errors.address" class="form__error">{{ errors.address }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="contactPersonName" class="form__label">Contact person name</label>
+                  <input
+                    id="contactPersonName"
+                    v-model="form.contactPersonName"
+                    type="text"
+                    name="contactPersonName"
+                    class="form__input"
+                    required
+                    @input="errors.contactPersonName = ''"
+                  />
+                  <p v-if="errors.contactPersonName" class="form__error">{{ errors.contactPersonName }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="contactPersonEmail" class="form__label">Contact person email</label>
+                  <input
+                    id="contactPersonEmail"
+                    v-model="form.contactPersonEmail"
+                    type="email"
+                    name="contactPersonEmail"
+                    class="form__input"
+                    required
+                    @input="errors.contactPersonEmail = ''"
+                  />
+                  <p v-if="errors.contactPersonEmail" class="form__error">{{ errors.contactPersonEmail }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="contactPersonPhone" class="form__label">Contact person phone</label>
+                  <input
+                    id="contactPersonPhone"
+                    v-model="form.contactPersonPhone"
+                    type="text"
+                    name="contactPersonPhone"
+                    class="form__input"
+                    required
+                    @input="errors.contactPersonPhone = ''"
+                  />
+                  <p v-if="errors.contactPersonPhone" class="form__error">{{ errors.contactPersonPhone }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="certificateRegistration" class="form__label">Certificate of Registration (SEC/DTI, etc.)</label>
+                  <textarea
+                    id="certificateRegistration"
+                    v-model="form.certificateRegistration"
+                    name="certificateRegistration"
+                    class="form__textarea"
+                    rows="3"
+                    required
+                    @input="errors.certificateRegistration = ''"
+                  />
+                  <p v-if="errors.certificateRegistration" class="form__error">{{ errors.certificateRegistration }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="articlesOrBusinessPermit" class="form__label">Articles of Incorporation / Business Permit</label>
+                  <textarea
+                    id="articlesOrBusinessPermit"
+                    v-model="form.articlesOrBusinessPermit"
+                    name="articlesOrBusinessPermit"
+                    class="form__textarea"
+                    rows="3"
+                    required
+                    @input="errors.articlesOrBusinessPermit = ''"
+                  />
+                  <p v-if="errors.articlesOrBusinessPermit" class="form__error">{{ errors.articlesOrBusinessPermit }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="tin" class="form__label">Tax Identification Number (TIN)</label>
+                  <input
+                    id="tin"
+                    v-model="form.tin"
+                    type="text"
+                    name="tin"
+                    class="form__input"
+                    required
+                    @input="errors.tin = ''"
+                  />
+                  <p v-if="errors.tin" class="form__error">{{ errors.tin }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="proofOfLegalExistence" class="form__label">Proof of legal existence</label>
+                  <textarea
+                    id="proofOfLegalExistence"
+                    v-model="form.proofOfLegalExistence"
+                    name="proofOfLegalExistence"
+                    class="form__textarea"
+                    rows="3"
+                    required
+                    @input="errors.proofOfLegalExistence = ''"
+                  />
+                  <p v-if="errors.proofOfLegalExistence" class="form__error">{{ errors.proofOfLegalExistence }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="companyBackground" class="form__label">Company background / overview</label>
+                  <textarea
+                    id="companyBackground"
+                    v-model="form.companyBackground"
+                    name="companyBackground"
+                    class="form__textarea"
+                    rows="5"
+                    required
+                    @input="errors.companyBackground = ''"
+                  />
+                  <p v-if="errors.companyBackground" class="form__error">{{ errors.companyBackground }}</p>
+                </div>
+
+                <div class="form__field">
+                  <label for="yearsOfOperation" class="form__label">Years of operation</label>
+                  <input
+                    id="yearsOfOperation"
+                    v-model="form.yearsOfOperation"
+                    type="text"
+                    name="yearsOfOperation"
+                    class="form__input"
+                    required
+                    @input="errors.yearsOfOperation = ''"
+                  />
+                  <p v-if="errors.yearsOfOperation" class="form__error">{{ errors.yearsOfOperation }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="pastEnvironmentalProjects" class="form__label">Past or ongoing environmental projects</label>
+                  <textarea
+                    id="pastEnvironmentalProjects"
+                    v-model="form.pastEnvironmentalProjects"
+                    name="pastEnvironmentalProjects"
+                    class="form__textarea"
+                    rows="5"
+                    required
+                    @input="errors.pastEnvironmentalProjects = ''"
+                  />
+                  <p v-if="errors.pastEnvironmentalProjects" class="form__error">{{ errors.pastEnvironmentalProjects }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="portfolio" class="form__label">Portfolio (e.g., renewable energy, forestry, waste management)</label>
+                  <textarea
+                    id="portfolio"
+                    v-model="form.portfolio"
+                    name="portfolio"
+                    class="form__textarea"
+                    rows="4"
+                    required
+                    @input="errors.portfolio = ''"
+                  />
+                  <p v-if="errors.portfolio" class="form__error">{{ errors.portfolio }}</p>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="form__field">
+                  <label for="company" class="form__label"
+                    >Organization / Company
+                    <span class="form__label-optional">(optional)</span>
+                  </label>
+                  <input
+                    id="company"
+                    v-model="form.company"
+                    type="text"
+                    name="company"
+                    class="form__input"
+                    autocomplete="organization"
+                  />
+                </div>
+
+                <div class="form__field">
+                  <label for="website" class="form__label"
+                    >Website or portfolio
+                    <span class="form__label-optional">(optional)</span>
+                  </label>
+                  <input
+                    id="website"
+                    v-model="form.website"
+                    type="url"
+                    name="website"
+                    class="form__input"
+                    placeholder="https://"
+                  />
+                </div>
+
+                <template v-if="isVerifierApplication">
+                  <div class="form__field">
+                    <label for="verifierOrganization" class="form__label">Verifier organization / firm</label>
+                    <input
+                      id="verifierOrganization"
+                      v-model="form.verifierOrganization"
+                      type="text"
+                      name="verifierOrganization"
+                      class="form__input"
+                      required
+                      @input="errors.verifierOrganization = ''"
+                    />
+                    <p v-if="errors.verifierOrganization" class="form__error">{{ errors.verifierOrganization }}</p>
+                  </div>
+
+                  <div class="form__field">
+                    <label for="verifierAccreditationBody" class="form__label">Accreditation / certifying body</label>
+                    <input
+                      id="verifierAccreditationBody"
+                      v-model="form.verifierAccreditationBody"
+                      type="text"
+                      name="verifierAccreditationBody"
+                      class="form__input"
+                      required
+                      @input="errors.verifierAccreditationBody = ''"
+                    />
+                    <p v-if="errors.verifierAccreditationBody" class="form__error">{{ errors.verifierAccreditationBody }}</p>
+                  </div>
+
+                  <div class="form__field">
+                    <label for="verifierAccreditationNumber" class="form__label">Accreditation / license number</label>
+                    <input
+                      id="verifierAccreditationNumber"
+                      v-model="form.verifierAccreditationNumber"
+                      type="text"
+                      name="verifierAccreditationNumber"
+                      class="form__input"
+                      required
+                      @input="errors.verifierAccreditationNumber = ''"
+                    />
+                    <p v-if="errors.verifierAccreditationNumber" class="form__error">{{ errors.verifierAccreditationNumber }}</p>
+                  </div>
+
+                  <div class="form__field">
+                    <label for="verifierYearsExperience" class="form__label">Years of verification experience</label>
+                    <input
+                      id="verifierYearsExperience"
+                      v-model="form.verifierYearsExperience"
+                      type="text"
+                      name="verifierYearsExperience"
+                      class="form__input"
+                      required
+                      @input="errors.verifierYearsExperience = ''"
+                    />
+                    <p v-if="errors.verifierYearsExperience" class="form__error">{{ errors.verifierYearsExperience }}</p>
+                  </div>
+
+                  <div class="form__field">
+                    <label for="verifierContactPhone" class="form__label">Verifier contact phone</label>
+                    <input
+                      id="verifierContactPhone"
+                      v-model="form.verifierContactPhone"
+                      type="text"
+                      name="verifierContactPhone"
+                      class="form__input"
+                      required
+                      @input="errors.verifierContactPhone = ''"
+                    />
+                    <p v-if="errors.verifierContactPhone" class="form__error">{{ errors.verifierContactPhone }}</p>
+                  </div>
+
+                  <div class="form__field form__field--textarea">
+                    <label for="verifierSpecializations" class="form__label">Verification specializations</label>
+                    <textarea
+                      id="verifierSpecializations"
+                      v-model="form.verifierSpecializations"
+                      name="verifierSpecializations"
+                      class="form__textarea"
+                      rows="4"
+                      required
+                      @input="errors.verifierSpecializations = ''"
+                    />
+                    <p v-if="errors.verifierSpecializations" class="form__error">{{ errors.verifierSpecializations }}</p>
+                  </div>
+
+                  <div class="form__field form__field--textarea">
+                    <label for="verifierPastProjects" class="form__label">Past or ongoing verification projects</label>
+                    <textarea
+                      id="verifierPastProjects"
+                      v-model="form.verifierPastProjects"
+                      name="verifierPastProjects"
+                      class="form__textarea"
+                      rows="5"
+                      required
+                      @input="errors.verifierPastProjects = ''"
+                    />
+                    <p v-if="errors.verifierPastProjects" class="form__error">{{ errors.verifierPastProjects }}</p>
+                  </div>
+                </template>
+
+                <div class="form__field form__field--textarea">
+                  <label for="experience" class="form__label">Relevant experience</label>
+                  <textarea
+                    id="experience"
+                    v-model="form.experience"
+                    name="experience"
+                    class="form__textarea"
+                    rows="5"
+                    placeholder="Share your background, certifications, and project experience."
+                    required
+                    @input="errors.experience = ''"
+                  />
+                  <p v-if="errors.experience" class="form__error">{{ errors.experience }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="motivation" class="form__label">Why do you want this role?</label>
+                  <textarea
+                    id="motivation"
+                    v-model="form.motivation"
+                    name="motivation"
+                    class="form__textarea"
+                    rows="5"
+                    placeholder="Tell us how you plan to support EcoLink users in this role."
+                    required
+                    @input="errors.motivation = ''"
+                  />
+                  <p v-if="errors.motivation" class="form__error">{{ errors.motivation }}</p>
+                </div>
+
+                <div class="form__field form__field--textarea">
+                  <label for="supportingDocuments" class="form__label"
+                    >Supporting links
+                    <span class="form__label-optional">(optional)</span>
+                  </label>
+                  <textarea
+                    id="supportingDocuments"
+                    v-model="form.supportingDocuments"
+                    name="supportingDocuments"
+                    class="form__textarea"
+                    rows="3"
+                    placeholder="Share relevant documents, registry IDs, or reference URLs."
+                  />
+                </div>
+              </template>
             </div>
 
             <div v-if="errorMessage" class="form__alert" :class="{ 'form__alert--warn': duplicatePending }">
@@ -629,14 +1277,16 @@ function startNewApplication(role) {
 
 .form__grid {
   display: grid;
-  gap: 1.5rem;
+  column-gap: 3rem;
+  row-gap: 2.75rem;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
 .form__field {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  padding: 0 0.25rem;
 }
 
 .form__field--textarea {
@@ -664,8 +1314,9 @@ function startNewApplication(role) {
   border-radius: 14px;
   border: 1px solid rgba(15, 157, 88, 0.2);
   background: #f9fffb;
-  padding: 0.85rem 1rem;
+  padding: 1rem 1.1rem;
   font-size: 0.95rem;
+  line-height: 1.45;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   color: var(--text-primary, #102616);
 }

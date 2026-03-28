@@ -1,5 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
+import { ROLES } from '@/constants/roles'
+import { getRoleDefaultRoute } from '@/utils/getRoleDefaultRoute'
 import {
   createProjectDeveloperGuard,
   createAdminGuard,
@@ -10,8 +12,6 @@ import {
 const HomepageView = () => import(/* webpackChunkName: "homepage" */ '@/views/HomepageView.vue')
 const LoginView = () => import(/* webpackChunkName: "auth" */ '@/views/LoginView.vue')
 const RegisterView = () => import(/* webpackChunkName: "auth" */ '@/views/RegisterView.vue')
-const MarketplaceView = () =>
-  import(/* webpackChunkName: "marketplace" */ '@/views/MarketplaceView.vue')
 const WalletView = () => import(/* webpackChunkName: "user" */ '@/views/WalletView.vue')
 const ProfileView = () => import(/* webpackChunkName: "user" */ '@/views/ProfileView.vue')
 
@@ -23,6 +23,8 @@ const PaymentSettingsView = () =>
 const UserPreferencesView = () =>
   import(/* webpackChunkName: "user" */ '@/views/UserPreferencesView.vue')
 const SocialView = () => import(/* webpackChunkName: "user" */ '@/views/SocialView.vue')
+
+const FINANCE_RESTRICTED_ROLES = [ROLES.ADMIN, ROLES.VERIFIER, ROLES.PROJECT_DEVELOPER]
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -64,13 +66,22 @@ const router = createRouter({
       path: '/wallet',
       name: 'wallet',
       component: WalletView,
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, disallowedRoles: FINANCE_RESTRICTED_ROLES },
     },
     // Project and Credit Routes
     {
       path: '/submit-project',
       name: 'submit-project',
       component: () => import('@/views/SubmitProjectView.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresProjectDeveloper: true,
+      },
+    },
+    {
+      path: '/developer/projects',
+      name: 'developer-projects-dashboard',
+      component: () => import('@/views/DeveloperProjectsDashboardView.vue'),
       meta: {
         requiresAuth: true,
         requiresProjectDeveloper: true,
@@ -165,19 +176,19 @@ const router = createRouter({
       path: '/certificates',
       name: 'certificates',
       component: () => import('@/views/CertificateView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, disallowedRoles: FINANCE_RESTRICTED_ROLES },
     },
     {
       path: '/carbon-calculator',
       name: 'carbon-calculator',
       component: () => import('@/views/CarbonCalculatorView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, disallowedRoles: FINANCE_RESTRICTED_ROLES },
     },
     {
       path: '/receipts',
       name: 'receipts',
       component: () => import('@/views/ReceiptView.vue'),
-      meta: { requiresAuth: true },
+      meta: { requiresAuth: true, disallowedRoles: FINANCE_RESTRICTED_ROLES },
     },
 
     // Payment Callback (PayMongo redirects here after payment)
@@ -265,12 +276,11 @@ router.beforeEach(async (to, from, next) => {
           }),
           timeout,
         ])
-      } catch (error) {
+      } catch {
         console.warn('⚠️ Auth check timeout, checking Supabase directly...')
 
         // Last resort: check Supabase directly if store check times out
         try {
-          const { getSupabase } = await import('@/services/supabaseClient')
           const { getSession } = await import('@/services/authService')
           const session = await getSession()
 
@@ -346,6 +356,20 @@ router.beforeEach(async (to, from, next) => {
       if (guardResult) {
         console.log('❌ Verifier access required, redirecting...')
         next(guardResult)
+        return
+      }
+    }
+
+    const disallowedRoles = Array.isArray(to.meta.disallowedRoles) ? to.meta.disallowedRoles : []
+    if (disallowedRoles.length > 0) {
+      const normalizedRole = String(userStore.role || userStore.profile?.role || '').toLowerCase().trim()
+      if (disallowedRoles.includes(normalizedRole)) {
+        console.warn('❌ Route blocked for role:', {
+          route: to.path,
+          role: normalizedRole,
+          disallowedRoles,
+        })
+        next(getRoleDefaultRoute(normalizedRole || ROLES.GENERAL_USER))
         return
       }
     }

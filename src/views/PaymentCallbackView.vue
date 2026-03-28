@@ -399,6 +399,39 @@ onMounted(async () => {
         }
       }
 
+      // Ensure wallet history reflects a successful marketplace checkout.
+      // Marketplace flow creates pending wallet_transactions during checkout start,
+      // but unlike top-ups it did not always finalize them.
+      if (!wasTopUp) {
+        try {
+          const { getSupabase } = await import('@/services/supabaseClient')
+          const supabase = getSupabase()
+          const resolvedMethod = result.paymentMethod || result.payment?.payment_method || null
+
+          if (supabase) {
+            const walletUpdatePayload = {
+              status: 'completed',
+              updated_at: new Date().toISOString(),
+              ...(resolvedMethod ? { payment_method: resolvedMethod } : {}),
+            }
+
+            const { error: walletUpdateError } = await supabase
+              .from('wallet_transactions')
+              .update(walletUpdatePayload)
+              .eq('external_reference', sessionId)
+              .eq('status', 'pending')
+
+            if (walletUpdateError) {
+              console.warn('⚠️ Failed to finalize wallet transaction status:', walletUpdateError)
+            } else {
+              console.log('✅ Wallet transaction status finalized for marketplace checkout')
+            }
+          }
+        } catch (walletFinalizeError) {
+          console.warn('⚠️ Marketplace wallet status finalization skipped:', walletFinalizeError)
+        }
+      }
+
       // Redirect to retire dashboard after purchase (shows proof of purchase)
       // For wallet top-up, redirect to wallet
       const redirectPath = '/wallet'

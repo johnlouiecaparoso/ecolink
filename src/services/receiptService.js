@@ -1,5 +1,163 @@
 import { getSupabase } from '@/services/supabaseClient'
 
+async function loadTransactionForReceipt(supabase, transactionId) {
+  let transaction = null
+  let transactionError = null
+
+  const { data: joinedTransaction, error: joinedError } = await supabase
+    .from('credit_transactions')
+    .select(
+      `
+      *,
+      project_credits!inner(
+        *,
+        projects!inner(title, category, location, description)
+      ),
+      buyer:profiles!credit_transactions_buyer_id_fkey(full_name, email),
+      seller:profiles!credit_transactions_seller_id_fkey(full_name, email)
+    `,
+    )
+    .eq('id', transactionId)
+    .single()
+
+  if (!joinedError && joinedTransaction) {
+    return joinedTransaction
+  }
+
+  transactionError = joinedError
+  console.warn('Receipt join query failed, trying separate queries...', joinedError?.message)
+
+  const { data: basicTransaction, error: basicError } = await supabase
+    .from('credit_transactions')
+    .select('*')
+    .eq('id', transactionId)
+    .single()
+
+  if (basicError || !basicTransaction) {
+    throw new Error(`Transaction not found: ${basicError?.message || transactionError?.message || 'Unknown error'}`)
+  }
+
+  transaction = { ...basicTransaction }
+
+  try {
+    const projectCreditId = basicTransaction.project_credit_id || basicTransaction.project_credits_id
+    if (projectCreditId) {
+      const { data: projectCredit } = await supabase
+        .from('project_credits')
+        .select(
+          `
+          *,
+          projects!inner(title, category, location, description)
+        `,
+        )
+        .eq('id', projectCreditId)
+        .single()
+
+      if (projectCredit) {
+        transaction.project_credits = projectCredit
+      } else {
+        const { data: basicProjectCredit } = await supabase
+          .from('project_credits')
+          .select('*')
+          .eq('id', projectCreditId)
+          .single()
+
+        if (basicProjectCredit) {
+          transaction.project_credits = basicProjectCredit
+
+          if (basicProjectCredit.project_id) {
+            const { data: project } = await supabase
+              .from('projects')
+              .select('title, category, location, description')
+              .eq('id', basicProjectCredit.project_id)
+              .single()
+
+            if (project) {
+              transaction.project_credits.projects = project
+            }
+          }
+        }
+      }
+    }
+
+    if (basicTransaction.buyer_id) {
+      const { data: buyer } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', basicTransaction.buyer_id)
+        .single()
+
+      if (buyer) {
+        transaction.buyer = buyer
+      }
+    }
+
+    if (basicTransaction.seller_id) {
+      const { data: seller } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('id', basicTransaction.seller_id)
+        .single()
+
+      if (seller) {
+        transaction.seller = seller
+      }
+    }
+  } catch (relatedError) {
+    console.warn('Receipt related-data lookup failed, continuing with base transaction...', relatedError)
+  }
+
+  return transaction
+}
+
+function normalizeStoredReceipt(receiptRow) {
+  if (!receiptRow) return null
+
+  try {
+    const existingData =
+      typeof receiptRow.receipt_data === 'string'
+        ? JSON.parse(receiptRow.receipt_data)
+        : receiptRow.receipt_data
+
+    return (
+      existingData || {
+        receiptNumber: receiptRow.receipt_number,
+        transactionId: receiptRow.transaction_id,
+        issueDate: receiptRow.issued_at || receiptRow.created_at,
+      }
+    )
+  } catch (parseError) {
+    console.warn('Failed to parse stored receipt_data, falling back to row fields...', parseError)
+    return {
+      receiptNumber: receiptRow.receipt_number,
+      transactionId: receiptRow.transaction_id,
+      issueDate: receiptRow.issued_at || receiptRow.created_at,
+    }
+  }
+}
+
+function getReceiptPayload(receiptRow) {
+  if (!receiptRow) return null
+
+  const normalized = normalizeStoredReceipt(receiptRow) || {}
+
+  return {
+    receiptNumber: normalized.receiptNumber || receiptRow.receipt_number || receiptRow.id,
+    transactionId: normalized.transactionId || receiptRow.transaction_id || 'N/A',
+    issueDate: normalized.issueDate || receiptRow.issued_at || receiptRow.created_at,
+    buyer: normalized.buyer || {},
+    seller: normalized.seller || {},
+    project: normalized.project || {},
+    purchase: {
+      currency: 'PHP',
+      status: 'completed',
+      ...normalized.purchase,
+    },
+    environmentalImpact: normalized.environmentalImpact || {},
+    certification: normalized.certification || {},
+  }
+}
+
 /**
  * Generate a receipt for a credit purchase transaction
  */
@@ -15,66 +173,67 @@ export async function generateReceipt(transactionId) {
   }
 
   try {
-    // Get transaction details with all related data
-    const { data: transaction, error: transactionError } = await supabase
-      .from('credit_transactions')
-      .select(
-        `
-        *,
-        project_credits!inner(
-          *,
-          projects!inner(title, category, location, description)
-        ),
-        buyer:profiles!credit_transactions_buyer_id_fkey(full_name, email),
-        seller:profiles!credit_transactions_seller_id_fkey(full_name, email)
-      `,
-      )
-      .eq('id', transactionId)
-      .single()
+    // Avoid duplicate receipts when multiple completion handlers run for same purchase
+    const { data: existingReceipt } = await supabase
+      .from('receipts')
+      .select('*')
+      .eq('transaction_id', transactionId)
+      .maybeSingle()
 
-    if (transactionError || !transaction) {
-      throw new Error('Transaction not found')
+    if (existingReceipt) {
+      return normalizeStoredReceipt(existingReceipt)
     }
 
+    const transaction = await loadTransactionForReceipt(supabase, transactionId)
+
     // Generate receipt data
+    const buyerName = transaction.buyer?.full_name || transaction.buyer?.email || 'Buyer'
+    const buyerEmail = transaction.buyer?.email || 'N/A'
+    const sellerName = transaction.seller?.full_name || transaction.seller?.email || 'Seller'
+    const sellerEmail = transaction.seller?.email || 'N/A'
+    const projectInfo = transaction.project_credits?.projects || {}
+    const vintageYear = transaction.project_credits?.vintage_year || null
+    const verificationStandard = transaction.project_credits?.verification_standard || null
+    const quantity = Number(transaction.quantity || 0)
+    const pricePerCredit = Number(transaction.price_per_credit || 0)
+    const platformFeePercentage = Number(transaction.platform_fee_percentage || 2.5)
+    const subtotal = quantity * pricePerCredit
+
     const receipt = {
       receiptNumber: generateReceiptNumber(transactionId),
       transactionId: transaction.id,
       issueDate: new Date().toISOString(),
       buyer: {
-        name: transaction.buyer.full_name,
-        email: transaction.buyer.email,
+        name: buyerName,
+        email: buyerEmail,
       },
       seller: {
-        name: transaction.seller.full_name,
-        email: transaction.seller.email,
+        name: sellerName,
+        email: sellerEmail,
       },
       project: {
-        title: transaction.project_credits.projects.title,
-        category: transaction.project_credits.projects.category,
-        location: transaction.project_credits.projects.location,
-        description: transaction.project_credits.projects.description,
-        vintageYear: transaction.project_credits.vintage_year,
-        verificationStandard: transaction.project_credits.verification_standard,
+        title: projectInfo.title,
+        category: projectInfo.category,
+        location: projectInfo.location,
+        description: projectInfo.description,
+        vintageYear,
+        verificationStandard,
       },
       purchase: {
-        creditsPurchased: transaction.quantity,
-        pricePerCredit: transaction.price_per_credit,
-        subtotal: transaction.quantity * transaction.price_per_credit,
-        platformFeePercentage: transaction.platform_fee_percentage || 2.5,
-        platformFee:
-          transaction.quantity *
-          transaction.price_per_credit *
-          ((transaction.platform_fee_percentage || 2.5) / 100),
+        creditsPurchased: quantity,
+        pricePerCredit,
+        subtotal,
+        platformFeePercentage,
+        platformFee: subtotal * (platformFeePercentage / 100),
         totalAmount: transaction.total_amount,
-        currency: transaction.currency,
-        paymentMethod: transaction.payment_method,
-        status: transaction.status,
+        currency: transaction.currency || 'PHP',
+        paymentMethod: transaction.payment_method || 'N/A',
+        status: transaction.status || 'completed',
       },
       environmentalImpact: {
-        co2Offset: transaction.quantity, // Assuming 1 credit = 1 tonne CO2
-        equivalentTreesPlanted: Math.round(transaction.quantity * 0.5), // Rough estimate
-        equivalentCarsOffRoad: Math.round(transaction.quantity / 4.6), // Rough estimate
+        co2Offset: quantity, // Assuming 1 credit = 1 tonne CO2
+        equivalentTreesPlanted: Math.round(quantity * 0.5), // Rough estimate
+        equivalentCarsOffRoad: Math.round(quantity / 4.6), // Rough estimate
       },
       certification: {
         certificateNumber: transaction.certificate_number,
@@ -84,7 +243,7 @@ export async function generateReceipt(transactionId) {
     }
 
     // Save receipt to database
-    const { data: savedReceipt, error: receiptError } = await supabase
+    const { error: receiptError } = await supabase
       .from('receipts')
       .insert({
         transaction_id: transactionId,
@@ -100,7 +259,22 @@ export async function generateReceipt(transactionId) {
 
     if (receiptError) {
       console.error('Error saving receipt:', receiptError)
-      // Don't throw error, receipt generation can continue without saving
+      const duplicateReceipt =
+        receiptError.code === '23505' ||
+        receiptError.message?.toLowerCase().includes('duplicate') ||
+        receiptError.details?.toLowerCase().includes('already exists')
+
+      if (duplicateReceipt) {
+        const { data: concurrentReceipt } = await supabase
+          .from('receipts')
+          .select('*')
+          .eq('transaction_id', transactionId)
+          .maybeSingle()
+
+        if (concurrentReceipt) {
+          return normalizeStoredReceipt(concurrentReceipt)
+        }
+      }
     }
 
     return receipt
@@ -125,7 +299,7 @@ export async function getUserReceipts(userId) {
   }
 
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('receipts')
       .select('*')
       .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
@@ -136,22 +310,64 @@ export async function getUserReceipts(userId) {
       throw new Error(`Failed to fetch receipts: ${error.message}`)
     }
 
+    // Backfill missing receipt rows for completed purchases made by this user
+    // so older purchases also appear in the Receipts dashboard.
+    const { data: completedPurchases, error: completedPurchasesError } = await supabase
+      .from('credit_transactions')
+      .select('id')
+      .eq('buyer_id', userId)
+      .eq('status', 'completed')
+
+    if (!completedPurchasesError && Array.isArray(completedPurchases) && completedPurchases.length) {
+      const existingTransactionIds = new Set(
+        (data || [])
+          .map((receipt) => receipt?.transaction_id)
+          .filter((transactionId) => transactionId != null)
+          .map((transactionId) => String(transactionId)),
+      )
+
+      const missingTransactionIds = completedPurchases
+        .map((transaction) => String(transaction.id))
+        .filter((transactionId) => !existingTransactionIds.has(transactionId))
+
+      if (missingTransactionIds.length) {
+        await Promise.allSettled(missingTransactionIds.map((transactionId) => generateReceipt(transactionId)))
+
+        const { data: refreshedReceipts, error: refreshedReceiptsError } = await supabase
+          .from('receipts')
+          .select('*')
+          .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+          .order('issued_at', { ascending: false })
+
+        if (!refreshedReceiptsError) {
+          data = refreshedReceipts || data
+        }
+      }
+    }
+
     // Extract project details from receipt_data JSONB if available
     const enrichedReceipts = (data || []).map(receipt => {
       if (receipt.receipt_data) {
-        const receiptData = typeof receipt.receipt_data === 'string' 
-          ? JSON.parse(receipt.receipt_data) 
-          : receipt.receipt_data
+        let receiptData = null
+
+        try {
+          receiptData =
+            typeof receipt.receipt_data === 'string'
+              ? JSON.parse(receipt.receipt_data)
+              : receipt.receipt_data
+        } catch (parseError) {
+          console.warn('Failed to parse receipt_data while loading receipts:', parseError)
+        }
         
         return {
           ...receipt,
-          project_title: receiptData.project?.title,
-          project_location: receiptData.project?.location,
-          credits_purchased: receiptData.purchase?.creditsPurchased,
-          total_amount: receiptData.purchase?.totalAmount,
-          currency: receiptData.purchase?.currency || 'PHP',
-          payment_method: receiptData.purchase?.paymentMethod,
-          status: receiptData.purchase?.status || 'completed',
+          project_title: receiptData?.project?.title,
+          project_location: receiptData?.project?.location,
+          credits_purchased: receiptData?.purchase?.creditsPurchased,
+          total_amount: receiptData?.purchase?.totalAmount,
+          currency: receiptData?.purchase?.currency || receipt.currency || 'PHP',
+          payment_method: receiptData?.purchase?.paymentMethod || receipt.payment_method,
+          status: receiptData?.purchase?.status || receipt.status || 'completed',
         }
       }
       return receipt
@@ -179,6 +395,14 @@ export async function downloadReceipt(receiptId) {
   }
 
   try {
+    let jsPDF
+    try {
+      jsPDF = (await import('jspdf')).default
+    } catch (importError) {
+      console.error('Error importing jsPDF:', importError)
+      throw new Error('PDF download is not available right now')
+    }
+
     const { data: receipt, error } = await supabase
       .from('receipts')
       .select('*')
@@ -194,11 +418,91 @@ export async function downloadReceipt(receiptId) {
       throw new Error('Receipt not found')
     }
 
-    // In a real implementation, this would generate a PDF
-    console.log('Generating PDF for receipt:', receipt.receipt_number)
+    const receiptData = getReceiptPayload(receipt)
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    })
 
-    // Return receipt data for PDF generation
-    return receipt.receipt_data
+    const primaryColor = [6, 158, 45]
+    const textColor = [26, 32, 44]
+    const mutedColor = [113, 128, 150]
+    let currentY = 20
+
+    doc.setFillColor(...primaryColor)
+    doc.rect(0, 0, 210, 32, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(20)
+    doc.text('EcoLink Receipt', 14, 18)
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.text(`Receipt #${receiptData.receiptNumber}`, 14, 25)
+
+    currentY = 44
+    doc.setTextColor(...textColor)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(14)
+    doc.text('Purchase Summary', 14, currentY)
+    currentY += 8
+
+    const rows = [
+      ['Issue Date', formatReceiptDate(receiptData.issueDate)],
+      ['Transaction ID', String(receiptData.transactionId || 'N/A')],
+      ['Buyer', receiptData.buyer?.name || receiptData.buyer?.email || 'N/A'],
+      ['Buyer Email', receiptData.buyer?.email || 'N/A'],
+      ['Seller', receiptData.seller?.name || receiptData.seller?.email || 'N/A'],
+      ['Project', receiptData.project?.title || 'Purchase Receipt'],
+      ['Category', receiptData.project?.category || 'N/A'],
+      ['Location', receiptData.project?.location || 'N/A'],
+      ['Credits Purchased', String(receiptData.purchase?.creditsPurchased ?? 'N/A')],
+      ['Price per Credit', formatReceiptCurrency(receiptData.purchase?.pricePerCredit, receiptData.purchase?.currency)],
+      ['Subtotal', formatReceiptCurrency(receiptData.purchase?.subtotal, receiptData.purchase?.currency)],
+      ['Platform Fee', formatReceiptCurrency(receiptData.purchase?.platformFee, receiptData.purchase?.currency)],
+      ['Total Amount', formatReceiptCurrency(receiptData.purchase?.totalAmount, receiptData.purchase?.currency)],
+      ['Payment Method', receiptData.purchase?.paymentMethod || 'N/A'],
+      ['Status', receiptData.purchase?.status || 'completed'],
+    ]
+
+    doc.setFontSize(10)
+    for (const [label, value] of rows) {
+      if (currentY > 265) {
+        doc.addPage()
+        currentY = 20
+      }
+
+      doc.setTextColor(...mutedColor)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`${label}:`, 14, currentY)
+
+      doc.setTextColor(...textColor)
+      doc.setFont('helvetica', 'normal')
+      const wrapped = doc.splitTextToSize(String(value || 'N/A'), 120)
+      doc.text(wrapped, 70, currentY)
+      currentY += Math.max(7, wrapped.length * 5)
+    }
+
+    if (receiptData.project?.description) {
+      currentY += 4
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(...textColor)
+      doc.text('Project Description', 14, currentY)
+      currentY += 6
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(9)
+      const descriptionLines = doc.splitTextToSize(receiptData.project.description, 180)
+      doc.text(descriptionLines, 14, currentY)
+      currentY += descriptionLines.length * 4.5
+    }
+
+    doc.setFontSize(9)
+    doc.setTextColor(...mutedColor)
+    doc.text('Generated by EcoLink', 14, 286)
+
+    const filename = `receipt-${receiptData.receiptNumber}.pdf`
+    doc.save(filename)
+    return filename
   } catch (error) {
     console.error('Error in downloadReceipt:', error)
     throw error
@@ -330,8 +634,29 @@ export async function generateCarbonImpactReport(userId) {
 /**
  * Generate a unique receipt number
  */
-function generateReceiptNumber(transactionId) {
+function generateReceiptNumber() {
   const timestamp = Date.now().toString(36)
   const random = Math.random().toString(36).substr(2, 4)
   return `RCP-${timestamp}-${random}`.toUpperCase()
+}
+
+function formatReceiptDate(dateString) {
+  if (!dateString) return 'N/A'
+
+  return new Date(dateString).toLocaleString('en-PH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function formatReceiptCurrency(amount, currency = 'PHP') {
+  if (amount === null || amount === undefined || amount === '') return 'N/A'
+
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency,
+  }).format(Number(amount) || 0)
 }

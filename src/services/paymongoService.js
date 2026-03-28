@@ -60,6 +60,7 @@ export async function createCheckoutSession(sessionData) {
       amount,
       description,
       metadata,
+      billing,
       paymentMethodTypes = ['card', 'gcash', 'paymaya'],
     } = sessionData
 
@@ -131,11 +132,20 @@ export async function createCheckoutSession(sessionData) {
       },
     }
 
+    if (billing && (billing.name || billing.email || billing.phone)) {
+      checkoutData.data.attributes.billing = {
+        ...(billing.name ? { name: billing.name } : {}),
+        ...(billing.email ? { email: billing.email } : {}),
+        ...(billing.phone ? { phone: billing.phone } : {}),
+      }
+    }
+
     console.log('📋 PayMongo checkout details:', {
       description: detailedDescription,
       quantity: quantity,
       price_per_credit: pricePerCredit,
       total_amount: amount,
+      billing: checkoutData.data.attributes.billing || null,
       line_items: lineItems,
     })
 

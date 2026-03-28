@@ -113,7 +113,7 @@ watch(
           <div class="modal-header">
             <h2 id="modal-title" class="modal-title">{{ title }}</h2>
             <button class="modal-close" @click="closeModal" aria-label="Close modal" type="button">
-              ✕
+              <span class="material-symbols-outlined" aria-hidden="true">close</span>
             </button>
           </div>
 

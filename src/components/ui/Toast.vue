@@ -38,10 +38,10 @@ function close() {
 
 function getIcon() {
   const icons = {
-    success: '✅',
-    error: '❌',
-    warning: '⚠️',
-    info: 'ℹ️',
+    success: 'check_circle',
+    error: 'error',
+    warning: 'warning',
+    info: 'info',
   }
   return icons[props.type] || icons.info
 }
@@ -61,12 +61,16 @@ function getTitle() {
   <Transition name="toast-slide">
     <div v-if="isVisible" :class="['toast', `toast--${type}`]">
       <div class="toast-content">
-        <div class="toast-icon">{{ getIcon() }}</div>
+        <div class="toast-icon">
+          <span class="material-symbols-outlined" aria-hidden="true">{{ getIcon() }}</span>
+        </div>
         <div class="toast-message">
           <h4 class="toast-title">{{ getTitle() }}</h4>
           <p>{{ message }}</p>
         </div>
-        <button v-if="closable" @click="close" class="toast-close" aria-label="Close">✕</button>
+        <button v-if="closable" @click="close" class="toast-close" aria-label="Close">
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+        </button>
       </div>
     </div>
   </Transition>

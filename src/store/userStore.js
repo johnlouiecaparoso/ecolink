@@ -4,6 +4,7 @@ import { getProfile, updateProfile } from '@/services/profileService'
 import { roleService } from '@/services/roleService'
 import { logUserAction } from '@/services/auditService'
 import { ROLES } from '@/constants/roles'
+import { getBlockingRoleApplicationForUser } from '@/services/roleApplicationService'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -42,6 +43,27 @@ export const useUserStore = defineStore('user', {
         if (session && session.user && session.expires_at) {
           const now = Math.floor(Date.now() / 1000)
           if (session.expires_at > now) {
+            const blockingApplication = await getBlockingRoleApplicationForUser({
+              userId: session.user.id,
+              email: session.user.email,
+            }).catch((approvalError) => {
+              console.error('Error checking role approval during session restore:', approvalError)
+              return null
+            })
+
+            if (blockingApplication) {
+              console.warn('Blocked restored session for unapproved specialist account:', {
+                userId: session.user.id,
+                requestedRole: blockingApplication.role_requested,
+                status: blockingApplication.status,
+              })
+              await signOut()
+              this.session = null
+              this.profile = null
+              this.role = ROLES.GENERAL_USER
+              this.permissions = []
+              return
+            }
             console.log('✅ Valid session found for user:', session.user.email)
             this.session = session
             // Fetch user profile and role when session is valid (don't await - let it load in background)
@@ -92,7 +114,7 @@ export const useUserStore = defineStore('user', {
         try {
           await this._profileFetchPromise
           return // Profile already loaded by concurrent request
-        } catch (err) {
+        } catch {
           // If the concurrent request failed, continue with new fetch
           console.warn('⚠️ Concurrent profile fetch failed, starting new fetch')
         }
@@ -108,7 +130,7 @@ export const useUserStore = defineStore('user', {
 
       try {
         await this._profileFetchPromise
-      } catch (err) {
+      } catch {
         // Error already handled in _performProfileFetch
       }
     },
@@ -320,7 +342,7 @@ export const useUserStore = defineStore('user', {
             console.log(`✅ Profile loaded successfully after ${attempt} retry attempt(s)`)
             return
           }
-        } catch (retryError) {
+        } catch {
           if (attempt === maxRetries) {
             console.warn(`⚠️ Profile fetch failed after ${maxRetries} retry attempts`)
             console.warn('💡 User will continue with default profile settings')

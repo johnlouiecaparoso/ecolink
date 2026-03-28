@@ -258,8 +258,10 @@ onMounted(() => {
               </div>
             </div>
             <div class="portfolio-actions">
-              <button class="btn btn-sm btn-primary" @click="router.push('/credit-portfolio')">
-                View Portfolio
+              <button
+                class="btn btn-sm btn-ghost"
+                @click="router.push(`/credit-portfolio`)">
+                Retire Credits
               </button>
             </div>
           </div>
@@ -292,14 +294,14 @@ onMounted(() => {
           <button class="btn btn-ghost" @click="loadWalletData">Refresh</button>
         </div>
 
-      <div v-if="transactions.length === 0" class="empty-transactions">
-        <div class="empty-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <rect x="4.5" y="3.75" width="15" height="16.5" rx="2" />
-            <path d="M8 3.75v3h8v-3" stroke-linecap="round" />
-            <path d="M8 12h8M8 16h5" stroke-linecap="round" />
-          </svg>
-        </div>
+        <div v-if="transactions.length === 0" class="empty-transactions">
+          <div class="empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="4.5" y="3.75" width="15" height="16.5" rx="2" />
+              <path d="M8 3.75v3h8v-3" stroke-linecap="round" />
+              <path d="M8 12h8M8 16h5" stroke-linecap="round" />
+            </svg>
+          </div>
           <h3>No transactions yet</h3>
           <p>Your transaction history will appear here</p>
           <button class="btn btn-primary" @click="showTopUpModal">

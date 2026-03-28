@@ -1,7 +1,10 @@
 <template>
   <div class="simple-project-approval">
     <div class="header">
-      <h2>🚀 Quick Project Approval</h2>
+      <h2>
+        <span class="material-symbols-outlined" aria-hidden="true">rocket_launch</span>
+        Quick Project Approval
+      </h2>
       <p>Approve projects to make them appear in the marketplace</p>
     </div>
 
@@ -11,7 +14,9 @@
     </div>
 
     <div v-else-if="projects.length === 0" class="empty">
-      <div class="empty-icon">📋</div>
+      <div class="empty-icon">
+        <span class="material-symbols-outlined" aria-hidden="true">assignment</span>
+      </div>
       <h3>No Projects Found</h3>
       <p>Submit a project first to see it here</p>
     </div>
@@ -57,14 +62,15 @@
               @click="approveProject(project)"
               :disabled="project.processing"
             >
-              {{ project.processing ? 'Approving...' : '✅ Approve & Generate Credits' }}
+              {{ project.processing ? 'Approving...' : 'Approve & Generate Credits' }}
             </button>
           </div>
         </div>
 
         <div v-else-if="project.status === 'approved'" class="approved-section">
           <div class="success-message">
-            ✅ Project approved! Credits have been generated and listed in marketplace.
+            <span class="material-symbols-outlined" aria-hidden="true">check_circle</span>
+            Project approved! Credits have been generated and listed in marketplace.
           </div>
         </div>
       </div>
@@ -123,7 +129,7 @@ async function approveProject(project) {
 
     // Show success message
     alert(
-      `🎉 Project "${project.title}" approved successfully!\n\nCredits generated: ${result.credits?.total_credits || 'Unknown'}\nPrice per credit: $${result.credits?.price_per_credit || 'Unknown'}\n\nYour project is now live in the marketplace!`,
+      `Project "${project.title}" approved successfully!\n\nCredits generated: ${result.credits?.total_credits || 'Unknown'}\nPrice per credit: $${result.credits?.price_per_credit || 'Unknown'}\n\nYour project is now live in the marketplace!`,
     )
   } catch (error) {
     console.error('Error approving project:', error)
