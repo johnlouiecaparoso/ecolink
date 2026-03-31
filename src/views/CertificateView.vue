@@ -57,15 +57,18 @@
                 :key="certificate.id"
                 class="certificate-list-item"
                 :class="{ active: certificate.id === selectedCertificate?.id }"
-                @click="openCertificateDetail(certificate)"
+                @click="handleCertificateSelect(certificate)"
               >
                 <span class="certificate-list-title">
                   {{ certificate.project_title || certificate.certificate_data?.project_title || 'Untitled Certificate' }}
                 </span>
+                <span class="certificate-list-meta">
+                  Cert #{{ certificate.certificate_number || certificate.id }}
+                </span>
               </button>
             </div>
 
-            <div class="certificate-detail-area">
+            <div v-if="!isMobile" class="certificate-detail-area">
               <div v-if="selectedCertificate" class="certificate-card">
                 <div class="certificate-header">
                   <div class="certificate-icon" aria-hidden="true">
@@ -224,6 +227,170 @@
               </div>
             </div>
           </div>
+
+          <div
+            v-if="isMobile && mobileDetailOpen && selectedCertificate"
+            class="mobile-certificate-overlay"
+            @click.self="closeMobileDetail"
+          >
+            <div class="mobile-certificate-panel">
+              <div class="mobile-detail-header">
+                <h3>Certificate Details</h3>
+                <button type="button" class="mobile-close-btn" @click="closeMobileDetail">
+                  <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+              </div>
+
+              <div class="certificate-card mobile-certificate-card">
+                <div class="certificate-header">
+                  <div class="certificate-icon" aria-hidden="true">
+                    <span class="material-symbols-outlined">award_star</span>
+                  </div>
+                  <div class="certificate-info">
+                    <h3 class="certificate-title">{{ selectedCertificate.project_title }}</h3>
+                    <p class="certificate-location">
+                      <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                      <span>{{ selectedCertificate.project_location }}</span>
+                    </p>
+                    <span class="certificate-number">Cert #{{ selectedCertificate.certificate_number }}</span>
+                  </div>
+                </div>
+
+                <div class="certificate-details">
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Beneficiary:</span>
+                    <span class="detail-value highlight-value">{{
+                      selectedCertificate.beneficiary_name ||
+                        selectedCertificate.certificate_data?.beneficiary_name ||
+                        'Not specified'
+                    }}</span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.project_description || selectedCertificate.certificate_data?.project_description"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Project Description:</span>
+                    <span class="detail-value description-value">{{
+                      selectedCertificate.project_description ||
+                      selectedCertificate.certificate_data?.project_description
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Tonnes of CO₂ Retired:</span>
+                    <span class="detail-value highlight-value">{{
+                      (selectedCertificate.tonnes_co2 ||
+                       selectedCertificate.certificate_data?.tonnes_co2 ||
+                       selectedCertificate.credits_quantity || 0).toLocaleString()
+                    }} tonnes CO₂</span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.purpose || selectedCertificate.certificate_data?.purpose"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">{{
+                      selectedCertificate.certificate_type === 'retirement' ? 'Purpose of Retirement:' : 'Purpose:'
+                    }}</span>
+                    <span class="detail-value">{{
+                      selectedCertificate.purpose || selectedCertificate.certificate_data?.purpose
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Transaction ID:</span>
+                    <span class="detail-value transaction-id">{{
+                      selectedCertificate.transaction_id_ref ||
+                      selectedCertificate.certificate_data?.transaction_id_ref ||
+                      selectedCertificate.transaction_id ||
+                      'N/A'
+                    }}</span>
+                  </div>
+
+                  <div
+                    v-if="
+                      selectedCertificate.wallet_address ||
+                      selectedCertificate.certificate_data?.wallet_address ||
+                      selectedCertificate.payment_reference ||
+                      selectedCertificate.certificate_data?.payment_reference
+                    "
+                    class="detail-row verification-row"
+                  >
+                    <span class="detail-label">✓ Onchain Verification:</span>
+                    <span class="detail-value verification-value">
+                      {{ selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address ? 'Verified via wallet' : 'Verified via payment reference' }}
+                    </span>
+                  </div>
+
+                  <div class="detail-row highlight-row">
+                    <span class="detail-label">Purchase Date & Time:</span>
+                    <span class="detail-value highlight-value">{{
+                      formatDate(
+                        selectedCertificate.purchase_date ||
+                          selectedCertificate.purchase_datetime ||
+                          selectedCertificate.certificate_data?.purchase_date ||
+                          selectedCertificate.certificate_data?.purchase_datetime ||
+                          selectedCertificate.timestamp ||
+                          selectedCertificate.issued_at,
+                      )
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Certificate Issued:</span>
+                    <span class="detail-value">
+                      {{ formatDate(selectedCertificate.issued_at || selectedCertificate.timestamp) }}
+                    </span>
+                  </div>
+
+                  <div
+                    v-if="selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Wallet Address:</span>
+                    <span class="detail-value wallet-address">{{
+                      selectedCertificate.wallet_address || selectedCertificate.certificate_data?.wallet_address
+                    }}</span>
+                  </div>
+
+                  <div class="detail-row">
+                    <span class="detail-label">Category:</span>
+                    <span class="detail-value">{{ selectedCertificate.project_category }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Credits:</span>
+                    <span class="detail-value">{{
+                      selectedCertificate.credits_quantity.toLocaleString()
+                    }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Vintage Year:</span>
+                    <span class="detail-value">{{ selectedCertificate.vintage_year }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Standard:</span>
+                    <span class="detail-value">{{ selectedCertificate.verification_standard }}</span>
+                  </div>
+                  <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span class="detail-value" :class="selectedCertificate.status">
+                      {{ selectedCertificate.status === 'active' ? 'Active' : 'Inactive' }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="certificate-actions">
+                  <button class="btn btn-primary btn-sm" @click="downloadReceiptForCertificate(selectedCertificate)">
+                    Download Receipt
+                  </button>
+                  <button class="btn btn-outline btn-sm" @click="downloadCertificate(selectedCertificate)">
+                    Download PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -231,7 +398,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getUserCertificates } from '@/services/certificateService'
@@ -246,6 +413,16 @@ const certificates = ref([])
 const loading = ref(false)
 const error = ref('')
 const selectedCertificate = ref(null)
+const isMobile = ref(typeof window !== 'undefined' ? window.innerWidth <= 768 : false)
+const mobileDetailOpen = ref(false)
+
+function updateMobileState() {
+  if (typeof window === 'undefined') return
+  isMobile.value = window.innerWidth <= 768
+  if (!isMobile.value) {
+    mobileDetailOpen.value = false
+  }
+}
 
 // Methods
 async function loadCertificates() {
@@ -349,6 +526,17 @@ function openCertificateDetail(certificate, shouldUpdateRoute = true) {
   router.replace({
     query: updatedQuery,
   })
+}
+
+function handleCertificateSelect(certificate) {
+  openCertificateDetail(certificate)
+  if (isMobile.value) {
+    mobileDetailOpen.value = true
+  }
+}
+
+function closeMobileDetail() {
+  mobileDetailOpen.value = false
 }
 
 async function downloadReceiptForCertificate(certificate) {
@@ -569,7 +757,17 @@ function formatDate(dateString) {
 
 // Lifecycle
 onMounted(() => {
+  updateMobileState()
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', updateMobileState)
+  }
   loadCertificates()
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('resize', updateMobileState)
+  }
 })
 </script>
 
@@ -743,6 +941,13 @@ onMounted(() => {
 .certificate-list-title {
   flex: 1;
   font-size: 0.95rem;
+}
+
+.certificate-list-meta {
+  margin-top: 0.3rem;
+  color: var(--text-muted, #718096);
+  font-size: 0.78rem;
+  font-weight: 500;
 }
 
 .certificate-detail-area {
@@ -989,6 +1194,67 @@ onMounted(() => {
 
   .certificate-list-item {
     transform: none !important;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
   }
+
+  .certificate-detail-area {
+    display: none;
+  }
+}
+
+.mobile-certificate-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.mobile-certificate-panel {
+  width: 100%;
+  max-width: 640px;
+  background: #ffffff;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  max-height: 88vh;
+  overflow-y: auto;
+  padding: 0.85rem;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.mobile-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  padding: 0.35rem 0.25rem;
+}
+
+.mobile-detail-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.mobile-close-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-primary, #1a1a1a);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobile-close-btn .material-symbols-outlined {
+  font-size: 1.3rem;
+}
+
+.mobile-certificate-card {
+  margin-bottom: 0.5rem;
 }
 </style>

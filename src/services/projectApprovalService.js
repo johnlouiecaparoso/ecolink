@@ -3,8 +3,11 @@ import { getCurrentUserId } from '@/utils/authHelper'
 import { isTestAccount } from '@/utils/testAccounts'
 import {
   notifyNewMarketplaceProject,
+  notifyProjectOwnerMarketplaceLive,
   notifyProjectDecision,
+  notifyProjectSubmittedForReview,
 } from '@/services/notificationService'
+import { notifyProjectSubmitted } from '@/services/emailService'
 
 /**
  * Simplified Project Approval Service
@@ -84,6 +87,12 @@ export class ProjectApprovalService {
         } catch (notificationError) {
           console.error('Error creating marketplace project notifications:', notificationError)
         }
+
+        try {
+          await notifyProjectOwnerMarketplaceLive(updatedProject, creditsResult.listing)
+        } catch (ownerNotificationError) {
+          console.error('Error creating owner marketplace-live notification:', ownerNotificationError)
+        }
       }
 
       return {
@@ -109,6 +118,10 @@ export class ProjectApprovalService {
     }
 
     const normalizedStatus = status.toLowerCase()
+
+    if (normalizedStatus === 'rejected' && (!notes || notes.trim().length < 5)) {
+      throw new Error('Please add a rejection note (at least 5 characters).')
+    }
 
     if (normalizedStatus === 'approved') {
       return this.approveProject(projectId, notes)
@@ -545,6 +558,18 @@ export class ProjectApprovalService {
 
       if (error) {
         throw new Error(error.message || 'Failed to submit project')
+      }
+
+      try {
+        await notifyProjectSubmitted(project.id, project.user_id)
+      } catch (emailError) {
+        console.error('Error sending project submission notification:', emailError)
+      }
+
+      try {
+        await notifyProjectSubmittedForReview(project)
+      } catch (notificationError) {
+        console.error('Error creating in-app project submission notifications:', notificationError)
       }
 
       return project

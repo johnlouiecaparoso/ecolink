@@ -1,19 +1,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getWalletBalance, getTransactions } from '@/services/walletService'
-import { creditOwnershipService } from '@/services/creditOwnershipService'
 import TopUp from '@/components/wallet/TopUp.vue'
 import Withdraw from '@/components/wallet/Withdraw.vue'
 
-const router = useRouter()
 const store = useUserStore()
 
 const walletBalance = ref({ current_balance: 0, currency: 'PHP' })
 const transactions = ref([])
-const creditPortfolio = ref([])
-const creditStats = ref({ total_owned: 0, total_retired: 0, total_credits: 0, projects_count: 0 })
 const loading = ref(false)
 const showTopUp = ref(false)
 const showWithdraw = ref(false)
@@ -34,11 +29,9 @@ async function loadWalletData() {
     const results = await Promise.allSettled([
       getWalletBalance(store.session.user.id),
       getTransactions(store.session.user.id),
-      creditOwnershipService.getUserCreditPortfolio(store.session.user.id),
-      creditOwnershipService.getUserCreditStats(store.session.user.id),
     ])
 
-    const [balanceResult, transactionsResult, portfolioResult, statsResult] = results
+    const [balanceResult, transactionsResult] = results
     let failures = 0
 
     if (balanceResult.status === 'fulfilled') {
@@ -55,27 +48,6 @@ async function loadWalletData() {
       failures += 1
       console.warn('Warning: Failed to load wallet transactions:', transactionsResult.reason)
       transactions.value = []
-    }
-
-    if (portfolioResult.status === 'fulfilled') {
-      creditPortfolio.value = portfolioResult.value
-    } else {
-      failures += 1
-      console.warn('Warning: Failed to load credit portfolio:', portfolioResult.reason)
-      creditPortfolio.value = []
-    }
-
-    if (statsResult.status === 'fulfilled') {
-      creditStats.value = statsResult.value
-    } else {
-      failures += 1
-      console.warn('Warning: Failed to load credit stats:', statsResult.reason)
-      creditStats.value = {
-        total_owned: 0,
-        total_retired: 0,
-        total_credits: 0,
-        projects_count: 0,
-      }
     }
 
     if (failures === results.length) {
@@ -200,71 +172,6 @@ onMounted(() => {
           >
             - Withdraw
           </button>
-        </div>
-      </div>
-
-      <!-- Credit Portfolio Section -->
-      <div class="credit-portfolio-section">
-        <div class="section-header">
-          <h2 class="section-title">Credit Portfolio</h2>
-          <div class="credit-stats">
-            <span class="stat-item">
-              <span class="stat-label">Total Credits:</span>
-              <span class="stat-value">{{ creditStats.total_owned }}</span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Retired:</span>
-              <span class="stat-value">{{ creditStats.total_retired }}</span>
-            </span>
-            <span class="stat-item">
-              <span class="stat-label">Projects:</span>
-              <span class="stat-value">{{ creditStats.projects_count }}</span>
-            </span>
-          </div>
-        </div>
-
-        <div v-if="creditPortfolio.length === 0" class="empty-portfolio">
-          <div class="empty-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 3c-3.75 0-7 3.05-7 6.8 0 3.6 2.7 6.45 6.3 6.77v3.18a.75.75 0 0 0 1.28.53l2.65-2.65a.75.75 0 0 0-.53-1.28H12c-2.07 0-3.75-1.68-3.75-3.75S9.93 8.85 12 8.85h5.75C17.47 5.4 15.08 3 12 3Z"
-              />
-            </svg>
-          </div>
-          <h3>No credits yet</h3>
-          <p>Purchase credits from the marketplace to build your portfolio</p>
-          <button class="btn btn-primary" @click="router.push('/marketplace')">
-            Browse Marketplace
-          </button>
-        </div>
-
-        <div v-else class="portfolio-grid">
-          <div v-for="credit in creditPortfolio" :key="credit.id" class="portfolio-card">
-            <div class="portfolio-header">
-              <h4 class="portfolio-title">{{ credit.project_title }}</h4>
-              <span class="portfolio-quantity">{{ credit.quantity }} credits</span>
-            </div>
-            <div class="portfolio-body">
-              <p class="portfolio-description">{{ credit.project_description }}</p>
-              <div class="portfolio-meta">
-                <span class="portfolio-category">{{ credit.project_category }}</span>
-                <span class="portfolio-location">{{ credit.project_location }}</span>
-              </div>
-              <div class="portfolio-ownership">
-                <span class="ownership-type">{{ credit.ownership_type }}</span>
-                <span class="owned-since">Since {{ formatDate(credit.owned_since) }}</span>
-              </div>
-            </div>
-            <div class="portfolio-actions">
-              <button
-                class="btn btn-sm btn-ghost"
-                @click="router.push(`/credit-portfolio`)">
-                Retire Credits
-              </button>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -515,6 +422,7 @@ onMounted(() => {
   margin-bottom: 24px;
 }
 
+
 .section-title {
   margin: 0;
   font-size: 20px;
@@ -558,6 +466,27 @@ onMounted(() => {
 .transactions-list {
   display: grid;
   gap: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+
+.transactions-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.transactions-list::-webkit-scrollbar-track {
+  background: #eef2f7;
+  border-radius: 999px;
+}
+
+.transactions-list::-webkit-scrollbar-thumb {
+  background: #c7d2e0;
+  border-radius: 999px;
+}
+
+.transactions-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
 
 .transaction-item {
@@ -724,185 +653,6 @@ onMounted(() => {
 
   .modal-content {
     padding: 20px;
-  }
-}
-
-/* Credit Portfolio Styles */
-.credit-portfolio-section {
-  background: var(--bg-primary, #ffffff);
-  border-radius: var(--radius-lg, 0.75rem);
-  padding: 24px;
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0, 0, 0, 0.1));
-}
-
-.credit-stats {
-  display: flex;
-  gap: 24px;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: var(--text-secondary, #4a5568);
-  font-weight: 500;
-}
-
-.stat-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--primary-color, #069e2d);
-}
-
-.empty-portfolio {
-  text-align: center;
-  padding: 40px 20px;
-}
-
-.empty-portfolio .empty-icon {
-  margin: 0 auto 16px;
-}
-
-.empty-portfolio h3 {
-  margin: 0 0 8px 0;
-  font-size: 20px;
-  color: var(--text-primary, #1a1a1a);
-}
-
-.empty-portfolio p {
-  margin: 0 0 24px 0;
-  color: var(--text-secondary, #4a5568);
-}
-
-.portfolio-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.portfolio-card {
-  background: var(--bg-secondary, #f8fdf8);
-  border: 1px solid var(--border-color, #d1e7dd);
-  border-radius: var(--radius-md, 0.5rem);
-  padding: 20px;
-  transition: all 0.2s ease;
-}
-
-.portfolio-card:hover {
-  box-shadow: var(--shadow-md, 0 4px 8px rgba(0, 0, 0, 0.1));
-  transform: translateY(-2px);
-}
-
-.portfolio-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.portfolio-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary, #1a1a1a);
-  flex: 1;
-}
-
-.portfolio-quantity {
-  background: var(--primary-color, #069e2d);
-  color: white;
-  padding: 4px 8px;
-  border-radius: var(--radius-sm, 0.25rem);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-  margin-left: 12px;
-}
-
-.portfolio-body {
-  margin-bottom: 16px;
-}
-
-.portfolio-description {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: var(--text-secondary, #4a5568);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.portfolio-meta {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.portfolio-category,
-.portfolio-location {
-  font-size: 12px;
-  color: var(--text-secondary, #4a5568);
-  background: var(--bg-primary, #ffffff);
-  padding: 2px 6px;
-  border-radius: var(--radius-sm, 0.25rem);
-  border: 1px solid var(--border-color, #d1e7dd);
-}
-
-.portfolio-ownership {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: var(--text-secondary, #4a5568);
-}
-
-.ownership-type {
-  text-transform: capitalize;
-  font-weight: 500;
-}
-
-.owned-since {
-  font-style: italic;
-}
-
-.portfolio-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-/* Responsive Portfolio */
-@media (max-width: 768px) {
-  .credit-stats {
-    gap: 16px;
-  }
-
-  .portfolio-grid {
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  .portfolio-card {
-    padding: 16px;
-  }
-
-  .portfolio-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  .portfolio-quantity {
-    margin-left: 0;
-    align-self: flex-start;
   }
 }
 

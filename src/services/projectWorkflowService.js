@@ -2,6 +2,8 @@ import { getSupabase } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { logUserAction } from '@/services/auditService'
 import { notifyProjectApproved, notifyProjectRejected } from '@/services/emailService'
+import { notifyProjectSubmitted } from '@/services/emailService'
+import { notifyProjectSubmittedForReview } from '@/services/notificationService'
 
 /**
  * Enhanced Project Workflow Service
@@ -103,6 +105,18 @@ export class ProjectWorkflowService {
         category: data.category,
         location: data.location,
       })
+
+      try {
+        await notifyProjectSubmitted(data.id, data.user_id)
+      } catch (emailError) {
+        console.error('Error sending project submission notification:', emailError)
+      }
+
+      try {
+        await notifyProjectSubmittedForReview(data)
+      } catch (notificationError) {
+        console.error('Error creating in-app project submission notifications:', notificationError)
+      }
 
       return data
     } catch (error) {

@@ -1764,6 +1764,29 @@ onUnmounted(() => {
     font-size: 1.1rem;
   }
 
+  .search-controls {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .search-input-wrap,
+  .filter-select {
+    width: 100%;
+    max-width: 270px;
+    min-width: 270px;
+  }
+
+  .search-input {
+    min-width: 0;
+  }
+
+  .submit-project-button {
+    width: 100%;
+    max-width: 270px;
+    justify-content: center;
+  }
+
   .marketplace-content {
     padding: 1rem 0;
   }
@@ -1841,6 +1864,13 @@ onUnmounted(() => {
 
   .container {
     padding: 0 1rem;
+  }
+
+  .search-input-wrap,
+  .filter-select,
+  .submit-project-button {
+    max-width: 100%;
+    min-width: 0;
   }
 
   .projects-grid {

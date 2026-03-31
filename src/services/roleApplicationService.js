@@ -1,6 +1,7 @@
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { updateUserRole } from '@/services/roleService'
 import { sendRoleApplicationApprovalEmail } from '@/services/emailService'
+import { sendRoleApplicationRejectionEmail } from '@/services/emailService'
 import { notifyVerifiersOfRoleApplication } from '@/services/emailService'
 import {
   notifyReviewersOfRoleApplicationInApp,
@@ -270,34 +271,36 @@ export async function submitRoleApplication(application) {
     throw new Error(error.message || 'Failed to submit role application. Please try again.')
   }
 
-  if (data) {
-    if (createdAuthSessionDuringApply) {
-      await supabase.auth.signOut().catch((signOutError) => {
-        console.warn('Failed to clear temporary application signup session:', signOutError)
-      })
-    }
-
-    Promise.resolve().then(async () => {
-      try {
-        await notifyVerifiersOfRoleApplication(data)
-      } catch (notifyError) {
-        console.warn('Failed to notify verifiers/admin about role application:', notifyError)
-      }
-
-      try {
-        await notifyReviewersOfRoleApplicationInApp(data)
-      } catch (notifyError) {
-        console.warn('Failed to create in-app reviewer notification for role application:', notifyError)
-      }
+  if (createdAuthSessionDuringApply) {
+    await supabase.auth.signOut().catch((signOutError) => {
+      console.warn('Failed to clear temporary application signup session:', signOutError)
     })
-
-    return data
   }
 
-  return {
+  const notificationApplication = data || {
     ...record,
     id: null,
   }
+
+  Promise.resolve().then(async () => {
+    try {
+      await notifyVerifiersOfRoleApplication(notificationApplication)
+    } catch (notifyError) {
+      console.warn('Failed to notify verifiers/admin about role application:', notifyError)
+    }
+
+    try {
+      await notifyReviewersOfRoleApplicationInApp(notificationApplication)
+    } catch (notifyError) {
+      console.warn('Failed to create in-app reviewer notification for role application:', notifyError)
+    }
+  })
+
+  if (data) {
+    return data
+  }
+
+  return notificationApplication
 }
 
 export function getRoleApplicationStatusLabel(status) {
@@ -522,6 +525,21 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
       notificationInfo = { sent: true, hasAccount: !!existing.user_id, response: emailResult }
     } catch (notificationError) {
       console.error('Failed to send role application approval email:', notificationError)
+      notificationInfo = { sent: false, error: notificationError }
+    }
+  } else if (status === ROLE_APPLICATION_STATUS.REJECTED) {
+    try {
+      const rejectionNotes = sanitizeString(options.notes) || sanitizeString(options.decisionReason) || ''
+      const emailResult = await sendRoleApplicationRejectionEmail({
+        email: existing.email,
+        applicantName: existing.applicant_full_name,
+        role: existing.role_requested,
+        notes: rejectionNotes,
+        rejectedAt: updatePayload.reviewed_at,
+      })
+      notificationInfo = { sent: true, response: emailResult }
+    } catch (notificationError) {
+      console.error('Failed to send role application rejection email:', notificationError)
       notificationInfo = { sent: false, error: notificationError }
     }
   }

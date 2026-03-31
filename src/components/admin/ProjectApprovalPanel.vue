@@ -250,6 +250,55 @@
       @cancel="handleCancel"
       @close="handleClose"
     />
+
+    <Teleport to="body">
+      <Transition name="prompt-fade">
+        <div
+          v-if="rejectPromptState.isOpen"
+          class="prompt-overlay"
+          @click="handleRejectOverlayClick"
+          @keydown.esc="closeRejectPrompt"
+          tabindex="-1"
+        >
+          <div class="prompt-card" @click.stop>
+            <div class="prompt-icon-wrapper" style="background-color: rgba(239, 68, 68, 0.12)">
+              <span class="prompt-icon material-symbols-outlined" style="color: #ef4444" aria-hidden="true">
+                cancel
+              </span>
+            </div>
+
+            <div class="prompt-content">
+              <h3 class="prompt-title">Confirm Rejected?</h3>
+              <p class="prompt-message-center">
+                Are you sure you want to mark "{{ rejectPromptState.projectTitle }}" as rejected?
+                This action cannot be undone.
+              </p>
+
+              <div class="reject-notes-group">
+                <label class="reject-notes-label" for="reject-notes">Rejection notes for project owner</label>
+                <textarea
+                  id="reject-notes"
+                  v-model="rejectPromptState.notes"
+                  class="reject-notes-input"
+                  rows="4"
+                  placeholder="Explain why this project is rejected and what should be improved."
+                />
+                <p v-if="rejectPromptError" class="reject-notes-error">{{ rejectPromptError }}</p>
+              </div>
+            </div>
+
+            <div class="prompt-actions">
+              <button type="button" class="reject-cancel-btn" @click="closeRejectPrompt">
+                Cancel
+              </button>
+              <button type="button" class="reject-confirm-btn" @click="confirmRejectPrompt">
+                Confirm Rejected
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -273,6 +322,13 @@ const processing = ref(false)
 const processingProjects = ref([])
 const activeProjectId = ref(null)
 const decisionCard = ref(null)
+const rejectPromptError = ref('')
+const rejectPromptState = ref({
+  isOpen: false,
+  projectTitle: '',
+  notes: '',
+  resolve: null,
+})
 
 // Computed property for displayed projects based on filter
 const displayedProjects = computed(() => {
@@ -514,16 +570,71 @@ function parsedSupportingDocuments(project) {
   }
 }
 
+function openRejectPrompt(project) {
+  return new Promise((resolve) => {
+    rejectPromptError.value = ''
+    rejectPromptState.value = {
+      isOpen: true,
+      projectTitle: project?.title || 'this project',
+      notes: project?.verification_notes || '',
+      resolve,
+    }
+  })
+}
+
+function closeRejectPrompt(result = null) {
+  const resolver = rejectPromptState.value.resolve
+  rejectPromptState.value = {
+    isOpen: false,
+    projectTitle: '',
+    notes: '',
+    resolve: null,
+  }
+  rejectPromptError.value = ''
+  if (typeof resolver === 'function') {
+    resolver(result)
+  }
+}
+
+function handleRejectOverlayClick(event) {
+  if (event.target === event.currentTarget) {
+    closeRejectPrompt(null)
+  }
+}
+
+function confirmRejectPrompt() {
+  const notes = String(rejectPromptState.value.notes || '').trim()
+  if (notes.length < 5) {
+    rejectPromptError.value = 'Please provide a rejection note with at least 5 characters.'
+    return
+  }
+
+  closeRejectPrompt(notes)
+}
+
 async function openVerificationModal(project, newStatus) {
   console.log('Opening verification modal for project:', project.id, 'to status:', newStatus)
   const statusLabel = getStatusLabel(newStatus)
-  const confirmed = await confirm({
-    type: 'success',
-    title: `Confirm ${statusLabel}?`,
-    message: `Are you sure you want to mark "${project.title}" as ${statusLabel.toLowerCase()}? This action cannot be undone.`,
-    confirmText: `Confirm ${statusLabel}`,
-    cancelText: 'Cancel',
-  })
+
+  let verifierNotes = ''
+  let confirmed = false
+
+  if (newStatus === 'rejected') {
+    const notes = await openRejectPrompt(project)
+    if (!notes) {
+      return
+    }
+    verifierNotes = notes
+    confirmed = true
+  } else {
+    confirmed = await confirm({
+      type: 'success',
+      title: `Confirm ${statusLabel}?`,
+      message: `Are you sure you want to mark "${project.title}" as ${statusLabel.toLowerCase()}? This action cannot be undone.`,
+      confirmText: `Confirm ${statusLabel}`,
+      cancelText: 'Cancel',
+    })
+  }
 
   if (!confirmed) {
     return
@@ -533,13 +644,14 @@ async function openVerificationModal(project, newStatus) {
   processing.value = true
 
   try {
-    const result = await projectApprovalService.updateProjectStatus(project.id, newStatus)
+    const result = await projectApprovalService.updateProjectStatus(project.id, newStatus, verifierNotes)
     console.log('Project status updated:', result)
 
     // Update project status in all lists
     const projectIndex = allProjects.value.findIndex(p => p.id === project.id)
     if (projectIndex !== -1) {
       allProjects.value[projectIndex].status = newStatus
+      allProjects.value[projectIndex].verification_notes = verifierNotes || null
     }
     pendingProjects.value = pendingProjects.value.filter((p) => p.id !== project.id)
 
@@ -719,6 +831,152 @@ async function openVerificationModal(project, newStatus) {
 
 .retry-btn:hover {
   background: #059669;
+}
+
+.prompt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1rem;
+}
+
+.prompt-card {
+  background: #ffffff;
+  border-radius: 16px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  max-width: 520px;
+  width: 100%;
+  padding: 2rem;
+}
+
+.prompt-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1.5rem;
+}
+
+.prompt-icon {
+  font-size: 2rem;
+}
+
+.prompt-content {
+  margin-bottom: 1.5rem;
+}
+
+.prompt-title {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.prompt-message-center {
+  margin: 0;
+  color: #6b7280;
+  font-size: 1.05rem;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.reject-notes-group {
+  margin-top: 1.2rem;
+  max-width: 470px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.reject-notes-label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.reject-notes-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 0.75rem 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #111827;
+  resize: vertical;
+  min-height: 112px;
+}
+
+.reject-notes-input:focus {
+  outline: none;
+  border-color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
+}
+
+.reject-notes-error {
+  margin: 0.45rem 0 0;
+  color: #dc2626;
+  font-size: 0.85rem;
+}
+
+.prompt-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  max-width: 470px;
+  margin: 0 auto;
+}
+
+.reject-cancel-btn,
+.reject-confirm-btn {
+  min-width: 170px;
+  border-radius: 12px;
+  padding: 0.8rem 1.25rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.reject-cancel-btn {
+  border: 1px solid #ef4444;
+  background: white;
+  color: #b91c1c;
+}
+
+.reject-cancel-btn:hover {
+  background: #fef2f2;
+}
+
+.reject-confirm-btn {
+  border: 1px solid #ef4444;
+  background: #ef4444;
+  color: white;
+}
+
+.reject-confirm-btn:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.prompt-fade-enter-active,
+.prompt-fade-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.prompt-fade-enter-from,
+.prompt-fade-leave-to {
+  opacity: 0;
 }
 
 .no-projects-icon {

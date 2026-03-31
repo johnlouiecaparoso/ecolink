@@ -444,3 +444,63 @@ export async function sendRoleApplicationApprovalEmail(details) {
     type: 'role_application_approved',
   }
 }
+
+export async function sendRoleApplicationRejectionEmail(details) {
+  const {
+    email,
+    applicantName,
+    role,
+    notes = '',
+    rejectedAt = new Date(),
+  } = details || {}
+
+  if (!email) {
+    throw new Error('Rejection email requires a recipient email.')
+  }
+
+  if (!FUNCTIONS_URL) {
+    throw new Error('Supabase functions URL is not configured (VITE_SUPABASE_FUNCTIONS_URL).')
+  }
+
+  const roleLabel =
+    role === 'verifier'
+      ? 'Verifier'
+      : role === 'project_developer'
+        ? 'Project Developer'
+        : 'Specialist'
+
+  const origin =
+    (typeof window !== 'undefined' && window.location?.origin) || 'https://app.ecolink.dev'
+
+  const applyAgainLink = `${origin}/apply?role=${encodeURIComponent(role || '')}`
+  const noteSection = String(notes || '').trim()
+    ? `<p><strong>Reviewer notes:</strong><br/>${String(notes).trim()}</p>`
+    : ''
+
+  const html = `
+    <p>Hi ${applicantName || 'EcoLink Applicant'},</p>
+    <p>Thank you for applying for the <strong>${roleLabel}</strong> role on EcoLink.</p>
+    <p>After review, your application was <strong>not approved</strong> at this time.</p>
+    ${noteSection}
+    <p>You may submit a stronger application after updating your details and supporting information:</p>
+    <p><a href="${applyAgainLink}">${applyAgainLink}</a></p>
+    <p>Decision date: ${rejectedAt instanceof Date ? rejectedAt.toLocaleString() : rejectedAt}</p>
+    <p>If you need clarification, please contact the EcoLink support team.</p>
+    <p>— The EcoLink Team</p>
+  `
+
+  const result = await sendEmailViaFunction({
+    to: email,
+    subject: `Update on your ${roleLabel} application`,
+    html,
+    from: 'EcoLink <notifications@resend.dev>',
+  })
+
+  return {
+    ...result,
+    success: true,
+    email,
+    role,
+    type: 'role_application_rejected',
+  }
+}

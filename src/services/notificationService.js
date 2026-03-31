@@ -2,12 +2,37 @@ import { getSupabase } from '@/services/supabaseClient'
 
 const NOTIFICATION_TABLE = 'system_notifications'
 
+const ROLE_CANONICAL_MAP = Object.freeze({
+  admin: 'admin',
+  administrator: 'admin',
+  super_admin: 'admin',
+  superadmin: 'admin',
+  verifier: 'verifier',
+  verification: 'verifier',
+  qa: 'verifier',
+  project_developer: 'project_developer',
+  projectdeveloper: 'project_developer',
+  developer: 'project_developer',
+  buyer_investor: 'buyer_investor',
+  buyerinvestor: 'buyer_investor',
+  investor: 'buyer_investor',
+  general_user: 'general_user',
+  generaluser: 'general_user',
+  user: 'general_user',
+})
+
 function normalizeRole(role) {
   return typeof role === 'string' ? role.trim().toLowerCase() : ''
 }
 
+function canonicalizeRole(role) {
+  const normalized = normalizeRole(role).replace(/[\s-]+/g, '_')
+  if (!normalized) return ''
+  return ROLE_CANONICAL_MAP[normalized] || normalized
+}
+
 function normalizeRoles(roles = []) {
-  return Array.from(new Set((roles || []).map((role) => normalizeRole(role)).filter(Boolean)))
+  return Array.from(new Set((roles || []).map((role) => canonicalizeRole(role)).filter(Boolean)))
 }
 
 function isMissingTableError(error) {
@@ -100,14 +125,17 @@ async function getUserIdsByRoles(roles = [], excludedUserIds = []) {
   const { data, error } = await supabase
     .from('profiles')
     .select('id, role')
-    .in('role', normalizedRoles)
+    .not('role', 'is', null)
 
   if (error) {
     throw new Error(error.message || 'Failed to resolve notification recipients')
   }
 
   const excluded = new Set((excludedUserIds || []).map((id) => String(id)))
+  const targetRoles = new Set(normalizedRoles)
+
   return (data || [])
+    .filter((record) => targetRoles.has(canonicalizeRole(record.role)))
     .map((record) => record.id)
     .filter((id) => id && !excluded.has(String(id)))
 }
@@ -179,20 +207,7 @@ export async function notifyProjectDecision(project, status, notes = '') {
   const normalizedStatus = normalizeRole(status)
   if (!['approved', 'rejected'].includes(normalizedStatus)) return
 
-  const isApproved = normalizedStatus === 'approved'
-  const title = isApproved ? 'Your project was approved' : 'Your project was rejected'
-  const noteSuffix = notes?.trim() ? ` Notes: ${notes.trim()}` : ''
-
-  await createNotificationsForUsers([project.user_id], {
-    type: 'project_status',
-    title,
-    message: `Project "${project.title || 'Untitled Project'}" is now ${normalizedStatus}.${noteSuffix}`,
-    link: '/developer/projects',
-    metadata: {
-      project_id: project.id,
-      status: normalizedStatus,
-    },
-  })
+  await notifyProjectSubmitterDecision(project, normalizedStatus, notes)
 
   await createNotificationsForRoles(['admin'], {
     type: 'project_status_admin',
@@ -224,11 +239,48 @@ export async function notifyProjectDecision(project, status, notes = '') {
   )
 }
 
+export async function notifyProjectSubmitterDecision(project, status, notes = '') {
+  if (!project?.id || !project?.user_id) return
+
+  const normalizedStatus = normalizeRole(status)
+  if (!['approved', 'rejected'].includes(normalizedStatus)) return
+
+  const isApproved = normalizedStatus === 'approved'
+  const title = isApproved ? 'Your project was approved' : 'Your project was rejected'
+  const noteSuffix = notes?.trim() ? ` Notes: ${notes.trim()}` : ''
+
+  await createNotificationsForUsers([project.user_id], {
+    type: 'project_status',
+    title,
+    message: `Project "${project.title || 'Untitled Project'}" is now ${normalizedStatus}.${noteSuffix}`,
+    link: '/developer/projects',
+    metadata: {
+      project_id: project.id,
+      status: normalizedStatus,
+    },
+  })
+}
+
+export async function notifyProjectOwnerMarketplaceLive(project, listing) {
+  if (!project?.id || !project?.user_id) return
+
+  await createNotificationsForUsers([project.user_id], {
+    type: 'project_marketplace_live',
+    title: 'Your project is now live in the marketplace',
+    message: `Project "${project.title || 'Untitled Project'}" now has an active marketplace listing.`,
+    link: '/developer/projects',
+    metadata: {
+      project_id: project.id,
+      listing_id: listing?.id || null,
+    },
+  })
+}
+
 export async function notifyNewMarketplaceProject(project, listing) {
   if (!project?.id) return
 
   await createNotificationsForRoles(
-    ['general_user', 'buyer_investor', 'admin'],
+    ['general_user', 'buyer_investor', 'project_developer', 'admin'],
     {
       type: 'marketplace_new_project',
       title: 'New project available in marketplace',
@@ -271,9 +323,11 @@ export async function notifyRoleApplicationDecision(application, status) {
 }
 
 export async function notifyReviewersOfRoleApplicationInApp(application) {
-  if (!application?.id) return []
+  if (!application) return []
 
   const normalizedRequestedRole = normalizeRole(application.role_requested)
+  if (!['verifier', 'project_developer'].includes(normalizedRequestedRole)) return []
+
   const reviewerRoles = normalizedRequestedRole === 'verifier' ? ['admin'] : ['verifier']
 
   const roleLabel = normalizedRequestedRole === 'verifier' ? 'Verifier' : 'Project Developer'
@@ -284,7 +338,7 @@ export async function notifyReviewersOfRoleApplicationInApp(application) {
     message: `${application.applicant_full_name || application.email || 'A new applicant'} submitted a ${roleLabel} application for review.`,
     link: normalizedRequestedRole === 'verifier' ? '/admin' : '/verifier',
     metadata: {
-      application_id: application.id,
+      application_id: application.id || null,
       requested_role: application.role_requested,
       applicant_email: application.email || null,
     },
