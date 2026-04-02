@@ -1,12 +1,6 @@
 import { getSupabase, getSupabaseAsync } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { isTestAccount } from '@/utils/testAccounts'
-import {
-  notifyNewMarketplaceProject,
-  notifyProjectOwnerMarketplaceLive,
-  notifyProjectDecision,
-  notifyProjectSubmittedForReview,
-} from '@/services/notificationService'
 import { notifyProjectSubmitted } from '@/services/emailService'
 
 /**
@@ -75,26 +69,6 @@ export class ProjectApprovalService {
       // Generate credits manually (in case trigger doesn't work)
       const creditsResult = await this.generateCreditsForProject(projectId)
 
-      try {
-        await notifyProjectDecision(updatedProject, 'approved', notes)
-      } catch (notificationError) {
-        console.error('Error creating approved-project notifications:', notificationError)
-      }
-
-      if (creditsResult?.listing && creditsResult?.listing_created) {
-        try {
-          await notifyNewMarketplaceProject(updatedProject, creditsResult.listing)
-        } catch (notificationError) {
-          console.error('Error creating marketplace project notifications:', notificationError)
-        }
-
-        try {
-          await notifyProjectOwnerMarketplaceLive(updatedProject, creditsResult.listing)
-        } catch (ownerNotificationError) {
-          console.error('Error creating owner marketplace-live notification:', ownerNotificationError)
-        }
-      }
-
       return {
         project: updatedProject,
         credits: creditsResult,
@@ -154,12 +128,6 @@ export class ProjectApprovalService {
 
       if (error) {
         throw new Error(error.message || 'Failed to update project status')
-      }
-
-      try {
-        await notifyProjectDecision(data, normalizedStatus, notes)
-      } catch (notificationError) {
-        console.error('Error creating project decision notifications:', notificationError)
       }
 
       return data
@@ -564,12 +532,6 @@ export class ProjectApprovalService {
         await notifyProjectSubmitted(project.id, project.user_id)
       } catch (emailError) {
         console.error('Error sending project submission notification:', emailError)
-      }
-
-      try {
-        await notifyProjectSubmittedForReview(project)
-      } catch (notificationError) {
-        console.error('Error creating in-app project submission notifications:', notificationError)
       }
 
       return project

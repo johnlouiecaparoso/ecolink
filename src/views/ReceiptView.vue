@@ -299,16 +299,37 @@ function formatDateTime(dateString) {
 }
 
 function formatCurrency(amount, currency = 'PHP') {
-  if (amount === null || amount === undefined || amount === '') return 'N/A'
+  const parsedAmount = parseCurrencyAmount(amount)
+  if (parsedAmount === null) return 'N/A'
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency,
-  }).format(Number(amount))
+  }).format(parsedAmount)
 }
 
 function formatNumber(value) {
-  if (value === null || value === undefined || value === '') return 'N/A'
-  return Number(value).toLocaleString()
+  const parsedNumber = parseCurrencyAmount(value)
+  if (parsedNumber === null) return 'N/A'
+  return parsedNumber.toLocaleString('en-US')
+}
+
+function parseCurrencyAmount(value) {
+  if (value === null || value === undefined || value === '') return null
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  const numericValue = String(value)
+    .replace(/[^0-9.-]/g, '')
+    .replace(/(\..*)\./g, '$1')
+
+  if (!numericValue || numericValue === '-' || numericValue === '.' || numericValue === '-.') {
+    return null
+  }
+
+  const parsed = Number(numericValue)
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function getProjectTitle(receipt) {
@@ -338,20 +359,20 @@ function getProjectDescription(receipt) {
 }
 
 function getCreditsPurchased(receipt) {
-  return (
+  return parseCurrencyAmount(
     receipt.credits_purchased ||
     getReceiptData(receipt)?.purchase?.creditsPurchased ||
     receipt.credit_transactions?.quantity ||
-    null
+    null,
   )
 }
 
 function getTotalAmount(receipt) {
-  return (
+  return parseCurrencyAmount(
     receipt.total_amount ||
     getReceiptData(receipt)?.purchase?.totalAmount ||
     receipt.credit_transactions?.total_amount ||
-    null
+    null,
   )
 }
 

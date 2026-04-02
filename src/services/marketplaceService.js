@@ -1,6 +1,7 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { logUserAction } from '@/services/auditService'
 import { notifyCreditPurchased } from '@/services/emailService'
+import { notifyMarketplacePurchaseAndStock } from '@/services/notificationService'
 // import { realPaymentService } from '@/services/realPaymentService'
 // Import real payment service
 import { realPaymentService } from './realPaymentService.js'
@@ -81,8 +82,11 @@ export async function updateMarketplaceAvailabilityAfterPurchase(
         newCreditsAvailable,
       })
     }
+
+    return newCreditsAvailable
   } catch (err) {
     console.error('updateMarketplaceAvailabilityAfterPurchase error:', err)
+    return null
   }
 }
 
@@ -902,9 +906,25 @@ export async function purchaseCredits(listingId, purchaseData) {
     }
 
     // Update marketplace stock (project_credits.credits_available + all credit_listings) and invalidate cache
-    await updateMarketplaceAvailabilityAfterPurchase(listing.project_credits.id, purchaseData.quantity, {
+    const remainingCredits = await updateMarketplaceAvailabilityAfterPurchase(
+      listing.project_credits.id,
+      purchaseData.quantity,
+      {
       listingQuantity: listing.quantity,
-    })
+      },
+    )
+
+    try {
+      await notifyMarketplacePurchaseAndStock(listing.project_credits.projects, {
+        projectCreditId: listing.project_credits.id,
+        listingId,
+        buyerId: user.id,
+        sellerId: listing.seller_id,
+        remainingCredits,
+      })
+    } catch (notificationError) {
+      console.error('Failed to create marketplace purchase/sold-out notifications:', notificationError)
+    }
 
     // Create credit_transaction record (required for certificates and receipts)
     // This is CRITICAL - transaction must be created for certificates and history

@@ -1262,7 +1262,7 @@ onMounted(() => {
   color: var(--text-primary, #1a202c);
   font-size: 16px;
   font-family: inherit;
-  resize: vertical;
+  resize: none;
   min-height: 120px;
   transition: all 0.2s ease;
 }

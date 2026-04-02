@@ -3,10 +3,7 @@ import { updateUserRole } from '@/services/roleService'
 import { sendRoleApplicationApprovalEmail } from '@/services/emailService'
 import { sendRoleApplicationRejectionEmail } from '@/services/emailService'
 import { notifyVerifiersOfRoleApplication } from '@/services/emailService'
-import {
-  notifyReviewersOfRoleApplicationInApp,
-  notifyRoleApplicationDecision,
-} from '@/services/notificationService'
+import { notifyRoleApplicationDecision } from '@/services/notificationService'
 import { ROLES } from '@/constants/roles'
 
 export const ROLE_APPLICATION_TABLE = 'role_applications'
@@ -116,6 +113,27 @@ async function getCurrentReviewerContext(supabase) {
     reviewerId: user.id,
     reviewerRole: String(profile.role).toLowerCase().trim(),
   }
+}
+
+async function resolveApplicationEmail(supabase, application) {
+  const directEmail = sanitizeString(application?.email)?.toLowerCase()
+  if (directEmail) return directEmail
+
+  const linkedUserId = sanitizeString(application?.user_id)
+  if (!linkedUserId) return null
+
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('email')
+    .eq('id', linkedUserId)
+    .single()
+
+  if (error) {
+    console.warn('Unable to load fallback applicant email from profile:', error)
+    return null
+  }
+
+  return sanitizeString(profile?.email)?.toLowerCase() || null
 }
 
 /**
@@ -289,11 +307,6 @@ export async function submitRoleApplication(application) {
       console.warn('Failed to notify verifiers/admin about role application:', notifyError)
     }
 
-    try {
-      await notifyReviewersOfRoleApplicationInApp(notificationApplication)
-    } catch (notifyError) {
-      console.warn('Failed to create in-app reviewer notification for role application:', notifyError)
-    }
   })
 
   if (data) {
@@ -475,20 +488,22 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
     status === ROLE_APPLICATION_STATUS.APPROVED &&
     options.assignRole !== false
   ) {
-    if (!existing.user_id) {
-      throw new Error('This applicant does not have a linked account yet, so the role cannot be assigned.')
-    }
-
-    try {
-      await updateUserRole(existing.user_id, existing.role_requested, {
-        fullName: existing.applicant_full_name,
-        email: existing.email,
-      })
-      roleUpdated = true
-    } catch (err) {
-      roleUpdateError = err
-      console.error('Failed to assign role during approval:', err)
-      throw new Error(err?.message || 'Failed to assign the requested role.')
+    if (existing.user_id) {
+      try {
+        await updateUserRole(existing.user_id, existing.role_requested, {
+          fullName: existing.applicant_full_name,
+          email: existing.email,
+        })
+        roleUpdated = true
+      } catch (err) {
+        roleUpdateError = err
+        console.error('Failed to assign role during approval:', err)
+        throw new Error(err?.message || 'Failed to assign the requested role.')
+      }
+    } else {
+      console.warn(
+        'Approval completed without a linked account; skipping role assignment and sending approval email to the application email address.',
+      )
     }
   }
 
@@ -513,10 +528,11 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
   }
 
   let notificationInfo = null
+  const decisionEmail = await resolveApplicationEmail(supabase, existing)
   if (status === ROLE_APPLICATION_STATUS.APPROVED) {
     try {
       const emailResult = await sendRoleApplicationApprovalEmail({
-        email: existing.email,
+        email: decisionEmail,
         applicantName: existing.applicant_full_name,
         role: existing.role_requested,
         hasAccount: !!existing.user_id,
@@ -531,7 +547,7 @@ export async function updateRoleApplicationStatus(id, status, options = {}) {
     try {
       const rejectionNotes = sanitizeString(options.notes) || sanitizeString(options.decisionReason) || ''
       const emailResult = await sendRoleApplicationRejectionEmail({
-        email: existing.email,
+        email: decisionEmail,
         applicantName: existing.applicant_full_name,
         role: existing.role_requested,
         notes: rejectionNotes,

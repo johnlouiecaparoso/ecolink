@@ -1,7 +1,6 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { notifyProjectSubmitted } from '@/services/emailService'
-import { notifyProjectSubmittedForReview } from '@/services/notificationService'
 
 export class ProjectService {
   constructor() {
@@ -126,12 +125,6 @@ export class ProjectService {
       } catch (emailError) {
         console.error('Error sending project submission notification:', emailError)
         // Don't fail the entire operation if email sending fails
-      }
-
-      try {
-        await notifyProjectSubmittedForReview(data)
-      } catch (notificationError) {
-        console.error('Error creating in-app project submission notifications:', notificationError)
       }
 
       return data

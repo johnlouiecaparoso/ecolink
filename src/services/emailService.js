@@ -240,13 +240,13 @@ export async function notifyProjectSubmitted(projectId, userId) {
       .not('email', 'is', null),
   ])
 
-  if (!recipients?.length || !FUNCTIONS_URL) {
+  if (!recipients?.length) {
     return {
       success: false,
       projectId,
       userId,
       type: 'project_submitted',
-      reason: 'No recipients or function URL missing',
+      reason: 'No recipients found',
     }
   }
 
@@ -282,7 +282,6 @@ export async function notifyProjectSubmitted(projectId, userId) {
 
 export async function notifyVerifiersOfRoleApplication(application) {
   if (!application?.email) return { success: false, reason: 'Missing application data' }
-  if (!FUNCTIONS_URL) return { success: false, reason: 'Functions URL missing' }
 
   await sendEmailViaFunction({
     role_requested: application.role_requested,
@@ -356,12 +355,33 @@ function deriveFunctionsUrl() {
 const FUNCTIONS_URL = deriveFunctionsUrl()
 
 async function sendEmailViaFunction(payload) {
-  const functionsUrl = `${FUNCTIONS_URL.replace(/\/$/, '')}/send-approval-email`
+  const supabase = getSupabase()
+  const functionsUrl = FUNCTIONS_URL ? `${FUNCTIONS_URL.replace(/\/$/, '')}/send-approval-email` : ''
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 12000)
+  const requestBody = {
+    from: 'EcoLink <notifications@resend.dev>',
+    ...payload,
+  }
 
   try {
+    if (!functionsUrl && supabase?.functions) {
+      const { data, error } = await supabase.functions.invoke('send-approval-email', {
+        body: requestBody,
+      })
+      if (error) {
+        throw new Error(error.message || 'Failed to send email')
+      }
+      return data
+    }
+
+    if (!functionsUrl) {
+      throw new Error(
+        'Supabase functions URL is not configured and client invoke is unavailable for send-approval-email.',
+      )
+    }
+
     const response = await fetch(functionsUrl, {
       method: 'POST',
       headers: {
@@ -373,10 +393,7 @@ async function sendEmailViaFunction(payload) {
             }
           : {}),
       },
-      body: JSON.stringify({
-        from: 'EcoLink <notifications@resend.dev>',
-        ...payload,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     })
 
@@ -396,10 +413,6 @@ export async function sendRoleApplicationApprovalEmail(details) {
 
   if (!email) {
     throw new Error('Approval email requires a recipient email.')
-  }
-
-  if (!FUNCTIONS_URL) {
-    throw new Error('Supabase functions URL is not configured (VITE_SUPABASE_FUNCTIONS_URL).')
   }
 
   const roleLabel =
@@ -456,10 +469,6 @@ export async function sendRoleApplicationRejectionEmail(details) {
 
   if (!email) {
     throw new Error('Rejection email requires a recipient email.')
-  }
-
-  if (!FUNCTIONS_URL) {
-    throw new Error('Supabase functions URL is not configured (VITE_SUPABASE_FUNCTIONS_URL).')
   }
 
   const roleLabel =

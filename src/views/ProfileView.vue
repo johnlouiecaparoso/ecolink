@@ -87,7 +87,6 @@
                   </svg>
                   <span>{{ userProfile.location }}</span>
                 </div>
-                <p class="profile-bio">{{ userProfile.bio }}</p>
                 <button class="edit-profile-button" @click="editProfile">Edit Profile</button>
               </div>
             </div>
@@ -201,22 +200,6 @@
                             placeholder="https://example.com"
                           />
                           <span v-if="errors.website" class="field-error">{{ errors.website }}</span>
-                        </div>
-                        <div class="form-group full-width">
-                          <label class="form-label">Bio</label>
-                          <textarea
-                            v-model="editForm.bio"
-                            class="form-textarea"
-                            :class="{ error: errors.bio }"
-                            :disabled="!isEditing"
-                            rows="3"
-                            placeholder="Tell us about yourself..."
-                            maxlength="500"
-                          ></textarea>
-                          <span v-if="errors.bio" class="field-error">{{ errors.bio }}</span>
-                          <span v-if="editForm.bio" class="char-count">
-                            {{ editForm.bio.length }}/500 characters
-                          </span>
                         </div>
                       </template>
                     </div>
@@ -363,7 +346,6 @@ export default {
         location: '',
         phone: '',
         website: '',
-        bio: '',
         avatarUrl: null,
       },
       editForm: {
@@ -373,7 +355,6 @@ export default {
         location: '',
         phone: '',
         website: '',
-        bio: '',
       },
       notificationSettings: {
         emailNotifications: {
@@ -720,7 +701,6 @@ export default {
             location: fallbackProfile.location || '',
             phone: fallbackProfile.phone || '',
             website: fallbackProfile.website || '',
-            bio: '',
             avatarUrl: null,
           }
 
@@ -732,7 +712,6 @@ export default {
             location: fallbackProfile.location || '',
             phone: fallbackProfile.phone || '',
             website: fallbackProfile.website || '',
-            bio: '',
           }
 
           // Use default notification settings
@@ -776,7 +755,6 @@ export default {
           location: mergedProfile.location || '',
           phone: mergedProfile.phone || '',
           website: mergedProfile.website || '',
-          bio: mergedProfile.bio || '',
           avatarUrl: mergedProfile.avatar_url || null,
         }
 
@@ -788,7 +766,6 @@ export default {
           location: mergedProfile.location || '',
           phone: mergedProfile.phone || '',
           website: mergedProfile.website || '',
-          bio: mergedProfile.bio || '',
         }
 
         // Load notification settings from Supabase
@@ -840,7 +817,6 @@ export default {
         location: this.userProfile.location,
         phone: this.userProfile.phone || '',
         website: this.userProfile.website || '',
-        bio: this.userProfile.bio,
       }
     },
 
@@ -881,7 +857,6 @@ export default {
               location: this.editForm.location || '',
               phone: this.editForm.phone || '',
               website: this.editForm.website || '',
-              bio: this.editForm.bio || '',
               role: 'general_user',
               kyc_level: 0,
             })
@@ -898,7 +873,6 @@ export default {
               location: updatedProfile.location || '',
               phone: updatedProfile.phone || '',
               website: updatedProfile.website || '',
-              bio: updatedProfile.bio || '',
               avatarUrl: updatedProfile.avatar_url || null,
             }
 
@@ -932,7 +906,6 @@ export default {
           location: updatedProfile.location || '',
           phone: updatedProfile.phone || '',
           website: updatedProfile.website || '',
-          bio: updatedProfile.bio || '',
           avatarUrl: updatedProfile.avatar_url || null,
         }
 
@@ -972,7 +945,6 @@ export default {
         location: this.userProfile.location,
         phone: this.userProfile.phone || '',
         website: this.userProfile.website || '',
-        bio: this.userProfile.bio,
       }
     },
 
@@ -1331,14 +1303,6 @@ export default {
   color: var(--text-muted);
 }
 
-.profile-bio {
-  color: var(--text-secondary);
-  line-height: 1.5;
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-style: italic;
-}
-
 .edit-profile-button {
   width: 100%;
   padding: 0.75rem;
@@ -1424,10 +1388,16 @@ export default {
 }
 
 .form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.5rem;
   margin-bottom: 1.5rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .form-group.full-width {
@@ -1445,12 +1415,14 @@ export default {
 .form-input,
 .form-textarea {
   width: 100%;
-  padding: 0.75rem;
+  box-sizing: border-box;
+  padding: 1rem 1.25rem;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   font-size: var(--font-size-base);
   color: var(--text-primary);
   background: var(--bg-primary);
+  line-height: 1.5;
   outline: none;
   transition: var(--transition);
 }

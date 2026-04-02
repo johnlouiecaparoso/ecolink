@@ -94,7 +94,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(13)
     doc.setTextColor(...primaryColor)
-    doc.text(beneficiaryName, valueX, contentY + 25)
+    doc.text(toPdfText(beneficiaryName), valueX, contentY + 25)
     doc.setTextColor(...textColor)
     let currentY = contentY + 38
     
@@ -104,7 +104,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.text('Project Name:', labelX, currentY)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(12)
-    const projectNameLines = doc.splitTextToSize(certificate.project_title || 'N/A', valueMaxWidth)
+    const projectNameLines = doc.splitTextToSize(toPdfText(certificate.project_title || 'N/A'), valueMaxWidth)
     doc.text(projectNameLines.slice(0, 2), valueX, currentY)
     currentY += projectNameLines.slice(0, 2).length * 6 + 3
 
@@ -116,7 +116,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       // Split long descriptions into multiple lines
-      const descLines = doc.splitTextToSize(projectDescription, valueMaxWidth)
+      const descLines = doc.splitTextToSize(toPdfText(projectDescription), valueMaxWidth)
       doc.text(descLines, valueX, currentY)
       currentY += descLines.length * 6 + 5
       doc.setFontSize(11)
@@ -145,7 +145,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.text(purposeLabel, labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
-      const purposeLines = doc.splitTextToSize(purpose, valueMaxWidth)
+      const purposeLines = doc.splitTextToSize(toPdfText(purpose), valueMaxWidth)
       doc.text(purposeLines, valueX, currentY)
       currentY += purposeLines.length * 6 + 5
       doc.setFontSize(11)
@@ -175,7 +175,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.setFontSize(10)
       const txId = transactionId || paymentRef
       // Split long transaction IDs if needed
-      const txIdLines = doc.splitTextToSize(txId, valueMaxWidth)
+      const txIdLines = doc.splitTextToSize(toPdfText(txId), valueMaxWidth)
       doc.text(txIdLines, valueX, currentY)
       currentY += txIdLines.length * 6 + 5
       
@@ -183,7 +183,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(10)
       doc.setTextColor(...primaryColor)
-      doc.text('✓ Onchain Verification:', labelX, currentY)
+      doc.text('On-chain Verification:', labelX, currentY)
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       doc.setTextColor(...mutedColor)
@@ -242,7 +242,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(9)
       // Split long wallet addresses if needed
-      const walletLines = doc.splitTextToSize(walletAddress, valueMaxWidth)
+      const walletLines = doc.splitTextToSize(toPdfText(walletAddress), valueMaxWidth)
       doc.text(walletLines.slice(0, 3), valueX, currentY)
       currentY += walletLines.slice(0, 3).length * 5 + 5
     } else {
@@ -267,11 +267,11 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(10)
       if (certificate.project_category) {
-        doc.text(`Category: ${certificate.project_category}`, marginX + 10, currentY)
+        doc.text(`Category: ${toPdfText(certificate.project_category)}`, marginX + 10, currentY)
         currentY += 8
       }
       if (certificate.project_location) {
-        doc.text(`Location: ${certificate.project_location}`, marginX + 10, currentY)
+        doc.text(`Location: ${toPdfText(certificate.project_location)}`, marginX + 10, currentY)
         currentY += 8
       }
       if (certificate.vintage_year) {
@@ -279,7 +279,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
         currentY += 8
       }
       if (certificate.verification_standard) {
-        doc.text(`Verification Standard: ${certificate.verification_standard}`, marginX + 10, currentY)
+        doc.text(`Verification Standard: ${toPdfText(certificate.verification_standard)}`, marginX + 10, currentY)
         currentY += 8
       }
       
@@ -294,7 +294,7 @@ export async function generateCertificatePDF(certificate, transaction = null) {
           currentY += 8
         }
         if (transaction.payment_method) {
-          doc.text(`Payment Method: ${transaction.payment_method.toUpperCase()}`, marginX + 10, currentY)
+          doc.text(`Payment Method: ${toPdfText(transaction.payment_method).toUpperCase()}`, marginX + 10, currentY)
         }
       }
     }
@@ -342,5 +342,17 @@ function formatDate(dateString) {
     month: 'long',
     day: 'numeric',
   })
+}
+
+function toPdfText(value) {
+  if (value === null || value === undefined || value === '') {
+    return 'N/A'
+  }
+
+  return String(value)
+    .normalize('NFKD')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 

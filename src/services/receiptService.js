@@ -194,10 +194,11 @@ export async function generateReceipt(transactionId) {
     const projectInfo = transaction.project_credits?.projects || {}
     const vintageYear = transaction.project_credits?.vintage_year || null
     const verificationStandard = transaction.project_credits?.verification_standard || null
-    const quantity = Number(transaction.quantity || 0)
-    const pricePerCredit = Number(transaction.price_per_credit || 0)
-    const platformFeePercentage = Number(transaction.platform_fee_percentage || 2.5)
+    const quantity = parseAmount(transaction.quantity) ?? 0
+    const pricePerCredit = parseAmount(transaction.price_per_credit) ?? 0
+    const platformFeePercentage = parseAmount(transaction.platform_fee_percentage) ?? 2.5
     const subtotal = quantity * pricePerCredit
+    const totalAmount = parseAmount(transaction.total_amount) ?? subtotal + subtotal * (platformFeePercentage / 100)
 
     const receipt = {
       receiptNumber: generateReceiptNumber(transactionId),
@@ -225,7 +226,7 @@ export async function generateReceipt(transactionId) {
         subtotal,
         platformFeePercentage,
         platformFee: subtotal * (platformFeePercentage / 100),
-        totalAmount: transaction.total_amount,
+        totalAmount,
         currency: transaction.currency || 'PHP',
         paymentMethod: transaction.payment_method || 'N/A',
         status: transaction.status || 'completed',
@@ -457,10 +458,10 @@ export async function downloadReceipt(receiptId) {
       ['Category', receiptData.project?.category || 'N/A'],
       ['Location', receiptData.project?.location || 'N/A'],
       ['Credits Purchased', String(receiptData.purchase?.creditsPurchased ?? 'N/A')],
-      ['Price per Credit', formatReceiptCurrency(receiptData.purchase?.pricePerCredit, receiptData.purchase?.currency)],
-      ['Subtotal', formatReceiptCurrency(receiptData.purchase?.subtotal, receiptData.purchase?.currency)],
-      ['Platform Fee', formatReceiptCurrency(receiptData.purchase?.platformFee, receiptData.purchase?.currency)],
-      ['Total Amount', formatReceiptCurrency(receiptData.purchase?.totalAmount, receiptData.purchase?.currency)],
+      ['Price per Credit', formatReceiptCurrencyForPdf(receiptData.purchase?.pricePerCredit, receiptData.purchase?.currency)],
+      ['Subtotal', formatReceiptCurrencyForPdf(receiptData.purchase?.subtotal, receiptData.purchase?.currency)],
+      ['Platform Fee', formatReceiptCurrencyForPdf(receiptData.purchase?.platformFee, receiptData.purchase?.currency)],
+      ['Total Amount', formatReceiptCurrencyForPdf(receiptData.purchase?.totalAmount, receiptData.purchase?.currency)],
       ['Payment Method', receiptData.purchase?.paymentMethod || 'N/A'],
       ['Status', receiptData.purchase?.status || 'completed'],
     ]
@@ -653,10 +654,43 @@ function formatReceiptDate(dateString) {
 }
 
 function formatReceiptCurrency(amount, currency = 'PHP') {
-  if (amount === null || amount === undefined || amount === '') return 'N/A'
+  const parsedAmount = parseAmount(amount)
+  if (parsedAmount === null) return 'N/A'
 
   return new Intl.NumberFormat('en-PH', {
     style: 'currency',
     currency,
-  }).format(Number(amount) || 0)
+  }).format(parsedAmount)
+}
+
+function formatReceiptCurrencyForPdf(amount, currency = 'PHP') {
+  const parsedAmount = parseAmount(amount)
+  if (parsedAmount === null) return 'N/A'
+
+  // Keep PDF values ASCII-only to avoid glyph mapping issues in standard PDF fonts.
+  const formattedAmount = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(parsedAmount)
+
+  return `${String(currency || 'PHP').toUpperCase()} ${formattedAmount}`
+}
+
+function parseAmount(value) {
+  if (value === null || value === undefined || value === '') return null
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  const numericValue = String(value)
+    .replace(/[^0-9.-]/g, '')
+    .replace(/(\..*)\./g, '$1')
+
+  if (!numericValue || numericValue === '-' || numericValue === '.' || numericValue === '-.') {
+    return null
+  }
+
+  const parsed = Number(numericValue)
+  return Number.isFinite(parsed) ? parsed : null
 }

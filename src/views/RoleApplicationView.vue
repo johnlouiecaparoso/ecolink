@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { getSupabaseAsync } from '@/services/supabaseClient'
 import {
   ROLE_APPLICATION_ERRORS,
   ROLE_APPLICATION_ROLES,
@@ -72,10 +73,11 @@ const form = reactive({
   verifierSpecializations: '',
   verifierPastProjects: '',
   verifierContactPhone: '',
-  experience: '',
-  motivation: '',
   supportingDocuments: '',
 })
+
+const verifierDocuments = ref([])
+const verifierDocumentError = ref('')
 
 const errors = reactive({
   fullName: '',
@@ -89,6 +91,7 @@ const errors = reactive({
   contactPersonName: '',
   contactPersonEmail: '',
   contactPersonPhone: '',
+  website: '',
   certificateRegistration: '',
   articlesOrBusinessPermit: '',
   tin: '',
@@ -104,8 +107,8 @@ const errors = reactive({
   verifierSpecializations: '',
   verifierPastProjects: '',
   verifierContactPhone: '',
-  experience: '',
-  motivation: '',
+  supportingDocuments: '',
+  verifierDocuments: '',
 })
 
 const loading = ref(false)
@@ -187,9 +190,69 @@ function clearErrors() {
   Object.keys(errors).forEach((key) => {
     errors[key] = ''
   })
+  verifierDocumentError.value = ''
   errorMessage.value = ''
   duplicatePending.value = false
   supabaseUnavailable.value = false
+}
+
+function sanitizeNumericField(fieldName) {
+  form[fieldName] = String(form[fieldName] || '').replace(/\D+/g, '')
+}
+
+function isValidHttpUrl(value) {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+function parseLinks(value) {
+  return String(value || '')
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function handleVerifierDocumentSelect(event) {
+  const files = Array.from(event.target.files || [])
+  verifierDocuments.value = files
+  verifierDocumentError.value = ''
+}
+
+async function uploadVerifierDocuments() {
+  if (!verifierDocuments.value.length) return []
+
+  const supabase = await getSupabaseAsync()
+  if (!supabase) {
+    throw new Error('Supabase is not available for uploading verifier documents.')
+  }
+
+  const uploaded = []
+  for (const file of verifierDocuments.value) {
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+    const filePath = `role-applications/${Date.now()}-${Math.random().toString(36).slice(2, 10)}-${safeName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, { upsert: false })
+
+    if (uploadError) {
+      throw new Error(uploadError.message || `Failed to upload ${file.name}`)
+    }
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(filePath)
+    uploaded.push({
+      name: file.name,
+      url: data?.publicUrl || '',
+      size: file.size,
+      type: file.type,
+    })
+  }
+
+  return uploaded
 }
 
 function validate() {
@@ -223,17 +286,9 @@ function validate() {
     }
   }
 
-  if (!isProjectDeveloperApplication.value) {
-    if (!form.experience || form.experience.trim().length < 20) {
-      errors.experience =
-        'Share a brief summary of your relevant experience (at least 20 characters).'
-      isValid = false
-    }
-
-    if (!form.motivation || form.motivation.trim().length < 20) {
-      errors.motivation = 'Let us know why you want this role (at least 20 characters).'
-      isValid = false
-    }
+  if (form.website && !isValidHttpUrl(form.website.trim())) {
+    errors.website = 'Please provide a valid website URL (http:// or https://).'
+    isValid = false
   }
 
   if (isVerifierApplication.value) {
@@ -250,10 +305,16 @@ function validate() {
     if (!form.verifierAccreditationNumber || form.verifierAccreditationNumber.trim().length < 2) {
       errors.verifierAccreditationNumber = 'Accreditation or license number is required.'
       isValid = false
+    } else if (!/^\d+$/.test(form.verifierAccreditationNumber.trim())) {
+      errors.verifierAccreditationNumber = 'Accreditation or license number must contain digits only.'
+      isValid = false
     }
 
     if (!form.verifierYearsExperience || form.verifierYearsExperience.trim().length < 1) {
       errors.verifierYearsExperience = 'Years of verification experience is required.'
+      isValid = false
+    } else if (!/^\d+$/.test(form.verifierYearsExperience.trim())) {
+      errors.verifierYearsExperience = 'Years of verification experience must contain digits only.'
       isValid = false
     }
 
@@ -271,6 +332,21 @@ function validate() {
     if (!form.verifierContactPhone || form.verifierContactPhone.trim().length < 7) {
       errors.verifierContactPhone = 'Contact phone is required.'
       isValid = false
+    } else if (!/^\d+$/.test(form.verifierContactPhone.trim())) {
+      errors.verifierContactPhone = 'Contact phone must contain digits only.'
+      isValid = false
+    }
+
+    const links = parseLinks(form.supportingDocuments)
+    if (links.some((link) => !isValidHttpUrl(link))) {
+      errors.supportingDocuments = 'Supporting links must be valid URLs (http:// or https://).'
+      isValid = false
+    }
+
+    if (!links.length && verifierDocuments.value.length === 0) {
+      errors.verifierDocuments =
+        'Attach at least one supporting document or provide at least one supporting link.'
+      isValid = false
     }
   }
 
@@ -282,6 +358,9 @@ function validate() {
 
     if (!form.businessRegistrationNumber || form.businessRegistrationNumber.trim().length < 3) {
       errors.businessRegistrationNumber = 'Business registration number is required.'
+      isValid = false
+    } else if (!/^\d+$/.test(form.businessRegistrationNumber.trim())) {
+      errors.businessRegistrationNumber = 'Business registration number must contain digits only.'
       isValid = false
     }
 
@@ -311,6 +390,9 @@ function validate() {
     if (!form.contactPersonPhone || form.contactPersonPhone.trim().length < 7) {
       errors.contactPersonPhone = 'Contact person phone is required.'
       isValid = false
+    } else if (!/^\d+$/.test(form.contactPersonPhone.trim())) {
+      errors.contactPersonPhone = 'Contact person phone must contain digits only.'
+      isValid = false
     }
 
     if (!form.certificateRegistration || form.certificateRegistration.trim().length < 3) {
@@ -326,6 +408,9 @@ function validate() {
     if (!form.tin || form.tin.trim().length < 3) {
       errors.tin = 'Tax Identification Number (TIN) is required.'
       isValid = false
+    } else if (!/^\d+$/.test(form.tin.trim())) {
+      errors.tin = 'TIN must contain digits only.'
+      isValid = false
     }
 
     if (!form.proofOfLegalExistence || form.proofOfLegalExistence.trim().length < 3) {
@@ -340,6 +425,9 @@ function validate() {
 
     if (!form.yearsOfOperation || form.yearsOfOperation.trim().length < 1) {
       errors.yearsOfOperation = 'Years of operation is required.'
+      isValid = false
+    } else if (!/^\d+$/.test(form.yearsOfOperation.trim())) {
+      errors.yearsOfOperation = 'Years of operation must contain digits only.'
       isValid = false
     }
 
@@ -384,9 +472,8 @@ function resetForm() {
   form.verifierSpecializations = ''
   form.verifierPastProjects = ''
   form.verifierContactPhone = ''
-  form.experience = ''
-  form.motivation = ''
   form.supportingDocuments = ''
+  verifierDocuments.value = []
 }
 
 async function handleSubmit() {
@@ -398,6 +485,10 @@ async function handleSubmit() {
   supabaseUnavailable.value = false
 
   try {
+    const uploadedVerifierDocuments = isVerifierApplication.value
+      ? await uploadVerifierDocuments()
+      : []
+
     const projectDeveloperProfile = isProjectDeveloperApplication.value
       ? {
           company_name: form.company,
@@ -433,6 +524,7 @@ async function handleSubmit() {
           verification_specializations: form.verifierSpecializations,
           past_or_ongoing_verification_projects: form.verifierPastProjects,
           contact_phone: form.verifierContactPhone,
+          supporting_documents: uploadedVerifierDocuments,
         }
       : null
 
@@ -443,22 +535,23 @@ async function handleSubmit() {
           `Past or ongoing projects: ${form.pastEnvironmentalProjects}`,
           `Portfolio: ${form.portfolio}`,
         ].join('\n')
-      : isVerifierApplication.value
-        ? [
-            `Organization: ${form.verifierOrganization}`,
-            `Accreditation body: ${form.verifierAccreditationBody}`,
-            `Accreditation number: ${form.verifierAccreditationNumber}`,
-            `Years of verification experience: ${form.verifierYearsExperience}`,
-            `Specializations: ${form.verifierSpecializations}`,
-            `Past/Ongoing verification projects: ${form.verifierPastProjects}`,
-          ].join('\n')
-      : form.experience
+      : [
+          `Organization: ${form.verifierOrganization}`,
+          `Accreditation body: ${form.verifierAccreditationBody}`,
+          `Accreditation number: ${form.verifierAccreditationNumber}`,
+          `Years of verification experience: ${form.verifierYearsExperience}`,
+          `Specializations: ${form.verifierSpecializations}`,
+          `Past/Ongoing verification projects: ${form.verifierPastProjects}`,
+        ].join('\n')
 
     const motivationSummary = isProjectDeveloperApplication.value
       ? 'Project developer application submitted with complete company and legal information.'
-      : isVerifierApplication.value
-        ? 'Verifier application submitted with accreditation and experience details.'
-      : form.motivation
+      : 'Verifier application submitted with accreditation and experience details.'
+
+    const supportingLinks = isVerifierApplication.value ? parseLinks(form.supportingDocuments) : []
+    const attachedDocumentsSummary = uploadedVerifierDocuments
+      .map((document) => `${document.name}: ${document.url}`)
+      .join('\n')
 
     const supportingDocumentsSummary = isProjectDeveloperApplication.value
       ? [
@@ -467,12 +560,11 @@ async function handleSubmit() {
           `TIN: ${form.tin}`,
           `Proof of legal existence: ${form.proofOfLegalExistence}`,
         ].join('\n')
-      : isVerifierApplication.value
-        ? [
-            `Contact phone: ${form.verifierContactPhone}`,
-            `Supporting links: ${form.supportingDocuments || 'None provided'}`,
-          ].join('\n')
-      : form.supportingDocuments
+      : [
+          `Contact phone: ${form.verifierContactPhone}`,
+          `Supporting links: ${supportingLinks.length ? supportingLinks.join(', ') : 'None provided'}`,
+          `Attached documents:\n${attachedDocumentsSummary || 'None uploaded'}`,
+        ].join('\n')
 
     const metadata = {
       source: 'web_form',
@@ -511,6 +603,9 @@ async function handleSubmit() {
     resetForm()
   } catch (error) {
     console.error('Role application submission failed:', error)
+    if (/upload/i.test(String(error?.message || ''))) {
+      verifierDocumentError.value = error.message || 'Failed to upload verifier document(s).'
+    }
     if (error.code === ROLE_APPLICATION_ERRORS.SUPABASE_NOT_INITIALIZED) {
       supabaseUnavailable.value = true
       errorMessage.value =
@@ -529,13 +624,6 @@ async function handleSubmit() {
 
 function goBackHome() {
   router.push('/home')
-}
-
-function startNewApplication(role) {
-  submissionSuccess.value = false
-  submittedApplication.value = null
-  setSelectedRole(role)
-  updateRoleQueryParam(role)
 }
 </script>
 
@@ -600,25 +688,11 @@ function startNewApplication(role) {
               <strong>{{ submittedApplication?.email }}</strong>.
             </p>
             <p class="application-success__hint">
-              You can close this page or start a new application for a different role if needed.
+              You can close this page and wait for the admin review update via email.
             </p>
             <div class="application-success__actions">
               <button class="btn btn--primary" type="button" @click="goBackHome">
                 Return to homepage
-              </button>
-              <button
-                class="btn btn--secondary"
-                type="button"
-                @click="startNewApplication(ROLE_APPLICATION_ROLES.PROJECT_DEVELOPER)"
-              >
-                Apply as Project Developer
-              </button>
-              <button
-                class="btn btn--secondary"
-                type="button"
-                @click="startNewApplication(ROLE_APPLICATION_ROLES.VERIFIER)"
-              >
-                Apply as Verifier
               </button>
             </div>
           </div>
@@ -709,8 +783,10 @@ function startNewApplication(role) {
                     type="text"
                     name="businessRegistrationNumber"
                     class="form__input"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     required
-                    @input="errors.businessRegistrationNumber = ''"
+                    @input="sanitizeNumericField('businessRegistrationNumber'); errors.businessRegistrationNumber = ''"
                   />
                   <p v-if="errors.businessRegistrationNumber" class="form__error">{{ errors.businessRegistrationNumber }}</p>
                 </div>
@@ -779,8 +855,10 @@ function startNewApplication(role) {
                     type="text"
                     name="contactPersonPhone"
                     class="form__input"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     required
-                    @input="errors.contactPersonPhone = ''"
+                    @input="sanitizeNumericField('contactPersonPhone'); errors.contactPersonPhone = ''"
                   />
                   <p v-if="errors.contactPersonPhone" class="form__error">{{ errors.contactPersonPhone }}</p>
                 </div>
@@ -821,8 +899,10 @@ function startNewApplication(role) {
                     type="text"
                     name="tin"
                     class="form__input"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     required
-                    @input="errors.tin = ''"
+                    @input="sanitizeNumericField('tin'); errors.tin = ''"
                   />
                   <p v-if="errors.tin" class="form__error">{{ errors.tin }}</p>
                 </div>
@@ -863,8 +943,10 @@ function startNewApplication(role) {
                     type="text"
                     name="yearsOfOperation"
                     class="form__input"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
                     required
-                    @input="errors.yearsOfOperation = ''"
+                    @input="sanitizeNumericField('yearsOfOperation'); errors.yearsOfOperation = ''"
                   />
                   <p v-if="errors.yearsOfOperation" class="form__error">{{ errors.yearsOfOperation }}</p>
                 </div>
@@ -926,7 +1008,9 @@ function startNewApplication(role) {
                     name="website"
                     class="form__input"
                     placeholder="https://"
+                    @input="errors.website = ''"
                   />
+                  <p v-if="errors.website" class="form__error">{{ errors.website }}</p>
                 </div>
 
                 <template v-if="isVerifierApplication">
@@ -966,8 +1050,10 @@ function startNewApplication(role) {
                       type="text"
                       name="verifierAccreditationNumber"
                       class="form__input"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
                       required
-                      @input="errors.verifierAccreditationNumber = ''"
+                      @input="sanitizeNumericField('verifierAccreditationNumber'); errors.verifierAccreditationNumber = ''"
                     />
                     <p v-if="errors.verifierAccreditationNumber" class="form__error">{{ errors.verifierAccreditationNumber }}</p>
                   </div>
@@ -980,8 +1066,10 @@ function startNewApplication(role) {
                       type="text"
                       name="verifierYearsExperience"
                       class="form__input"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
                       required
-                      @input="errors.verifierYearsExperience = ''"
+                      @input="sanitizeNumericField('verifierYearsExperience'); errors.verifierYearsExperience = ''"
                     />
                     <p v-if="errors.verifierYearsExperience" class="form__error">{{ errors.verifierYearsExperience }}</p>
                   </div>
@@ -994,8 +1082,10 @@ function startNewApplication(role) {
                       type="text"
                       name="verifierContactPhone"
                       class="form__input"
+                      inputmode="numeric"
+                      pattern="[0-9]*"
                       required
-                      @input="errors.verifierContactPhone = ''"
+                      @input="sanitizeNumericField('verifierContactPhone'); errors.verifierContactPhone = ''"
                     />
                     <p v-if="errors.verifierContactPhone" class="form__error">{{ errors.verifierContactPhone }}</p>
                   </div>
@@ -1030,36 +1120,6 @@ function startNewApplication(role) {
                 </template>
 
                 <div class="form__field form__field--textarea">
-                  <label for="experience" class="form__label">Relevant experience</label>
-                  <textarea
-                    id="experience"
-                    v-model="form.experience"
-                    name="experience"
-                    class="form__textarea"
-                    rows="5"
-                    placeholder="Share your background, certifications, and project experience."
-                    required
-                    @input="errors.experience = ''"
-                  />
-                  <p v-if="errors.experience" class="form__error">{{ errors.experience }}</p>
-                </div>
-
-                <div class="form__field form__field--textarea">
-                  <label for="motivation" class="form__label">Why do you want this role?</label>
-                  <textarea
-                    id="motivation"
-                    v-model="form.motivation"
-                    name="motivation"
-                    class="form__textarea"
-                    rows="5"
-                    placeholder="Tell us how you plan to support EcoLink users in this role."
-                    required
-                    @input="errors.motivation = ''"
-                  />
-                  <p v-if="errors.motivation" class="form__error">{{ errors.motivation }}</p>
-                </div>
-
-                <div class="form__field form__field--textarea">
                   <label for="supportingDocuments" class="form__label"
                     >Supporting links
                     <span class="form__label-optional">(optional)</span>
@@ -1071,7 +1131,28 @@ function startNewApplication(role) {
                     class="form__textarea"
                     rows="3"
                     placeholder="Share relevant documents, registry IDs, or reference URLs."
+                    @input="errors.supportingDocuments = ''"
                   />
+                  <p v-if="errors.supportingDocuments" class="form__error">{{ errors.supportingDocuments }}</p>
+                </div>
+
+                <div v-if="isVerifierApplication" class="form__field">
+                  <label for="verifierDocuments" class="form__label">Attach supporting documents</label>
+                  <input
+                    id="verifierDocuments"
+                    type="file"
+                    name="verifierDocuments"
+                    class="form__input"
+                    accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                    multiple
+                    @change="handleVerifierDocumentSelect"
+                  />
+                  <p v-if="verifierDocuments.length" class="form__hint">
+                    {{ verifierDocuments.length }} file(s) selected.
+                  </p>
+                  <p v-if="errors.verifierDocuments || verifierDocumentError" class="form__error">
+                    {{ errors.verifierDocuments || verifierDocumentError }}
+                  </p>
                 </div>
               </template>
             </div>

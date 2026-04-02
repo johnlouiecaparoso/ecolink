@@ -288,6 +288,7 @@ import { useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { getRoleDisplayName } from '@/constants/roles'
 import { getUserInitials } from '@/services/profileService'
+import { getSupabase } from '@/services/supabaseClient'
 import {
   getUserNotifications,
   markAllNotificationsAsRead,
@@ -303,6 +304,7 @@ const showNotificationMenu = ref(false)
 const avatarError = ref(false)
 const notificationItems = ref([])
 const notificationPollTimer = ref(null)
+const notificationChannel = ref(null)
 
 // Toggle mobile menu
 const toggleMobileMenu = () => {
@@ -446,6 +448,55 @@ async function loadNotifications() {
   }
 }
 
+function stopNotificationSubscription() {
+  const supabase = getSupabase()
+
+  if (supabase && notificationChannel.value) {
+    supabase.removeChannel(notificationChannel.value)
+  }
+
+  notificationChannel.value = null
+}
+
+function startNotificationSubscription() {
+  stopNotificationSubscription()
+
+  const supabase = getSupabase()
+  const userId = userStore.session?.user?.id
+
+  if (!supabase || !userStore.isAuthenticated || !userId) {
+    return
+  }
+
+  notificationChannel.value = supabase
+    .channel(`system_notifications_${userId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'system_notifications',
+        filter: `user_id=eq.${userId}`,
+      },
+      () => {
+        loadNotifications()
+      },
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'system_notifications',
+        filter: `user_id=eq.${userId}`,
+      },
+      () => {
+        loadNotifications()
+      },
+    )
+    .subscribe()
+}
+
 async function markAllAsRead() {
   const userId = userStore.session?.user?.id
   if (!userId || unreadNotificationCount.value === 0) return
@@ -523,6 +574,7 @@ function startNotificationPolling() {
 onMounted(() => {
   loadNotifications()
   startNotificationPolling()
+  startNotificationSubscription()
 })
 
 onUnmounted(() => {
@@ -530,6 +582,8 @@ onUnmounted(() => {
     clearInterval(notificationPollTimer.value)
     notificationPollTimer.value = null
   }
+
+  stopNotificationSubscription()
 })
 
 watch(
@@ -542,6 +596,15 @@ watch(
       loadNotifications()
     }
     startNotificationPolling()
+    startNotificationSubscription()
+  },
+)
+
+watch(
+  () => userStore.session?.user?.id,
+  () => {
+    loadNotifications()
+    startNotificationSubscription()
   },
 )
 
