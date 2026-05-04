@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+const showPolicyModal = ref(false)
 import { useRoute } from 'vue-router'
 import Header from '@/components/layout/Header.vue'
 import ErrorBoundary from '@/components/ErrorBoundary.vue'
@@ -177,14 +178,78 @@ onMounted(async () => {
       <Header v-if="showHeader" />
       <router-view />
 
-      <!-- Connection Status Indicator (Hidden in production) -->
-      <!-- <ConnectionIndicator /> -->
+      <!-- Footer -->
+      <footer v-if="showHeader" class="app-footer">
+        <div class="footer-container">
+          <p class="footer-copy">&copy; {{ new Date().getFullYear() }} EcoLink. All rights reserved.</p>
+          <div class="footer-links">
+            <button type="button" class="footer-link" @click="showPolicyModal = true">Terms &amp; Conditions</button>
+            <span class="footer-sep">·</span>
+            <button type="button" class="footer-link" @click="showPolicyModal = true">Privacy Policy</button>
+            <span class="footer-sep">·</span>
+            <button type="button" class="footer-link" @click="showPolicyModal = true">Carbon Credits Policy</button>
+          </div>
+        </div>
+      </footer>
+
+      <!-- Policy / Terms Modal -->
+      <div v-if="showPolicyModal" class="policy-modal-overlay" @click.self="showPolicyModal = false">
+        <div class="policy-modal">
+          <div class="policy-modal-top">
+            <h2>Carbon Credits Terms &amp; Conditions</h2>
+            <button type="button" class="policy-close-btn" @click="showPolicyModal = false">
+              <span class="material-symbols-outlined">close</span>
+            </button>
+          </div>
+          <div class="policy-modal-body">
+            <section class="policy-section">
+              <h3>1. Credit Eligibility &amp; Standards</h3>
+              <p>EcoLink only lists carbon credits meeting internationally recognized standards. Each credit = <strong>1 metric tonne CO₂e</strong> reduced/removed.</p>
+              <ul>
+                <li><strong>Additionality</strong> — Reduction would not have occurred without the project.</li>
+                <li><strong>Permanence</strong> — Reductions must be lasting and not easily reversed.</li>
+                <li><strong>Measurability</strong> — Accurately quantified using approved methodologies.</li>
+                <li><strong>Verifiability</strong> — Independent third-party auditors verify all reductions.</li>
+              </ul>
+            </section>
+            <section class="policy-section">
+              <h3>2. Verification Standards</h3>
+              <p>Accepted standards: <strong>VCS (Verra)</strong>, <strong>Gold Standard</strong>, <strong>Climate Action Reserve</strong>, <strong>American Carbon Registry</strong>.</p>
+            </section>
+            <section class="policy-section">
+              <h3>3. Credit Retirement</h3>
+              <p>Retired credits are <strong>permanently removed</strong> from circulation — they cannot be traded, resold, or reused. Each retirement is recorded with a unique certificate.</p>
+            </section>
+            <section class="policy-section">
+              <h3>4. Marketplace Rules</h3>
+              <p>All credits must be verified before listing. Pricing is transparent. All transactions are final once payment is confirmed. Market manipulation is strictly prohibited.</p>
+            </section>
+            <section class="policy-section">
+              <h3>5. Buyer Guidelines</h3>
+              <p>Credits transfer immediately upon payment. <strong>All sales are final.</strong> Refunds only for verified technical errors within 48 hours.</p>
+            </section>
+            <section class="policy-section">
+              <h3>6. Environmental Integrity</h3>
+              <p>Each credit has a unique serial number. No double counting. Projects undergo periodic monitoring and re-verification.</p>
+            </section>
+            <section class="policy-section">
+              <h3>7. Platform Terms</h3>
+              <p>Platform fee displayed at checkout. Users must provide accurate info. Misuse may result in suspension. Records retained for audit.</p>
+            </section>
+            <section class="policy-section">
+              <h3>8. Developer Requirements</h3>
+              <p>Projects must use approved methodologies. Annual monitoring reports mandatory. Non-compliance may result in delisting.</p>
+            </section>
+          </div>
+          <div class="policy-modal-footer">
+            <p class="policy-footer-info">Last updated: May 2026 · support@ecolink.com</p>
+            <button class="policy-accept-btn" @click="showPolicyModal = false">I Understand &amp; Accept</button>
+          </div>
+        </div>
+      </div>
 
       <!-- Global Toast Notifications -->
       <div id="toast-container" class="toast-container"></div>
-
-      <!-- Global Error Notifications -->
-      <!-- Error notifications temporarily disabled during Pinia fix -->
     </div>
   </ErrorBoundary>
 </template>
@@ -904,5 +969,233 @@ body {
   flex-direction: column;
   gap: 0.75rem;
   max-width: 350px;
+}
+
+/* ── Footer ── */
+.app-footer {
+  background: var(--bg-secondary, #f8fdf8);
+  border-top: 1px solid var(--border-color, #d1e7dd);
+  padding: 1.25rem 1.5rem;
+  text-align: center;
+}
+
+.footer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-copy {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted, #718096);
+}
+
+.footer-links {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.footer-link {
+  background: none;
+  border: none;
+  color: var(--primary-color, #069e2d);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.15rem 0.25rem;
+  border-radius: 0.25rem;
+  transition: all 0.2s;
+}
+
+.footer-link:hover {
+  color: var(--primary-dark, #04773b);
+  text-decoration: underline;
+}
+
+.footer-sep {
+  color: var(--text-muted, #718096);
+  font-size: 0.75rem;
+}
+
+/* ── Policy Modal ── */
+.policy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: policyFadeIn 0.25s ease;
+}
+
+@keyframes policyFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.policy-modal {
+  width: min(720px, 100%);
+  max-height: calc(100vh - 3rem);
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  animation: policySlideUp 0.3s ease;
+  overflow: hidden;
+}
+
+@keyframes policySlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.policy-modal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border-color, #d1e7dd);
+  flex-shrink: 0;
+}
+
+.policy-modal-top h2 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary, #1a1a1a);
+}
+
+.policy-close-btn {
+  background: var(--bg-secondary, #f8fdf8);
+  border: 1px solid var(--border-color, #d1e7dd);
+  color: var(--text-muted, #718096);
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.policy-close-btn:hover {
+  background: var(--error-light, #f8d7da);
+  color: var(--error-color, #dc3545);
+  border-color: var(--error-color, #dc3545);
+}
+
+.policy-close-btn .material-symbols-outlined {
+  font-size: 1.1rem;
+}
+
+.policy-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+}
+
+.policy-section {
+  margin-bottom: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border-light, #e8f5e8);
+}
+
+.policy-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.policy-section h3 {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--primary-color, #069e2d);
+  margin: 0 0 0.3rem;
+}
+
+.policy-section p {
+  color: var(--text-secondary, #4a5568);
+  line-height: 1.55;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.policy-section ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.policy-section ul li {
+  color: var(--text-secondary, #4a5568);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  margin-bottom: 0.2rem;
+}
+
+/* Green footer */
+.policy-modal-footer {
+  padding: 1rem 1.5rem;
+  background: var(--primary-color, #069e2d);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-radius: 0 0 1rem 1rem;
+}
+
+.policy-footer-info {
+  margin: 0;
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.policy-accept-btn {
+  padding: 0.6rem 1.75rem;
+  background: #fff;
+  color: var(--primary-color, #069e2d);
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.policy-accept-btn:hover {
+  background: var(--primary-light, #e8f5e8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 768px) {
+  .policy-modal {
+    border-radius: 0.75rem;
+    max-height: calc(100vh - 2rem);
+  }
+  .policy-modal-top h2 {
+    font-size: 1rem;
+  }
+  .policy-modal-body {
+    padding: 1rem;
+  }
+  .policy-modal-footer {
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: center;
+    border-radius: 0 0 0.75rem 0.75rem;
+  }
 }
 </style>
