@@ -130,6 +130,19 @@
                 Profile Settings
               </router-link>
 
+              <template v-if="showAccountLinks">
+                <div class="dropdown-divider"></div>
+                <router-link
+                  v-for="link in accountLinks"
+                  :key="link.path"
+                  :to="link.path"
+                  class="dropdown-item"
+                  @click="showUserMenu = false"
+                >
+                  {{ link.label }}
+                </router-link>
+              </template>
+
               <!-- Admin Tools moved to Admin Dashboard page -->
 
               <!-- Hidden for now: Preferences, Analytics, Social Impact -->
@@ -258,6 +271,25 @@
                 Profile Settings
               </router-link>
 
+              <router-link
+                v-for="link in (showAccountLinks ? accountLinks : [])"
+                :key="link.path"
+                :to="link.path"
+                @click="mobileMenuOpen = false"
+                style="
+                  display: block !important;
+                  padding: 0.75rem !important;
+                  background: #e8f5e8 !important;
+                  border: 1px solid #4caf50 !important;
+                  border-radius: 6px !important;
+                  text-decoration: none !important;
+                  color: #2d5a2d !important;
+                  font-weight: 500 !important;
+                "
+              >
+                {{ link.label }}
+              </router-link>
+
               <button
                 v-if="userStore.isAuthenticated"
                 @click="handleLogout"
@@ -322,17 +354,19 @@ const navItems = computed(() => {
     return baseItems
   }
 
-  const items = [
-    ...baseItems,
-  ]
+  const items = [...baseItems]
+
+  // Project developers access the map from their profile dropdown instead.
+  if (!userStore.isProjectDeveloper) {
+    items.push({ path: '/map', label: 'Project Map' })
+  }
 
   const hideFinanceAndCertificateNav =
     userStore.isAdmin || userStore.isVerifier || userStore.isProjectDeveloper
 
   if (!hideFinanceAndCertificateNav) {
-    items.push({ path: '/wallet', label: 'Wallet' })
-    items.push({ path: '/receipts', label: 'Receipts' })
-    items.push({ path: '/certificates', label: 'Certificates' })
+    // Wallet, Receipts, Certificates and KYC live in the profile dropdown
+    // (see accountLinks) to keep the top nav uncluttered for buyers.
     items.push({ path: '/carbon-calculator', label: 'Carbon Calculator' })
   }
 
@@ -344,14 +378,47 @@ const navItems = computed(() => {
   if (userStore.isProjectDeveloper) {
     items.push({ path: '/submit-project', label: 'Submit Project' })
     items.push({ path: '/developer/projects', label: 'My Project Dashboard' })
+    // Project Map + Monitoring (MRV) live in the profile dropdown (accountLinks).
   }
 
   if (userStore.isVerifier) {
     items.push({ path: '/verifier', label: 'Verifier Panel' })
   }
 
+  if (userStore.isLguUser) {
+    items.push({ path: '/lgu', label: 'LGU Tools' })
+  }
+
   return items
 })
+
+// Role-aware links shown under "Profile Settings" in the profile dropdown to
+// keep the top nav uncluttered.
+const accountLinks = computed(() => {
+  if (!userStore.isAuthenticated) return []
+
+  // Project developers: map + monitoring tucked under the profile menu.
+  if (userStore.isProjectDeveloper) {
+    return [
+      { path: '/map', label: 'Project Map' },
+      { path: '/monitoring', label: 'Monitoring (MRV)' },
+    ]
+  }
+
+  // Buyers / general users: their finance & certificate pages.
+  if (!(userStore.isAdmin || userStore.isVerifier)) {
+    return [
+      { path: '/wallet', label: 'Wallet' },
+      { path: '/receipts', label: 'Receipts' },
+      { path: '/certificates', label: 'Certificates' },
+      { path: '/kyc', label: 'KYC Verification' },
+    ]
+  }
+
+  return []
+})
+
+const showAccountLinks = computed(() => accountLinks.value.length > 0)
 
 function isActive(path) {
   return route.path === path

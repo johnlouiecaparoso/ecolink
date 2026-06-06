@@ -1,5 +1,6 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { ROLES } from '@/constants/roles'
+import { logUserAction } from '@/services/auditService'
 
 /**
  * Role service for managing user roles and permissions
@@ -48,6 +49,13 @@ export class RoleService {
    */
   isBuyerInvestor(role) {
     return role === ROLES.BUYER_INVESTOR
+  }
+
+  /**
+   * Check if user is LGU (local government unit)
+   */
+  isLguUser(role) {
+    return role === ROLES.LGU_USER
   }
 
   /**
@@ -120,6 +128,12 @@ export class RoleService {
         'view_project_status',
         'create_credit_listings',
         'manage_own_listings',
+      ],
+      [ROLES.LGU_USER]: [
+        'upload_lgu_emissions',
+        'view_community_projects',
+        'view_own_profile',
+        'edit_own_profile',
       ],
       [ROLES.BUYER_INVESTOR]: [
         'view_marketplace',
@@ -205,6 +219,14 @@ export class RoleService {
         )
       }
 
+      try {
+        await logUserAction('ROLE_CHANGE_APPLIED', 'user', userId, userId, {
+          new_role: newRole,
+        })
+      } catch (logErr) {
+        console.warn('Could not log role change (non-critical):', logErr)
+      }
+
       return rpcProfile || { id: userId, role: newRole }
     } catch (error) {
       console.error('Error in updateUserRole:', error)
@@ -255,6 +277,7 @@ export class RoleService {
       [ROLES.ADMIN]: 'Administrator',
       [ROLES.VERIFIER]: 'Verifier',
       [ROLES.PROJECT_DEVELOPER]: 'Project Developer',
+      [ROLES.LGU_USER]: 'LGU User',
       [ROLES.BUYER_INVESTOR]: 'Buyer/Investor',
       [ROLES.GENERAL_USER]: 'General User',
     }
@@ -272,6 +295,7 @@ export class RoleService {
       [ROLES.PROJECT_DEVELOPER]: 'Can create and manage carbon credit projects',
       [ROLES.BUYER_INVESTOR]: 'Can purchase and manage carbon credits',
       [ROLES.GENERAL_USER]: 'Basic user access to view marketplace and manage profile',
+      [ROLES.LGU_USER]: 'Local Government Unit user: upload LGU emissions and manage community projects',
     }
 
     return descriptions[role] || 'No description available'
@@ -287,6 +311,7 @@ export const isVerifier = roleService.isVerifier.bind(roleService)
 export const isProjectDeveloper = roleService.isProjectDeveloper.bind(roleService)
 export const isBuyerInvestor = roleService.isBuyerInvestor.bind(roleService)
 export const isGeneralUser = roleService.isGeneralUser.bind(roleService)
+export const isLguUser = roleService.isLguUser.bind(roleService)
 export const hasPermission = roleService.hasPermission.bind(roleService)
 export const hasAnyPermission = roleService.hasAnyPermission.bind(roleService)
 export const hasAllPermissions = roleService.hasAllPermissions.bind(roleService)

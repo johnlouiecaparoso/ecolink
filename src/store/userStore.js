@@ -23,6 +23,7 @@ export const useUserStore = defineStore('user', {
     isProjectDeveloper: (state) => roleService.isProjectDeveloper(state.role),
     isVerifier: (state) => roleService.isVerifier(state.role),
     isBuyerInvestor: (state) => roleService.isBuyerInvestor(state.role),
+    isLguUser: (state) => roleService.isLguUser(state.role),
     hasPermission: (state) => (permission) => roleService.hasPermission(state.role, permission),
     hasAnyPermission: (state) => (permissions) =>
       roleService.hasAnyPermission(state.role, permissions),

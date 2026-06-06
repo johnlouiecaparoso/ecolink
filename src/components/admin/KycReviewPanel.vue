@@ -1,0 +1,367 @@
+<template>
+  <div class="kyc-review-page">
+    <div class="page-header">
+      <div class="container">
+        <h1 class="page-title">KYC Review</h1>
+        <p class="page-description">Review and approve identity verification applications.</p>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="container">
+        <div class="filters">
+          <button
+            v-for="f in filters"
+            :key="f.value"
+            class="filter-tab"
+            :class="{ active: statusFilter === f.value }"
+            @click="setFilter(f.value)"
+          >
+            {{ f.label }}
+          </button>
+          <button class="btn btn-outline btn-sm refresh" @click="load" :disabled="loading">Refresh</button>
+        </div>
+
+        <div v-if="loading" class="state">Loading…</div>
+        <div v-else-if="error" class="state error">{{ error }}</div>
+        <div v-else-if="apps.length === 0" class="state">No applications.</div>
+
+        <div v-else class="app-list">
+          <div v-for="app in apps" :key="app.id" class="app-card">
+            <div class="app-main">
+              <div class="app-head">
+                <span class="app-name">{{ app.full_name || app.applicant_name || 'Applicant' }}</span>
+                <span class="status-badge" :class="badgeClass(app.status)">{{ app.status }}</span>
+              </div>
+              <div class="app-meta">
+                <span>{{ app.applicant_email }}</span>
+                <span>· {{ app.id_document_type || 'No document type' }}</span>
+                <span>· Level {{ app.level_requested }}</span>
+                <span>· {{ formatDate(app.submitted_at) }}</span>
+              </div>
+              <div v-if="app.organization" class="app-org">Org: {{ app.organization }}</div>
+              <a
+                v-if="app.id_document_url"
+                :href="app.id_document_url"
+                target="_blank"
+                rel="noopener"
+                class="doc-link"
+              >
+                View ID document
+              </a>
+              <span v-else class="muted">No document uploaded</span>
+              <div v-if="app.review_notes" class="review-notes">Notes: {{ app.review_notes }}</div>
+            </div>
+
+            <div v-if="app.status === 'pending'" class="app-actions">
+              <input
+                v-model="notesById[app.id]"
+                class="notes-input"
+                placeholder="Review notes (optional for approve, required for reject)"
+              />
+              <div class="action-buttons">
+                <button class="btn btn-danger btn-sm" @click="review(app, false)" :disabled="busyId === app.id">
+                  Reject
+                </button>
+                <button class="btn btn-primary btn-sm" @click="review(app, true)" :disabled="busyId === app.id">
+                  {{ busyId === app.id ? 'Saving…' : 'Approve' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <p v-if="message" class="message" :class="{ error: isError }">{{ message }}</p>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import { getKycApplications, reviewKycApplication } from '@/services/kycService'
+
+const filters = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: '', label: 'All' },
+]
+
+const statusFilter = ref('pending')
+const apps = ref([])
+const loading = ref(false)
+const error = ref('')
+const message = ref('')
+const isError = ref(false)
+const busyId = ref(null)
+const notesById = ref({})
+
+function badgeClass(status) {
+  return { pending: 'yellow', approved: 'green', rejected: 'red' }[status] || 'gray'
+}
+function formatDate(d) {
+  if (!d) return ''
+  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+function setMessage(text, err = false) {
+  message.value = text
+  isError.value = err
+}
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    apps.value = await getKycApplications(statusFilter.value || null)
+  } catch (err) {
+    error.value = err.message || 'Failed to load applications'
+  } finally {
+    loading.value = false
+  }
+}
+
+function setFilter(value) {
+  statusFilter.value = value
+  load()
+}
+
+async function review(app, approve) {
+  const notes = notesById.value[app.id] || ''
+  if (!approve && notes.trim().length < 5) {
+    setMessage('Please add a rejection reason (at least 5 characters).', true)
+    return
+  }
+  busyId.value = app.id
+  setMessage('')
+  try {
+    await reviewKycApplication(app.id, approve, notes)
+    setMessage(approve ? 'Application approved.' : 'Application rejected.')
+    await load()
+  } catch (err) {
+    setMessage(err.message || 'Failed to review application', true)
+  } finally {
+    busyId.value = null
+  }
+}
+
+load()
+</script>
+
+<style scoped>
+.kyc-review-page {
+  min-height: 100vh;
+  background: var(--bg-primary, #fff);
+}
+
+.container {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.page-header {
+  background: var(--primary-color, #10b981);
+  padding: 2rem 0;
+}
+
+.page-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.5rem;
+}
+
+.page-description {
+  color: #fff;
+  opacity: 0.95;
+  margin: 0;
+}
+
+.content {
+  padding: 2rem 0;
+}
+
+.filters {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-tab {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border-color, #d1e7dd);
+  background: #fff;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.filter-tab.active {
+  background: var(--primary-color, #069e2d);
+  color: #fff;
+  border-color: var(--primary-color, #069e2d);
+}
+
+.refresh {
+  margin-left: auto;
+}
+
+.state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.state.error {
+  color: #dc2626;
+}
+
+.app-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.app-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border: 1px solid var(--border-color, #d1e7dd);
+  border-radius: 0.75rem;
+  padding: 1.1rem;
+  background: #fff;
+}
+
+.app-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.35rem;
+}
+
+.app-name {
+  font-weight: 700;
+}
+
+.app-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted, #6b7280);
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.app-org {
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.doc-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--primary-color, #069e2d);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.muted {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: var(--text-muted, #6b7280);
+  font-size: 0.85rem;
+}
+
+.review-notes {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: #92400e;
+}
+
+.app-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 260px;
+}
+
+.notes-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 2px solid var(--border-color, #d1e7dd);
+  border-radius: 0.5rem;
+  font-size: 13px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.status-badge {
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.gray { background: #e5e7eb; color: #374151; }
+.status-badge.yellow { background: #fef3c7; color: #92400e; }
+.status-badge.green { background: #d1fae5; color: #065f46; }
+.status-badge.red { background: #fee2e2; color: #991b1b; }
+
+.message {
+  margin-top: 1rem;
+  color: var(--primary-color, #069e2d);
+  font-weight: 500;
+}
+
+.message.error {
+  color: #dc2626;
+}
+
+.btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+}
+
+.btn-primary {
+  background: var(--primary-color, #069e2d);
+  color: #fff;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-color, #d1e7dd);
+  color: var(--text-primary, #111827);
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .container { padding: 0 1rem; }
+  .app-card { flex-direction: column; }
+  .app-actions { min-width: 0; }
+}
+</style>

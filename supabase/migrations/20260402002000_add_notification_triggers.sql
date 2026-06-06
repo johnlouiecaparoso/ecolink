@@ -54,7 +54,8 @@ as $$
 declare
   v_title text;
 begin
-  if new.status is distinct from 'pending' then
+  -- Only trigger notifications when a project is submitted (not drafts or other states)
+  if new.status is distinct from 'submitted' then
     return new;
   end if;
 
@@ -74,15 +75,15 @@ begin
     'project_submission',
     'New project submitted for verification',
     format('Project "%s" is waiting for review.', v_title),
-    '/verifier',
+    '/admin',
     jsonb_build_object(
       'project_id', new.id,
-      'status', coalesce(new.status, 'pending')
+      'status', coalesce(new.status, 'submitted')
     ),
     false
   from public.resolve_notification_recipient_ids(
     null,
-    array['verifier'],
+    array['admin','verifier'],
     array[new.user_id]
   ) as recipient;
 
@@ -107,7 +108,8 @@ declare
   v_title text;
 begin
   v_status := lower(coalesce(new.status, ''));
-  if v_status not in ('approved', 'rejected') then
+    -- Handle validation outcomes: validated, needs_revision, rejected
+    if v_status not in ('validated', 'needs_revision', 'rejected') then
     return new;
   end if;
 
@@ -120,7 +122,11 @@ begin
   perform public.insert_system_notification(
     new.user_id,
     'project_status',
-    case when v_status = 'approved' then 'Your project was approved' else 'Your project was rejected' end,
+      case
+        when v_status = 'validated' then 'Your project was validated'
+        when v_status = 'needs_revision' then 'Project requires revisions'
+        else 'Your project was rejected'
+      end,
     format('Project "%s" is now %s.%s', v_title, v_status, case when coalesce(btrim(new.verification_notes), '') = '' then '' else format(' Notes: %s', btrim(new.verification_notes)) end),
     '/developer/projects',
     jsonb_build_object(

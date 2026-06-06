@@ -39,6 +39,11 @@
             <ProjectApprovalPanel />
           </div>
 
+          <!-- MRV Report Verification -->
+          <div class="approval-section role-review-section">
+            <MrvReviewDashboard />
+          </div>
+
           <div class="approval-section role-review-section">
             <DeveloperApplicationsDashboard />
           </div>
@@ -52,6 +57,7 @@
 import { useUserStore } from '@/store/userStore'
 import ProjectApprovalPanel from '@/components/admin/ProjectApprovalPanel.vue'
 import DeveloperApplicationsDashboard from '@/components/verifier/DeveloperApplicationsDashboard.vue'
+import MrvReviewDashboard from '@/components/verifier/MrvReviewDashboard.vue'
 
 const store = useUserStore()
 </script>

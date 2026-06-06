@@ -6,6 +6,7 @@ export const ROLES = {
   ADMIN: 'admin',
   VERIFIER: 'verifier',
   PROJECT_DEVELOPER: 'project_developer',
+  LGU_USER: 'lgu_user',
   BUYER_INVESTOR: 'buyer_investor',
   GENERAL_USER: 'general_user',
 }
@@ -51,6 +52,10 @@ export const PERMISSIONS = {
   VIEW_OWN_TRANSACTIONS: 'view_own_transactions',
   VIEW_ALL_TRANSACTIONS: 'view_all_transactions',
 
+  // LGU / Community permissions
+  UPLOAD_LGU_EMISSIONS: 'upload_lgu_emissions',
+  VIEW_COMMUNITY_PROJECTS: 'view_community_projects',
+
   // System permissions
   VIEW_AUDIT_LOGS: 'view_audit_logs',
   MANAGE_SYSTEM_SETTINGS: 'manage_system_settings',
@@ -61,6 +66,7 @@ export const ROLE_HIERARCHY = {
   [ROLES.ADMIN]: 5,
   [ROLES.VERIFIER]: 4,
   [ROLES.PROJECT_DEVELOPER]: 3,
+  [ROLES.LGU_USER]: 3,
   [ROLES.BUYER_INVESTOR]: 2,
   [ROLES.GENERAL_USER]: 1,
 }
@@ -69,6 +75,7 @@ export const ROLE_COLORS = {
   [ROLES.ADMIN]: 'red',
   [ROLES.VERIFIER]: 'blue',
   [ROLES.PROJECT_DEVELOPER]: 'green',
+  [ROLES.LGU_USER]: 'teal',
   [ROLES.BUYER_INVESTOR]: 'purple',
   [ROLES.GENERAL_USER]: 'gray',
 }
@@ -77,6 +84,7 @@ export const ROLE_ICONS = {
   [ROLES.ADMIN]: 'shield-check',
   [ROLES.VERIFIER]: 'check-circle',
   [ROLES.PROJECT_DEVELOPER]: 'leaf',
+  [ROLES.LGU_USER]: 'map',
   [ROLES.BUYER_INVESTOR]: 'currency-dollar',
   [ROLES.GENERAL_USER]: 'user',
 }
@@ -91,6 +99,7 @@ export function getRoleDisplayName(role) {
     [ROLES.ADMIN]: 'Administrator',
     [ROLES.VERIFIER]: 'Verifier',
     [ROLES.PROJECT_DEVELOPER]: 'Project Developer',
+    [ROLES.LGU_USER]: 'LGU User',
     [ROLES.BUYER_INVESTOR]: 'Buyer/Investor',
     [ROLES.GENERAL_USER]: 'General User',
   }

@@ -1,0 +1,158 @@
+import { getSupabase } from '@/services/supabaseClient'
+import { getCurrentUserId } from '@/utils/authHelper'
+import { logUserAction } from '@/services/auditService'
+
+/**
+ * KYC (Know Your Customer) service.
+ *
+ * Buyers/sellers submit a verification application; admins approve it, which
+ * raises their profiles.kyc_level. Trading is gated on kyc_level (see
+ * MIN_KYC_LEVEL_TO_TRADE + assertCanTrade).
+ */
+
+export const MIN_KYC_LEVEL_TO_TRADE = 1
+
+function client() {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase client not available')
+  return supabase
+}
+
+/**
+ * Current user's KYC level (0 if none).
+ */
+export async function getMyKycLevel(userId = null) {
+  const supabase = client()
+  const uid = userId || (await getCurrentUserId())
+  if (!uid) return 0
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('kyc_level')
+    .eq('id', uid)
+    .single()
+  if (error) return 0
+  return Number(data?.kyc_level) || 0
+}
+
+/**
+ * Throw if the user is not KYC-verified enough to trade.
+ */
+export async function assertCanTrade(userId = null) {
+  const level = await getMyKycLevel(userId)
+  if (level < MIN_KYC_LEVEL_TO_TRADE) {
+    throw new Error(
+      'KYC verification required before trading. Please complete identity verification on the KYC page.',
+    )
+  }
+  return true
+}
+
+/**
+ * The current user's KYC applications (newest first).
+ */
+export async function getMyKycApplications(userId = null) {
+  const supabase = client()
+  const uid = userId || (await getCurrentUserId())
+  if (!uid) return []
+  const { data, error } = await supabase
+    .from('kyc_applications')
+    .select('*')
+    .eq('user_id', uid)
+    .order('submitted_at', { ascending: false })
+  if (error) throw new Error(error.message || 'Failed to load KYC applications')
+  return data || []
+}
+
+/**
+ * Submit a KYC application.
+ */
+export async function submitKycApplication({
+  fullName,
+  idDocumentType,
+  idDocumentUrl = null,
+  organization = '',
+  levelRequested = 1,
+}) {
+  const supabase = client()
+  const uid = await getCurrentUserId()
+  if (!uid) throw new Error('User not authenticated')
+
+  if (!fullName || !idDocumentType) {
+    throw new Error('Full name and ID document type are required.')
+  }
+
+  const { data, error } = await supabase
+    .from('kyc_applications')
+    .insert([
+      {
+        user_id: uid,
+        full_name: fullName,
+        id_document_type: idDocumentType,
+        id_document_url: idDocumentUrl,
+        organization,
+        level_requested: levelRequested,
+        status: 'pending',
+      },
+    ])
+    .select()
+    .single()
+  if (error) throw new Error(error.message || 'Failed to submit KYC application')
+
+  try {
+    await logUserAction('KYC_SUBMITTED', 'kyc_application', uid, data.id, {})
+  } catch (e) {
+    console.warn('audit log failed (non-critical):', e)
+  }
+  return data
+}
+
+// ───────────────────────── admin ─────────────────────────
+
+/**
+ * All KYC applications (admin), optionally filtered by status.
+ */
+export async function getKycApplications(status = null) {
+  const supabase = client()
+  let query = supabase
+    .from('kyc_applications')
+    .select('*')
+    .order('submitted_at', { ascending: false })
+  if (status) query = query.eq('status', status)
+
+  const { data, error } = await query
+  if (error) throw new Error(error.message || 'Failed to load KYC applications')
+  if (!data || data.length === 0) return []
+
+  // Attach applicant email/name
+  const userIds = [...new Set(data.map((a) => a.user_id))]
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name, email')
+    .in('id', userIds)
+
+  return data.map((a) => {
+    const profile = (profiles || []).find((p) => p.id === a.user_id)
+    return { ...a, applicant_email: profile?.email || '', applicant_name: profile?.full_name || a.full_name }
+  })
+}
+
+/**
+ * Approve or reject an application (admin only — enforced by the RPC).
+ */
+export async function reviewKycApplication(applicationId, approve, notes = '') {
+  const supabase = client()
+  const { data, error } = await supabase.rpc('review_kyc_application', {
+    p_application_id: applicationId,
+    p_approve: approve,
+    p_notes: notes,
+  })
+  if (error) throw new Error(error.message || 'Failed to review KYC application')
+
+  try {
+    const uid = await getCurrentUserId()
+    await logUserAction(approve ? 'KYC_APPROVED' : 'KYC_REJECTED', 'kyc_application', uid, applicationId, {})
+  } catch (e) {
+    console.warn('audit log failed (non-critical):', e)
+  }
+  return data
+}

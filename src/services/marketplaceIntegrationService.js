@@ -28,7 +28,7 @@ export class MarketplaceIntegrationService {
         .from('projects')
         .select('*')
         .eq('id', projectId)
-        .eq('status', 'approved')
+        .in('status', ['approved', 'validated'])
         .single()
 
       if (projectError || !project) {
@@ -259,9 +259,9 @@ export class MarketplaceIntegrationService {
         .update({
           status,
           verification_notes: verificationNotes,
-          verified_by: status === 'approved' || status === 'rejected' ? currentUserId : null,
+          verified_by: ['approved', 'validated', 'rejected'].includes(status) ? currentUserId : null,
           verified_at:
-            status === 'approved' || status === 'rejected' ? new Date().toISOString() : null,
+            ['approved', 'validated', 'rejected'].includes(status) ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', projectId)
@@ -275,12 +275,12 @@ export class MarketplaceIntegrationService {
       let marketplaceListing = null
 
       // If approved, create marketplace listing
-      if (status === 'approved') {
+      if (['approved', 'validated'].includes(status)) {
         try {
           marketplaceListing = await this.createProjectListing(projectId, listingData)
-          console.log('✅ Project approved and marketplace listing created')
+          console.log('✅ Project validated and marketplace listing created')
         } catch (listingError) {
-          console.error('⚠️ Project approved but marketplace listing failed:', listingError)
+          console.error('⚠️ Project validated but marketplace listing failed:', listingError)
           // Don't fail the entire operation if marketplace listing fails
         }
       }

@@ -31,22 +31,22 @@
                   <div class="step-item">
                     <div class="step-icon">1️⃣</div>
                     <div class="step-text">
-                      <strong>Review Process</strong>
-                      <span>Your project will be reviewed by our verifiers</span>
+                      <strong>Initial Screening</strong>
+                      <span>Admin checks project completeness and MRV readiness</span>
                     </div>
                   </div>
                   <div class="step-item">
                     <div class="step-icon">2️⃣</div>
                     <div class="step-text">
-                      <strong>Marketplace Listing</strong>
-                      <span>Once approved, it will appear in the marketplace</span>
+                      <strong>MRV Review</strong>
+                      <span>Verifier reviews monitoring data, baseline, and methodology</span>
                     </div>
                   </div>
                   <div class="step-item">
                     <div class="step-icon">3️⃣</div>
                     <div class="step-text">
-                      <strong>Track Status</strong>
-                      <span>You can track your project status in your dashboard</span>
+                      <strong>Validation & Issuance</strong>
+                      <span>Validated projects move to the active pool and can issue credits</span>
                     </div>
                   </div>
                 </div>
@@ -96,27 +96,27 @@
             </div>
 
             <div class="info-card">
-              <h3 class="info-title">Review Process</h3>
+              <h3 class="info-title">MRV Process</h3>
               <div class="process-steps">
                 <div class="step">
                   <div class="step-number">1</div>
                   <div class="step-content">
-                    <h4>Initial Review</h4>
-                    <p>Project details and documentation review</p>
+                    <h4>Monitoring</h4>
+                    <p>Submit quarterly or yearly monitoring reports with photos and production logs</p>
                   </div>
                 </div>
                 <div class="step">
                   <div class="step-number">2</div>
                   <div class="step-content">
-                    <h4>Verification</h4>
-                    <p>On-site verification by certified verifiers</p>
+                    <h4>Reporting</h4>
+                    <p>Platform calculates emission reductions from baseline and activity data</p>
                   </div>
                 </div>
                 <div class="step">
                   <div class="step-number">3</div>
                   <div class="step-content">
-                    <h4>Approval</h4>
-                    <p>Final approval and credit issuance</p>
+                    <h4>Verification & Issuance</h4>
+                    <p>Independent verifier approves or rejects VERs before carbon credit issuance</p>
                   </div>
                 </div>
               </div>

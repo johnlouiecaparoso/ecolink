@@ -60,7 +60,7 @@ export async function getSimpleMarketplaceListings(filters = {}) {
       .from('projects')
       .select('*')
       .in('id', projectIds)
-      .eq('status', 'approved') // Only approved projects
+      .in('status', ['approved', 'validated']) // Only approved / validated projects
 
     if (projectsError) {
       console.error('[ERROR] Error fetching projects:', projectsError)

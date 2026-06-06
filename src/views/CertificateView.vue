@@ -182,6 +182,15 @@
                     }}</span>
                   </div>
 
+                  <div
+                    v-if="selectedCertificate.credit_serial || selectedCertificate.certificate_data?.credit_serial"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Carbon Unit Serial:</span>
+                    <span class="detail-value transaction-id">{{
+                      selectedCertificate.credit_serial || selectedCertificate.certificate_data?.credit_serial
+                    }}</span>
+                  </div>
                   <div class="detail-row">
                     <span class="detail-label">Category:</span>
                     <span class="detail-value">{{ selectedCertificate.project_category }}</span>
@@ -214,6 +223,9 @@
                   </button>
                   <button class="btn btn-outline btn-sm" @click="downloadCertificate(selectedCertificate)">
                     Download PDF
+                  </button>
+                  <button class="btn btn-outline btn-sm" @click="openVerification(selectedCertificate)">
+                    Verify
                   </button>
                 </div>
               </div>
@@ -354,6 +366,15 @@
                     }}</span>
                   </div>
 
+                  <div
+                    v-if="selectedCertificate.credit_serial || selectedCertificate.certificate_data?.credit_serial"
+                    class="detail-row"
+                  >
+                    <span class="detail-label">Carbon Unit Serial:</span>
+                    <span class="detail-value transaction-id">{{
+                      selectedCertificate.credit_serial || selectedCertificate.certificate_data?.credit_serial
+                    }}</span>
+                  </div>
                   <div class="detail-row">
                     <span class="detail-label">Category:</span>
                     <span class="detail-value">{{ selectedCertificate.project_category }}</span>
@@ -386,6 +407,9 @@
                   </button>
                   <button class="btn btn-outline btn-sm" @click="downloadCertificate(selectedCertificate)">
                     Download PDF
+                  </button>
+                  <button class="btn btn-outline btn-sm" @click="openVerification(selectedCertificate)">
+                    Verify
                   </button>
                 </div>
               </div>
@@ -566,6 +590,17 @@ async function downloadReceiptForCertificate(certificate) {
     console.error('Error downloading receipt:', err)
     alert(err.message || 'Failed to download receipt. Please try again.')
   }
+}
+
+function openVerification(certificate) {
+  const number = certificate?.certificate_number
+  if (!number) {
+    alert('This certificate does not have a verification number yet.')
+    return
+  }
+  // Open the public verification page in a new tab
+  const url = router.resolve(`/verify/${encodeURIComponent(number)}`).href
+  window.open(url, '_blank', 'noopener')
 }
 
 async function downloadCertificate(certificate) {

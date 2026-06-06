@@ -69,6 +69,8 @@
               </span>
             </div>
 
+            <ProjectProgressTracker :project="project" />
+
             <p class="project-description">{{ project.description || 'No description provided.' }}</p>
 
             <div class="project-dates">
@@ -99,6 +101,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { projectService } from '@/services/projectService'
+import ProjectProgressTracker from '@/components/ProjectProgressTracker.vue'
 
 const router = useRouter()
 

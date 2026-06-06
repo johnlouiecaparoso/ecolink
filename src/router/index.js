@@ -6,6 +6,7 @@ import {
   createProjectDeveloperGuard,
   createAdminGuard,
   createVerifierGuard,
+  createLguGuard,
 } from '@/middleware/roleGuard'
 
 // Lazy load components for better performance
@@ -35,9 +36,32 @@ const router = createRouter({
     { path: '/login', name: 'login', component: LoginView },
     { path: '/register', name: 'register', component: RegisterView },
     {
+      path: '/forgot-password',
+      name: 'forgot-password',
+      component: () => import('@/views/ForgotPasswordView.vue'),
+    },
+    {
+      path: '/reset-password',
+      name: 'reset-password',
+      component: () => import('@/views/ResetPasswordView.vue'),
+    },
+    {
+      // MFA step-up page (requires a session at aal1; reached via the guard)
+      path: '/mfa-challenge',
+      name: 'mfa-challenge',
+      component: () => import('@/views/MfaChallengeView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/marketplace',
       name: 'marketplace',
       component: () => import('@/views/MarketplaceViewEnhanced.vue'),
+    },
+    {
+      path: '/map',
+      name: 'projects-map',
+      component: () => import('@/views/ProjectsMapView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/apply',
@@ -45,6 +69,12 @@ const router = createRouter({
       component: () => import('@/views/RoleApplicationView.vue'),
     },
     { path: '/retire', redirect: '/wallet' },
+    {
+      // Public certificate verification (QR codes resolve here)
+      path: '/verify/:certificateNumber?',
+      name: 'certificate-verify',
+      component: () => import('@/views/CertificateVerifyView.vue'),
+    },
     {
       path: '/mobile-test',
       name: 'mobile-test',
@@ -88,6 +118,24 @@ const router = createRouter({
       },
     },
     {
+      path: '/monitoring',
+      name: 'monitoring-reports',
+      component: () => import('@/views/MonitoringReportView.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresProjectDeveloper: true,
+      },
+    },
+    {
+      path: '/lgu',
+      name: 'lgu-dashboard',
+      component: () => import('@/views/LguDashboardView.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresLgu: true,
+      },
+    },
+    {
       path: '/buy-credits',
       name: 'buy-credits',
       component: () => import('@/views/BuyCreditsView.vue'),
@@ -97,6 +145,12 @@ const router = createRouter({
       path: '/credit-portfolio',
       name: 'credit-portfolio',
       component: () => import('@/views/CreditPortfolioView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/kyc',
+      name: 'kyc',
+      component: () => import('@/views/KycView.vue'),
       meta: { requiresAuth: true },
     },
     // Redirect old project routes
@@ -133,6 +187,15 @@ const router = createRouter({
       path: '/admin/database',
       name: 'admin-database',
       component: () => import('@/components/admin/DatabaseManagement.vue'),
+      meta: {
+        requiresAuth: true,
+        requiresAdmin: true,
+      },
+    },
+    {
+      path: '/admin/kyc',
+      name: 'admin-kyc',
+      component: () => import('@/components/admin/KycReviewPanel.vue'),
       meta: {
         requiresAuth: true,
         requiresAdmin: true,
@@ -227,7 +290,7 @@ router.beforeEach(async (to, from, next) => {
   console.log('🔍 Router guard checking:', to.name, 'from:', from.name)
 
   // Skip auth check for public routes
-  const publicRoutes = ['login', 'register', 'homepage', 'home', 'role-application']
+  const publicRoutes = ['login', 'register', 'homepage', 'home', 'role-application', 'certificate-verify', 'forgot-password', 'reset-password']
   if (publicRoutes.includes(to.name)) {
     console.log('✅ Public route, allowing access')
     next()
@@ -310,11 +373,28 @@ router.beforeEach(async (to, from, next) => {
   if (userStore.isAuthenticated) {
     console.log('✅ User authenticated, allowing access')
 
+    // Strict 2FA enforcement: if the user has MFA enrolled but their session is
+    // still at aal1, force them to the step-up page before any protected route.
+    if (to.name !== 'mfa-challenge') {
+      try {
+        const { isMfaRequired } = await import('@/services/mfaService')
+        const { required } = await isMfaRequired()
+        if (required) {
+          console.log('🔐 MFA step-up required, redirecting to challenge')
+          next({ name: 'mfa-challenge', query: { returnTo: to.fullPath } })
+          return
+        }
+      } catch (mfaErr) {
+        // Fail open on transient errors so users are never locked out.
+        console.warn('MFA enforcement check failed (allowing):', mfaErr?.message)
+      }
+    }
+
     // Allow homepage access for authenticated users (no redirect)
 
     // IMPORTANT: Ensure profile is loaded before checking role-specific routes
     // This prevents navigation issues where role isn't loaded yet
-    if (to.meta.requiresProjectDeveloper || to.meta.requiresAdmin || to.meta.requiresVerifier) {
+    if (to.meta.requiresProjectDeveloper || to.meta.requiresAdmin || to.meta.requiresVerifier || to.meta.requiresLgu) {
       if (!userStore.profile || !userStore.role || userStore.role === 'general_user') {
         console.log('⏳ Profile/role not loaded yet, fetching before route check...')
         try {
@@ -333,6 +413,17 @@ router.beforeEach(async (to, from, next) => {
       const guardResult = await projectDeveloperGuard(to, from)
       if (guardResult) {
         console.log('❌ Project Developer access required, redirecting...')
+        next(guardResult)
+        return
+      }
+    }
+
+    // Check for LGU-only routes
+    if (to.meta.requiresLgu) {
+      const lguGuard = createLguGuard(userStore)
+      const guardResult = await lguGuard(to, from)
+      if (guardResult) {
+        console.log('❌ LGU access required, redirecting...')
         next(guardResult)
         return
       }

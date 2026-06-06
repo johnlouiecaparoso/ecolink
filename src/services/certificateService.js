@@ -2,6 +2,127 @@ import { getSupabase } from '@/services/supabaseClient'
 import { logUserAction } from '@/services/auditService'
 
 /**
+ * Compute a SHA-256 hex digest of the given string using the Web Crypto API.
+ */
+async function sha256Hex(input) {
+  const data = new TextEncoder().encode(input)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
+/**
+ * Build the canonical string that the certificate signature is computed over.
+ * Only stable, round-trip-safe stored fields are used (no timestamps, which can
+ * drift in precision) so the hash recomputed on the public verify page always
+ * matches the one stored at issuance.
+ */
+export function buildCertificateSignaturePayload(cert) {
+  return [
+    cert.certificate_number,
+    cert.certificate_type,
+    cert.project_title,
+    cert.project_category,
+    cert.credits_quantity,
+    cert.vintage_year,
+    cert.beneficiary_name,
+  ]
+    .map((value) => String(value ?? ''))
+    .join('|')
+}
+
+/**
+ * Tamper-evident fingerprint for a certificate.
+ */
+export async function computeCertificateHash(cert) {
+  return sha256Hex(buildCertificateSignaturePayload(cert))
+}
+
+/**
+ * Compute and persist the signature for a freshly created certificate row.
+ * Non-critical: a failure here never blocks issuance.
+ */
+async function signCertificateRecord(supabase, certificate) {
+  try {
+    if (!certificate || certificate.signature_hash) return certificate
+    const hash = await computeCertificateHash(certificate)
+    const signedAt = new Date().toISOString()
+    const { error } = await supabase
+      .from('certificates')
+      .update({ signature_hash: hash, signed_at: signedAt })
+      .eq('id', certificate.id)
+    if (error) {
+      console.warn('⚠️ Could not store certificate signature (non-critical):', error.message)
+      return certificate
+    }
+    certificate.signature_hash = hash
+    certificate.signed_at = signedAt
+    console.log('✅ Certificate signed:', hash.slice(0, 12) + '…')
+    return certificate
+  } catch (err) {
+    console.warn('⚠️ Certificate signing failed (non-critical):', err)
+    return certificate
+  }
+}
+
+/**
+ * Best-effort: store the carbon-unit serial (from the transaction/retirement
+ * ledger) on the certificate's certificate_data. Non-critical.
+ */
+async function attachCreditSerial(supabase, certificate, serial) {
+  if (!certificate || !serial) return certificate
+  try {
+    const merged = { ...(certificate.certificate_data || {}), credit_serial: serial }
+    const { error } = await supabase
+      .from('certificates')
+      .update({ certificate_data: merged })
+      .eq('id', certificate.id)
+    if (!error) {
+      certificate.certificate_data = merged
+      certificate.credit_serial = serial
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not attach credit serial (non-critical):', err)
+  }
+  return certificate
+}
+
+/**
+ * Public, no-auth certificate verification used by the /verify page and QR code.
+ * Reads the authoritative record via a SECURITY DEFINER RPC (so it works for
+ * anonymous visitors) and recomputes the integrity hash to detect tampering.
+ *
+ * @param {string} certificateNumber
+ * @returns {Promise<{found: boolean, certificate?: object, integrityValid?: boolean}>}
+ */
+export async function verifyCertificatePublic(certificateNumber) {
+  const supabase = getSupabase()
+  if (!supabase) {
+    throw new Error('Supabase client not available')
+  }
+
+  const { data, error } = await supabase.rpc('verify_certificate_public', {
+    p_certificate_number: certificateNumber,
+  })
+
+  if (error) {
+    console.error('Error verifying certificate:', error)
+    throw error
+  }
+
+  const record = Array.isArray(data) ? data[0] : data
+  if (!record) {
+    return { found: false }
+  }
+
+  const expectedHash = await computeCertificateHash(record)
+  const integrityValid = !!record.signature_hash && record.signature_hash === expectedHash
+
+  return { found: true, certificate: record, integrityValid }
+}
+
+/**
  * Generate a credit certificate for a transaction (purchase)
  */
 export async function generateCreditCertificate(transactionId, type = 'purchase') {
@@ -316,6 +437,11 @@ export async function generateCreditCertificate(transactionId, type = 'purchase'
       throw new Error(`Failed to create certificate: ${certificateError?.message || 'Unknown error'}`)
     }
 
+    // Sign the certificate (tamper-evident hash) — non-critical
+    await signCertificateRecord(supabase, certificate)
+    // Attach the carbon-unit serial from the transaction ledger
+    await attachCreditSerial(supabase, certificate, transaction.serial_number)
+
     // Log the action (non-critical)
     try {
       await logUserAction(
@@ -490,9 +616,15 @@ export async function generateRetirementCertificate(retirementId, userId) {
         .from('certificates')
         .update({ certificate_data: additionalData })
         .eq('id', cert.id)
-        
+
+      await signCertificateRecord(supabase, cert)
+      await attachCreditSerial(supabase, cert, retirement.serial_number)
       return cert
     }
+
+    // Sign the certificate (tamper-evident hash) — non-critical
+    await signCertificateRecord(supabase, certificate)
+    await attachCreditSerial(supabase, certificate, retirement.serial_number)
 
     // Log the action
     await logUserAction(

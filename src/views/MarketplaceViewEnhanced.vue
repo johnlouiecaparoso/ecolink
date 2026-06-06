@@ -148,6 +148,24 @@
                       >
                       <span>{{ listing.location }}</span>
                     </div>
+                    <div
+                      v-if="listing.feasibility_score || listing.social_impact_score || listing.climate_risk_rating"
+                      class="project-grid-scores"
+                    >
+                      <span v-if="listing.feasibility_score" class="score-badge feasibility">
+                        Feasibility {{ listing.feasibility_score }}/5
+                      </span>
+                      <span v-if="listing.social_impact_score" class="score-badge impact">
+                        Impact {{ listing.social_impact_score }}/5
+                      </span>
+                      <span
+                        v-if="listing.climate_risk_rating"
+                        class="score-badge risk"
+                        :class="listing.climate_risk_rating"
+                      >
+                        {{ listing.climate_risk_rating }} risk
+                      </span>
+                    </div>
                     <div class="project-grid-pricing">
                       <div class="price">
                         {{ formatCurrency(listing.price_per_credit, listing.currency) }}
@@ -1914,5 +1932,47 @@ onUnmounted(() => {
 
 .modal-meta .meta-item .material-symbols-outlined {
   font-size: 1.05rem;
+}
+</style>
+
+<style scoped>
+.project-grid-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.4rem 0;
+}
+
+.score-badge {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.5rem;
+  border-radius: 999px;
+  text-transform: capitalize;
+}
+
+.score-badge.feasibility {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.score-badge.impact {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.score-badge.risk.low {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.score-badge.risk.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.score-badge.risk.high {
+  background: #fee2e2;
+  color: #991b1b;
 }
 </style>

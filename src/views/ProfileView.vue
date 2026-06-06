@@ -201,6 +201,37 @@
                           />
                           <span v-if="errors.website" class="field-error">{{ errors.website }}</span>
                         </div>
+                        <div class="form-group">
+                          <label class="form-label">Organization Name</label>
+                          <input
+                            v-model="editForm.organization_name"
+                            type="text"
+                            class="form-input"
+                            :disabled="!isEditing"
+                            placeholder="e.g., Cabanatuan City Government"
+                          />
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Organization Type</label>
+                          <select
+                            v-model="editForm.organization_type"
+                            class="form-input"
+                            :disabled="!isEditing"
+                          >
+                            <option value="">Not specified</option>
+                            <option v-for="t in organizationTypes" :key="t" :value="t">{{ t }}</option>
+                          </select>
+                        </div>
+                        <div class="form-group">
+                          <label class="form-label">Organization Address</label>
+                          <input
+                            v-model="editForm.organization_address"
+                            type="text"
+                            class="form-input"
+                            :disabled="!isEditing"
+                            placeholder="Office address"
+                          />
+                        </div>
                       </template>
                     </div>
 
@@ -271,27 +302,8 @@
                   <div class="settings-section">
                     <h3 class="section-title">Security Settings</h3>
                     <div class="security-settings">
-                      <div class="security-item">
-                        <div class="security-info">
-                          <span class="security-label">Password</span>
-                          <span class="security-description">Last changed 3 months ago</span>
-                        </div>
-                        <button class="security-button">Change Password</button>
-                      </div>
-                      <div class="security-item">
-                        <div class="security-info">
-                          <span class="security-label">Two-Factor Authentication</span>
-                          <span class="security-description">Add an extra layer of security</span>
-                        </div>
-                        <button class="security-button">Enable 2FA</button>
-                      </div>
-                      <div class="security-item">
-                        <div class="security-info">
-                          <span class="security-label">Login Sessions</span>
-                          <span class="security-description">Manage active sessions</span>
-                        </div>
-                        <button class="security-button">View Sessions</button>
-                      </div>
+                      <ChangePasswordPanel />
+                      <MfaSetupPanel />
                     </div>
                   </div>
                 </div>
@@ -318,9 +330,12 @@ import {
   ROLE_APPLICATION_ROLES,
   getLatestRoleApplicationForUser,
 } from '@/services/roleApplicationService'
+import ChangePasswordPanel from '@/components/auth/ChangePasswordPanel.vue'
+import MfaSetupPanel from '@/components/auth/MfaSetupPanel.vue'
 
 export default {
   name: 'ProfileView',
+  components: { ChangePasswordPanel, MfaSetupPanel },
   setup() {
     const store = useUserStore()
     return { store }
@@ -355,7 +370,20 @@ export default {
         location: '',
         phone: '',
         website: '',
+        organization_name: '',
+        organization_type: '',
+        organization_address: '',
       },
+      organizationTypes: [
+        'Municipal LGU',
+        'City Government',
+        'Provincial LGU',
+        'Barangay',
+        'Cooperative',
+        'NGO / Civil Society',
+        'Private Company',
+        'Other',
+      ],
       notificationSettings: {
         emailNotifications: {
           label: 'Email Notifications',
@@ -810,6 +838,7 @@ export default {
       this.successMessage = ''
 
       // Copy current values to edit form
+      const profile = this.store.profile || this.latestProfile || {}
       this.editForm = {
         full_name: this.userProfile.fullName,
         email: this.userProfile.email,
@@ -817,6 +846,9 @@ export default {
         location: this.userProfile.location,
         phone: this.userProfile.phone || '',
         website: this.userProfile.website || '',
+        organization_name: profile.organization_name || '',
+        organization_type: profile.organization_type || '',
+        organization_address: profile.organization_address || '',
       }
     },
 

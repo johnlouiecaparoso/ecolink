@@ -1,0 +1,536 @@
+<template>
+  <div class="mrv-review">
+    <div class="section-head">
+      <h2>MRV Report Verification</h2>
+      <button class="btn btn-outline btn-sm" @click="loadQueue" :disabled="loading">Refresh</button>
+    </div>
+    <p class="section-sub">
+      Review monitoring reports and approve Verified Emission Reductions (VERs). Approving
+      a report issues carbon credits to the project.
+    </p>
+
+    <div v-if="loading" class="state">Loading review queue…</div>
+    <div v-else-if="error" class="state error">{{ error }}</div>
+    <div v-else-if="queue.length === 0" class="state">No reports awaiting verification.</div>
+
+    <div v-else class="review-layout">
+      <!-- Queue -->
+      <div class="queue">
+        <button
+          v-for="r in queue"
+          :key="r.id"
+          class="queue-item"
+          :class="{ active: selected && selected.id === r.id }"
+          @click="select(r.id)"
+        >
+          <span class="queue-title">{{ r.project?.title || 'Project' }}</span>
+          <span class="queue-meta">{{ r.project?.category }} · {{ r.period_type }}</span>
+          <span class="status-badge" :class="statusMeta(r.status).color">{{ statusMeta(r.status).label }}</span>
+        </button>
+      </div>
+
+      <!-- Detail -->
+      <div class="detail">
+        <div v-if="!selected" class="placeholder">Select a report to review.</div>
+        <div v-else>
+          <h3>{{ selectedProjectTitle }}</h3>
+          <div class="meta-row">
+            <span>{{ selected.period_type }}</span>
+            <span v-if="selected.period_start">· {{ selected.period_start }} → {{ selected.period_end || '—' }}</span>
+          </div>
+
+          <h4 class="block-title">Activity Data</h4>
+          <table class="data-table" v-if="selected.activity?.length">
+            <thead>
+              <tr><th>Metric</th><th>Value</th><th>Unit</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="a in selected.activity" :key="a.id">
+                <td>{{ a.metric_key }}</td>
+                <td>{{ Number(a.value).toLocaleString() }}</td>
+                <td>{{ a.unit }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="muted">No activity data submitted.</p>
+
+          <h4 class="block-title">Evidence</h4>
+          <div v-if="selected.evidence?.length" class="evidence-grid">
+            <a
+              v-for="ev in selected.evidence"
+              :key="ev.id"
+              :href="ev.file_url"
+              target="_blank"
+              rel="noopener"
+              class="evidence-item"
+            >
+              <img v-if="isImage(ev.file_type)" :src="ev.file_url" alt="evidence" />
+              <span v-else class="material-symbols-outlined file-icon">description</span>
+              <span class="evidence-caption">{{ ev.caption || 'Evidence' }}</span>
+            </a>
+          </div>
+          <p v-else class="muted">No evidence attached.</p>
+
+          <div v-if="selected.notes" class="dev-notes">
+            <strong>Developer notes:</strong> {{ selected.notes }}
+          </div>
+
+          <div class="vers-box">
+            <span>Platform-calculated reductions</span>
+            <strong>{{ Number(selected.proposed_vers || 0).toLocaleString() }} tCO₂e</strong>
+          </div>
+
+          <!-- Decision -->
+          <div class="decision">
+            <div class="form-group">
+              <label class="form-label">Approved credits (tCO₂e)</label>
+              <input type="number" min="0" step="any" v-model="approvedQuantity" class="form-input" />
+              <span class="hint">Defaults to the platform calculation; adjust if your review differs.</span>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vintage year</label>
+              <input type="number" v-model="vintageYear" class="form-input" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Notes</label>
+              <textarea v-model="notes" class="form-textarea" rows="2" placeholder="Verification notes / rejection reason"></textarea>
+            </div>
+
+            <div class="decision-actions">
+              <button
+                v-if="selected.status === 'submitted'"
+                class="btn btn-outline"
+                @click="doStartReview"
+                :disabled="working"
+              >
+                Start Review
+              </button>
+              <button class="btn btn-danger" @click="doReject" :disabled="working">Reject</button>
+              <button class="btn btn-primary" @click="doApprove" :disabled="working">
+                {{ working ? 'Processing…' : 'Approve & Issue Credits' }}
+              </button>
+            </div>
+            <p v-if="message" class="message" :class="{ error: isError }">{{ message }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+import { REPORT_STATUS_META } from '@/constants/mrv'
+import {
+  getReviewQueue,
+  getReport,
+  startReview,
+  approveReport,
+  rejectReport,
+} from '@/services/monitoringService'
+
+const queue = ref([])
+const loading = ref(false)
+const error = ref('')
+const selected = ref(null)
+const working = ref(false)
+const message = ref('')
+const isError = ref(false)
+
+const approvedQuantity = ref(0)
+const vintageYear = ref(new Date().getFullYear())
+const notes = ref('')
+
+const selectedProjectTitle = computed(() => {
+  const match = queue.value.find((r) => r.id === selected.value?.id)
+  return match?.project?.title || 'Project'
+})
+
+function statusMeta(status) {
+  return REPORT_STATUS_META[status] || { label: status, color: 'gray' }
+}
+function isImage(type) {
+  return (type || '').startsWith('image/')
+}
+function setMessage(text, err = false) {
+  message.value = text
+  isError.value = err
+}
+
+async function loadQueue() {
+  loading.value = true
+  error.value = ''
+  try {
+    queue.value = await getReviewQueue()
+  } catch (err) {
+    error.value = err.message || 'Failed to load review queue'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function select(reportId) {
+  setMessage('')
+  try {
+    selected.value = await getReport(reportId)
+    approvedQuantity.value = Number(selected.value.proposed_vers || 0)
+    vintageYear.value = new Date().getFullYear()
+    notes.value = ''
+  } catch (err) {
+    setMessage(err.message || 'Failed to load report', true)
+  }
+}
+
+async function doStartReview() {
+  working.value = true
+  try {
+    await startReview(selected.value.id)
+    await loadQueue()
+    await select(selected.value.id)
+    setMessage('Marked as under review.')
+  } catch (err) {
+    setMessage(err.message || 'Failed', true)
+  } finally {
+    working.value = false
+  }
+}
+
+async function doApprove() {
+  if (!confirm('Approve this report and issue credits to the project? This cannot be undone.')) return
+  working.value = true
+  setMessage('')
+  try {
+    await approveReport(selected.value.id, {
+      approvedQuantity: approvedQuantity.value,
+      vintageYear: vintageYear.value,
+      projectId: selected.value.project_id,
+      notes: notes.value,
+    })
+    setMessage('Approved. Credits issued and listed on the marketplace.')
+    selected.value = null
+    await loadQueue()
+  } catch (err) {
+    setMessage(err.message || 'Failed to approve', true)
+  } finally {
+    working.value = false
+  }
+}
+
+async function doReject() {
+  working.value = true
+  setMessage('')
+  try {
+    await rejectReport(selected.value.id, notes.value)
+    setMessage('Report rejected.')
+    selected.value = null
+    await loadQueue()
+  } catch (err) {
+    setMessage(err.message || 'Failed to reject', true)
+  } finally {
+    working.value = false
+  }
+}
+
+loadQueue()
+</script>
+
+<style scoped>
+.mrv-review {
+  background: #fff;
+  border: 1px solid var(--border-color, #d1e7dd);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.section-head h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--text-primary, #111827);
+}
+
+.section-sub {
+  color: var(--text-muted, #6b7280);
+  margin: 0.35rem 0 1.25rem;
+  font-size: 0.9rem;
+}
+
+.state {
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+}
+
+.state.error {
+  color: #dc2626;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 300px) 1fr;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.queue-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: left;
+  padding: 0.75rem;
+  border: 1px solid var(--border-light, #e8f5e8);
+  border-radius: 0.5rem;
+  background: #fff;
+  cursor: pointer;
+}
+
+.queue-item:hover {
+  border-color: var(--primary-color, #069e2d);
+}
+
+.queue-item.active {
+  background: var(--primary-light, #e8f5e8);
+  border-color: var(--primary-color, #069e2d);
+}
+
+.queue-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.queue-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted, #6b7280);
+  text-transform: capitalize;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.status-badge.gray { background: #e5e7eb; color: #374151; }
+.status-badge.yellow { background: #fef3c7; color: #92400e; }
+.status-badge.blue { background: #dbeafe; color: #1e40af; }
+.status-badge.green { background: #d1fae5; color: #065f46; }
+.status-badge.red { background: #fee2e2; color: #991b1b; }
+
+.detail {
+  border: 1px solid var(--border-light, #e8f5e8);
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  min-height: 300px;
+}
+
+.detail h3 {
+  margin: 0 0 0.25rem;
+}
+
+.meta-row {
+  color: var(--text-muted, #6b7280);
+  font-size: 0.85rem;
+  text-transform: capitalize;
+  margin-bottom: 0.5rem;
+}
+
+.block-title {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.95rem;
+  border-bottom: 1px solid var(--border-light, #e8f5e8);
+  padding-bottom: 0.3rem;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border-light, #e8f5e8);
+}
+
+.muted {
+  color: var(--text-muted, #6b7280);
+  font-size: 0.85rem;
+}
+
+.evidence-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.evidence-item {
+  width: 110px;
+  border: 1px solid var(--border-light, #e8f5e8);
+  border-radius: 0.5rem;
+  padding: 0.4rem;
+  text-align: center;
+  text-decoration: none;
+  color: inherit;
+}
+
+.evidence-item img {
+  width: 100%;
+  height: 70px;
+  object-fit: cover;
+  border-radius: 0.35rem;
+}
+
+.file-icon {
+  font-size: 2.5rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.evidence-caption {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted, #6b7280);
+  margin-top: 0.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dev-notes {
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.vers-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--primary-light, #e8f5e8);
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  margin-top: 1rem;
+}
+
+.vers-box strong {
+  color: var(--primary-color, #069e2d);
+  font-size: 1.2rem;
+}
+
+.decision {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border-light, #e8f5e8);
+  padding-top: 1rem;
+}
+
+.form-group {
+  margin-bottom: 0.85rem;
+}
+
+.form-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-bottom: 0.3rem;
+}
+
+.form-input,
+.form-textarea {
+  width: 100%;
+  padding: 9px 12px;
+  border: 2px solid var(--border-color, #d1e7dd);
+  border-radius: 0.5rem;
+  font-size: 14px;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--primary-color, #069e2d);
+}
+
+.hint {
+  font-size: 0.72rem;
+  color: var(--text-muted, #6b7280);
+}
+
+.decision-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
+}
+
+.message {
+  margin-top: 0.6rem;
+  color: var(--primary-color, #069e2d);
+  font-weight: 500;
+}
+
+.message.error {
+  color: #dc2626;
+}
+
+.placeholder {
+  text-align: center;
+  color: var(--text-muted, #6b7280);
+  padding: 3rem 1rem;
+}
+
+.btn {
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.btn-sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.btn-primary {
+  background: var(--primary-color, #069e2d);
+  color: #fff;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-color, #d1e7dd);
+  color: var(--text-primary, #111827);
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .review-layout {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

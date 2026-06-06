@@ -6,6 +6,7 @@ import { projectWorkflowService } from '@/services/projectWorkflowService'
 import { projectApprovalService } from '@/services/projectApprovalService'
 import UiButton from '@/components/ui/Button.vue'
 import UiInput from '@/components/ui/Input.vue'
+import { PROJECT_TYPES, isValidProjectType } from '@/constants/projectTypes'
 
 const props = defineProps({
   project: {
@@ -23,16 +24,46 @@ const emit = defineEmits(['success', 'cancel'])
 
 const userStore = useUserStore()
 
+// Philippine-eligible project types (single source of truth)
+const projectTypes = PROJECT_TYPES
+const selectedTypeDescription = computed(
+  () => PROJECT_TYPES.find((type) => type.value === formData.value.category)?.description || '',
+)
+
 // Form data
 const formData = ref({
   title: '',
   description: '',
   category: '',
   location: '',
+  geo_coordinates: '',
+  barangay: '',
+  municipality: '',
   expected_impact: '',
   project_image: null, // Add project image field
   estimated_credits: '', // Add estimated credits field
   credit_price: '', // Add credit price field
+  start_date: '',
+  end_date: '',
+  host_entity: '',
+
+  // Technical & compliance files (single-file inputs)
+  pdd_file: null,
+  baseline_file: null,
+  additionality_file: null,
+  leakage_file: null,
+  safeguards_file: null,
+  feasibility_file: null,
+
+  lgu_endorsement_file: null,
+  land_ownership_file: null,
+  ecc_file: null,
+  moa_file: null,
+
+  // Financials (optional)
+  capex: '',
+  opex: '',
+  carbon_yield_projection: '',
 })
 
 // File upload state
@@ -56,6 +87,17 @@ const success = ref('')
 // File input refs
 const projectImageInput = ref(null)
 const projectDocumentsInput = ref(null)
+const pddInput = ref(null)
+const baselineInput = ref(null)
+const additionalityInput = ref(null)
+const leakageInput = ref(null)
+const safeguardsInput = ref(null)
+const feasibilityInput = ref(null)
+
+const lguEndorsementInput = ref(null)
+const landOwnershipInput = ref(null)
+const eccInput = ref(null)
+const moaInput = ref(null)
 
 // Categories are now custom text input - no longer using predefined list
 
@@ -85,11 +127,43 @@ const validationRules = {
     maxLength: 100,
     message: 'Location must be between 2 and 100 characters',
   },
+  geo_coordinates: {
+    required: true,
+    minLength: 3,
+    maxLength: 100,
+    message: 'Provide geo-coordinates (lat,lon) or a valid location string',
+  },
+  barangay: {
+    required: true,
+    minLength: 2,
+    maxLength: 100,
+    message: 'Barangay is required',
+  },
+  municipality: {
+    required: true,
+    minLength: 2,
+    maxLength: 100,
+    message: 'Municipality is required',
+  },
   expected_impact: {
     required: true,
     minLength: 10,
     maxLength: 500,
     message: 'Expected impact must be between 10 and 500 characters',
+  },
+  start_date: {
+    required: true,
+    message: 'Start date is required',
+  },
+  end_date: {
+    required: true,
+    message: 'End date is required',
+  },
+  host_entity: {
+    required: true,
+    minLength: 2,
+    maxLength: 200,
+    message: 'Host entity is required',
   },
   estimated_credits: {
     required: true,
@@ -165,6 +239,41 @@ const isFormValid = computed(() => {
         }
       }
     }
+
+    // Attach technical & compliance documents with simple metadata
+    const addIfFile = (file, label) => {
+      if (file) {
+        projectData.documents.push({
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          label,
+          uploadDate: new Date().toISOString(),
+        })
+      }
+    }
+
+    addIfFile(formData.value.pdd_file, 'pdd')
+    addIfFile(formData.value.baseline_file, 'baseline')
+    addIfFile(formData.value.additionality_file, 'additionality')
+    addIfFile(formData.value.leakage_file, 'leakage')
+    addIfFile(formData.value.safeguards_file, 'safeguards')
+    addIfFile(formData.value.feasibility_file, 'feasibility')
+    addIfFile(formData.value.lgu_endorsement_file, 'lgu_endorsement')
+    addIfFile(formData.value.land_ownership_file, 'land_ownership')
+    addIfFile(formData.value.ecc_file, 'ecc')
+    addIfFile(formData.value.moa_file, 'moa')
+
+    // Include any generic uploaded files as well
+    uploadedFiles.value.forEach((file) => {
+      projectData.documents.push({
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        label: 'other',
+        uploadDate: file.uploadDate,
+      })
+    })
 
     // Handle string length validation (only for strings)
     if (typeof value === 'string' && value) {
@@ -253,6 +362,12 @@ function validateField(field) {
       errors.value[field] = `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
       return false
     }
+  }
+
+  // Category must be one of the predefined Philippine-eligible project types
+  if (field === 'category' && value && !isValidProjectType(value)) {
+    errors.value[field] = 'Please select a valid Philippine-eligible project type'
+    return false
   }
 
   // Handle string length validation (only for strings)
@@ -422,6 +537,22 @@ function validateImageFile(file) {
   return null
 }
 
+// Generic single-document handler used for required technical/compliance docs
+async function handleSingleDocUpload(event, fieldName) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const validationError = validateFile(file)
+  if (validationError) {
+    fileUploadError.value = validationError
+    return
+  }
+
+  formData.value[fieldName] = file
+  // clear input value to allow re-upload
+  event.target.value = ''
+}
+
 async function processProjectImageFile(file) {
   projectImageError.value = ''
   uploadingImage.value = true
@@ -579,15 +710,26 @@ async function handleSubmit() {
   loading.value = true
 
   try {
-    // Prepare project data with files and image
+    // Prepare project data with scalar fields; files will be serialized below
     const projectData = {
-      ...formData.value,
-      documents: uploadedFiles.value.map((file) => ({
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        uploadDate: file.uploadDate,
-      })),
+      title: formData.value.title,
+      description: formData.value.description,
+      category: formData.value.category,
+      location: formData.value.location,
+      geo_coordinates: formData.value.geo_coordinates,
+      barangay: formData.value.barangay,
+      municipality: formData.value.municipality,
+      expected_impact: formData.value.expected_impact,
+      start_date: formData.value.start_date,
+      end_date: formData.value.end_date,
+      host_entity: formData.value.host_entity,
+      estimated_credits: formData.value.estimated_credits,
+      credit_price: formData.value.credit_price,
+      capex: formData.value.capex,
+      opex: formData.value.opex,
+      carbon_yield_projection: formData.value.carbon_yield_projection,
+      status: isEditMode.value ? (props.project && props.project.status ? props.project.status : 'draft') : 'submitted',
+      documents: [],
     }
 
     // Convert project image to base64 for database storage
@@ -790,7 +932,7 @@ async function forceSubmit() {
     const projectData = {
       title: formData.value.title || 'Test Project',
       description: formData.value.description || 'Test Description',
-      category: formData.value.category || 'Forestry',
+      category: formData.value.category || 'Reforestation & Agroforestry',
       location: formData.value.location || 'Test Location',
       expected_impact: formData.value.expected_impact || 'Test Impact',
     }
@@ -962,20 +1104,24 @@ onMounted(() => {
 
       <!-- Project Category -->
       <div class="form-group">
-        <label for="category" class="form-label"> Project Category * </label>
-        <UiInput
+        <label for="category" class="form-label"> Project Type * </label>
+        <select
           id="category"
           v-model="formData.category"
-          :class="{ error: errors.category }"
-          placeholder="Enter project category (e.g., Forestry, Renewable Energy, Waste Management)"
+          :class="['form-select', { error: errors.category }]"
           @blur="validateField('category')"
-          @input="clearErrors"
-        />
+          @change="clearErrors"
+        >
+          <option value="" disabled>Select a Philippine-eligible project type</option>
+          <option v-for="type in projectTypes" :key="type.value" :value="type.value">
+            {{ type.label }}
+          </option>
+        </select>
         <div v-if="errors.category" class="field-error">
           {{ errors.category }}
         </div>
         <div class="field-help">
-          Enter a custom category that best describes your project type
+          {{ selectedTypeDescription || 'Choose the DENR/CCC-aligned category that best fits your project.' }}
         </div>
       </div>
 
@@ -1031,6 +1177,124 @@ onMounted(() => {
         </div>
         <div class="field-help">{{ formData.expected_impact.length }}/500 characters</div>
       </div>
+
+        <div class="form-subsection">
+          <div class="subsection-header">
+            <h4 class="subsection-title">Project Location Details *</h4>
+          </div>
+          <div class="form-group">
+            <label for="geo_coordinates" class="form-label"> Geo-coordinates (lat,lon) * </label>
+            <UiInput
+              id="geo_coordinates"
+              v-model="formData.geo_coordinates"
+              :class="{ error: errors.geo_coordinates }"
+              placeholder="e.g., 14.5995,120.9842"
+              @blur="validateField('geo_coordinates')"
+              @input="clearErrors"
+            />
+            <div v-if="errors.geo_coordinates" class="field-error">{{ errors.geo_coordinates }}</div>
+          </div>
+
+          <div class="form-group">
+            <label for="barangay" class="form-label"> Barangay * </label>
+            <UiInput id="barangay" v-model="formData.barangay" :class="{ error: errors.barangay }" @blur="validateField('barangay')" />
+            <div v-if="errors.barangay" class="field-error">{{ errors.barangay }}</div>
+          </div>
+
+          <div class="form-group">
+            <label for="municipality" class="form-label"> Municipality / City * </label>
+            <UiInput id="municipality" v-model="formData.municipality" :class="{ error: errors.municipality }" @blur="validateField('municipality')" />
+            <div v-if="errors.municipality" class="field-error">{{ errors.municipality }}</div>
+          </div>
+
+          <div class="form-grid two-columns">
+            <div class="form-group">
+              <label for="start_date" class="form-label"> Start Date * </label>
+              <UiInput id="start_date" type="date" v-model="formData.start_date" :class="{ error: errors.start_date }" @blur="validateField('start_date')" />
+              <div v-if="errors.start_date" class="field-error">{{ errors.start_date }}</div>
+            </div>
+            <div class="form-group">
+              <label for="end_date" class="form-label"> End Date * </label>
+              <UiInput id="end_date" type="date" v-model="formData.end_date" :class="{ error: errors.end_date }" @blur="validateField('end_date')" />
+              <div v-if="errors.end_date" class="field-error">{{ errors.end_date }}</div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="host_entity" class="form-label"> Host Entity (LGU / Private / Coop) * </label>
+            <UiInput id="host_entity" v-model="formData.host_entity" :class="{ error: errors.host_entity }" @blur="validateField('host_entity')" />
+            <div v-if="errors.host_entity" class="field-error">{{ errors.host_entity }}</div>
+          </div>
+        </div>
+
+        <div class="form-subsection optional">
+          <div class="subsection-header">
+            <h4 class="subsection-title">Required Technical & Compliance Documents</h4>
+            <p class="subsection-subtitle">Upload each required document as its own file input.</p>
+          </div>
+
+          <div class="document-grid">
+            <div class="doc-row">
+              <label>PDD *</label>
+              <input ref="pddInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'pdd_file')" />
+              <div class="doc-meta">{{ formData.pdd_file ? formData.pdd_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Baseline Report *</label>
+              <input ref="baselineInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'baseline_file')" />
+              <div class="doc-meta">{{ formData.baseline_file ? formData.baseline_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Additionality Justification *</label>
+              <input ref="additionalityInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'additionality_file')" />
+              <div class="doc-meta">{{ formData.additionality_file ? formData.additionality_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Leakage Assessment *</label>
+              <input ref="leakageInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'leakage_file')" />
+              <div class="doc-meta">{{ formData.leakage_file ? formData.leakage_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Safeguards Checklist *</label>
+              <input ref="safeguardsInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'safeguards_file')" />
+              <div class="doc-meta">{{ formData.safeguards_file ? formData.safeguards_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Feasibility Study (Optional)</label>
+              <input ref="feasibilityInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'feasibility_file')" />
+              <div class="doc-meta">{{ formData.feasibility_file ? formData.feasibility_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>LGU Endorsement *</label>
+              <input ref="lguEndorsementInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'lgu_endorsement_file')" />
+              <div class="doc-meta">{{ formData.lgu_endorsement_file ? formData.lgu_endorsement_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>Land Ownership / Lease Documents *</label>
+              <input ref="landOwnershipInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'land_ownership_file')" />
+              <div class="doc-meta">{{ formData.land_ownership_file ? formData.land_ownership_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>ECC / Permits *</label>
+              <input ref="eccInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'ecc_file')" />
+              <div class="doc-meta">{{ formData.ecc_file ? formData.ecc_file.name : 'No file selected' }}</div>
+            </div>
+
+            <div class="doc-row">
+              <label>MOA / Agreements *</label>
+              <input ref="moaInput" type="file" accept="application/pdf" class="file-input-hidden" @change="(e) => handleSingleDocUpload(e, 'moa_file')" />
+              <div class="doc-meta">{{ formData.moa_file ? formData.moa_file.name : 'No file selected' }}</div>
+            </div>
+          </div>
+        </div>
 
       <div class="form-subsection">
         <div class="subsection-header">

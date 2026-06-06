@@ -51,6 +51,9 @@
       </div>
     </section>
 
+    <!-- Role-aware onboarding guide (authenticated users) -->
+    <OnboardingGuide />
+
     <!-- Featured Projects -->
     <section class="featured-section">
       <div class="container">
@@ -224,9 +227,11 @@
 
 <script>
 import { useUserStore } from '@/store/userStore'
+import OnboardingGuide from '@/components/OnboardingGuide.vue'
 
 export default {
   name: 'HomepageView',
+  components: { OnboardingGuide },
   setup() {
     const store = useUserStore()
     return { store }

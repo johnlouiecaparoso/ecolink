@@ -302,6 +302,12 @@ export async function getMarketplaceListings(filters = {}) {
           description,
           category,
           location,
+          geo_coordinates,
+          barangay,
+          municipality,
+          feasibility_score,
+          social_impact_score,
+          climate_risk_rating,
           project_image,
           image_name,
           image_type,
@@ -360,7 +366,7 @@ export async function getMarketplaceListings(filters = {}) {
     const credit = listing.project_credits
     const project = credit?.projects
 
-    if (!credit || !project || project.status !== 'approved') {
+      if (!credit || !project || !['approved', 'validated'].includes(project.status)) {
       continue
     }
 
@@ -398,6 +404,10 @@ export async function getMarketplaceListings(filters = {}) {
           project_description: project.description,
           category: project.category,
           location: project.location,
+          geo_coordinates: project.geo_coordinates,
+          feasibility_score: project.feasibility_score,
+          social_impact_score: project.social_impact_score,
+          climate_risk_rating: project.climate_risk_rating,
           vintage_year: credit.vintage_year,
           verification_standard: credit.verification_standard,
       available_quantity: availableQuantity,
@@ -610,6 +620,10 @@ export async function purchaseCredits(listingId, purchaseData) {
       console.error('No user ID found')
       throw new Error('User not authenticated')
     }
+
+    // KYC gate: buyers must be identity-verified before purchasing credits.
+    const { assertCanTrade } = await import('@/services/kycService')
+    await assertCanTrade(userId)
 
     const user = { id: userId }
 
@@ -1118,23 +1132,44 @@ export async function retireCredits(userId, projectId, quantity, reason) {
   }
 
   try {
-    // First, check if user has enough credits
-    const { data: ownership, error: ownershipError } = await supabase
-      .from('credit_ownership')
-      .select('quantity')
-      .eq('user_id', userId)
-      .eq('project_id', projectId)
-      .single()
-
-    if (ownershipError) {
-      throw new Error('Could not verify credit ownership')
+    // Atomically decrement the owner's balance FIRST. This is the
+    // anti-double-counting guard: the DB only decrements when enough credits
+    // exist, so the same credits can never be retired twice (even concurrently).
+    let decremented = false
+    try {
+      const { data, error } = await supabase.rpc('retire_credits_atomic', {
+        p_user_id: userId,
+        p_project_id: projectId,
+        p_quantity: quantity,
+      })
+      if (error) throw error
+      decremented = data === true
+    } catch (rpcErr) {
+      // Fallback for environments where the RPC isn't deployed yet.
+      console.warn('retire_credits_atomic unavailable, using fallback:', rpcErr?.message)
+      const { data: ownership, error: ownershipError } = await supabase
+        .from('credit_ownership')
+        .select('quantity')
+        .eq('user_id', userId)
+        .eq('project_id', projectId)
+        .single()
+      if (ownershipError || !ownership || ownership.quantity < quantity) {
+        throw new Error('Insufficient credits to retire')
+      }
+      const { error: updateError } = await supabase
+        .from('credit_ownership')
+        .update({ quantity: ownership.quantity - quantity, updated_at: new Date().toISOString() })
+        .eq('user_id', userId)
+        .eq('project_id', projectId)
+      if (updateError) throw new Error('Failed to update credit ownership')
+      decremented = true
     }
 
-    if (!ownership || ownership.quantity < quantity) {
+    if (!decremented) {
       throw new Error('Insufficient credits to retire')
     }
 
-    // Create retirement record
+    // Create retirement record (serial number auto-assigned by DB trigger)
     const { data: retirement, error: retirementError } = await supabase
       .from('credit_retirements')
       .insert({
@@ -1149,20 +1184,6 @@ export async function retireCredits(userId, projectId, quantity, reason) {
 
     if (retirementError) {
       throw new Error('Failed to create retirement record')
-    }
-
-    // Update credit ownership (reduce quantity)
-    const { error: updateError } = await supabase
-      .from('credit_ownership')
-      .update({
-        quantity: ownership.quantity - quantity,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', userId)
-      .eq('project_id', projectId)
-
-    if (updateError) {
-      throw new Error('Failed to update credit ownership')
     }
 
     // Log the retirement action
@@ -1188,6 +1209,7 @@ export async function retireCredits(userId, projectId, quantity, reason) {
     return {
       success: true,
       retirement_id: retirement.id,
+      serial_number: retirement.serial_number,
       message: `Successfully retired ${quantity} credits`,
     }
   } catch (error) {

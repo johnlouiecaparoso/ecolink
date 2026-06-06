@@ -2,7 +2,7 @@
   <div class="project-approval-panel">
     <div class="panel-header">
       <h2>Project Management Panel</h2>
-      <p>Manage all projects (pending, approved, and rejected)</p>
+      <p>Manage the MRV workflow from submission through validation and issuance.</p>
       <div class="filter-tabs">
         <button 
           :class="['filter-tab', { active: statusFilter === 'all' }]"
@@ -11,22 +11,28 @@
           All Projects ({{ allProjects.length }})
         </button>
         <button 
-          :class="['filter-tab', { active: statusFilter === 'pending' }]"
-          @click="statusFilter = 'pending'"
+          :class="['filter-tab', { active: statusFilter === 'submitted' }]"
+          @click="statusFilter = 'submitted'"
         >
-          Pending ({{ allProjects.filter(p => p.status === 'pending').length }})
+          Submitted ({{ allProjects.filter(p => p.status === 'submitted').length }})
         </button>
         <button
-          :class="['filter-tab', { active: statusFilter === 'under_review' }]"
-          @click="statusFilter = 'under_review'"
+          :class="['filter-tab', { active: statusFilter === 'in_review' }]"
+          @click="statusFilter = 'in_review'"
         >
-          Under Review ({{ allProjects.filter(p => p.status === 'under_review').length }})
+          In Review ({{ allProjects.filter(p => p.status === 'in_review').length }})
         </button>
         <button 
-          :class="['filter-tab', { active: statusFilter === 'approved' }]"
-          @click="statusFilter = 'approved'"
+          :class="['filter-tab', { active: statusFilter === 'needs_revision' }]"
+          @click="statusFilter = 'needs_revision'"
         >
-          Approved ({{ allProjects.filter(p => p.status === 'approved').length }})
+          Needs Revision ({{ allProjects.filter(p => p.status === 'needs_revision').length }})
+        </button>
+        <button 
+          :class="['filter-tab', { active: statusFilter === 'validated' }]"
+          @click="statusFilter = 'validated'"
+        >
+          Validated ({{ allProjects.filter(p => p.status === 'validated').length }})
         </button>
         <button 
           :class="['filter-tab', { active: statusFilter === 'rejected' }]"
@@ -158,31 +164,44 @@
           </div>
         </div>
 
+        <ProjectAssessmentPanel :project="activeProject" />
+
         <div class="detail-actions">
           <button
-            v-if="activeProject.status === 'pending'"
+            v-if="['submitted', 'pending'].includes(activeProject.status)"
             class="action-btn outline"
             type="button"
-            @click="openVerificationModal(activeProject, 'under_review')"
+            @click="openVerificationModal(activeProject, 'in_review')"
             :disabled="processing"
           >
             <span class="material-symbols-outlined" aria-hidden="true">flag</span>
-            <span>Start Review</span>
+            <span>Start MRV Review</span>
           </button>
 
           <button
-            v-if="activeProject.status === 'pending' || activeProject.status === 'under_review'"
+            v-if="['submitted', 'pending', 'in_review'].includes(activeProject.status)"
             class="action-btn success"
             type="button"
-            @click="openVerificationModal(activeProject, 'approved')"
+            @click="openVerificationModal(activeProject, 'validated')"
             :disabled="processing"
           >
             <span class="material-symbols-outlined" aria-hidden="true">done_all</span>
-            <span>Approve Project</span>
+            <span>Validate Project</span>
           </button>
 
           <button
-            v-if="activeProject.status === 'pending' || activeProject.status === 'under_review'"
+            v-if="['submitted', 'pending', 'in_review'].includes(activeProject.status)"
+            class="action-btn outline"
+            type="button"
+            @click="openVerificationModal(activeProject, 'needs_revision')"
+            :disabled="processing"
+          >
+            <span class="material-symbols-outlined" aria-hidden="true">edit_note</span>
+            <span>Request Revision</span>
+          </button>
+
+          <button
+            v-if="['submitted', 'pending', 'in_review'].includes(activeProject.status)"
             class="action-btn outline danger"
             type="button"
             @click="openVerificationModal(activeProject, 'rejected')"
@@ -193,10 +212,10 @@
           </button>
 
           <button
-            v-if="activeProject.status === 'approved' || activeProject.status === 'rejected'"
+            v-if="['validated', 'needs_revision', 'rejected', 'approved'].includes(activeProject.status)"
             class="action-btn outline"
             type="button"
-            @click="openVerificationModal(activeProject, 'under_review')"
+            @click="openVerificationModal(activeProject, 'in_review')"
             :disabled="processing"
           >
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
@@ -309,6 +328,7 @@ import { useUserStore } from '@/store/userStore'
 import { useModernPrompt } from '@/composables/useModernPrompt'
 import { projectService } from '@/services/projectService'
 import ModernPrompt from '@/components/ui/ModernPrompt.vue'
+import ProjectAssessmentPanel from '@/components/verifier/ProjectAssessmentPanel.vue'
 
 const { promptState, confirm, success, error: showErrorPrompt, handleConfirm, handleCancel, handleClose } = useModernPrompt()
 
@@ -388,7 +408,7 @@ async function loadPendingProjects(forceRefresh = false) {
     allProjects.value = validProjects
     
     // Update pending projects count
-    pendingProjects.value = allProjects.value.filter(p => p.status === 'pending')
+    pendingProjects.value = allProjects.value.filter((p) => ['pending', 'submitted'].includes(p.status))
     
     console.log('Loaded projects from Supabase database:', {
       total: allProjects.value.length,
@@ -540,17 +560,24 @@ function formatDate(dateString) {
 }
 
 function getStatusLabel(status) {
+  const normalized = String(status || '').toLowerCase()
   switch (status) {
     case 'pending':
       return 'Pending'
+    case 'submitted':
+      return 'Submitted'
     case 'under_review':
-      return 'Under Review'
+    case 'in_review':
+      return 'In Review'
+    case 'needs_revision':
+      return 'Needs Revision'
     case 'approved':
-      return 'Approved'
+    case 'validated':
+      return 'Validated'
     case 'rejected':
       return 'Rejected'
     default:
-      return status.toUpperCase()
+      return normalized.toUpperCase()
   }
 }
 

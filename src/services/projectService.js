@@ -1,6 +1,7 @@
 import { getSupabase } from '@/services/supabaseClient'
 import { getCurrentUserId } from '@/utils/authHelper'
 import { notifyProjectSubmitted } from '@/services/emailService'
+import { PROJECT_TYPES, isValidProjectType } from '@/constants/projectTypes'
 
 export class ProjectService {
   constructor() {
@@ -34,6 +35,12 @@ export class ProjectService {
     // Validate required fields
     if (!title || !description || !category || !location || !expected_impact) {
       throw new Error('All fields are required')
+    }
+
+    // Enforce Philippine-eligible project type (defense in depth — the form
+    // dropdown is not trusted on its own; the DB CHECK constraint backs this up)
+    if (!isValidProjectType(category)) {
+      throw new Error('Invalid project type. Please choose a Philippine-eligible category.')
     }
 
     try {
@@ -471,19 +478,23 @@ export class ProjectService {
       throw new Error('Project ID missing')
     }
 
-    if (!['pending', 'under_review', 'approved', 'rejected'].includes(status)) {
+    const normalizedStatus = String(status || '').toLowerCase().trim()
+    const acceptedStatuses = ['draft', 'pending', 'submitted', 'under_review', 'in_review', 'needs_revision', 'approved', 'validated', 'rejected']
+    if (!acceptedStatuses.includes(normalizedStatus)) {
       throw new Error('Invalid status')
     }
+
+    const canonicalStatus = normalizedStatus === 'pending' ? 'submitted' : normalizedStatus === 'under_review' ? 'in_review' : normalizedStatus === 'approved' ? 'validated' : normalizedStatus
 
     try {
       const { data, error } = await this.supabase
         .from('projects')
         .update({
-          status,
+          status: canonicalStatus,
           verification_notes: verificationNotes,
-          verified_by: status === 'approved' || status === 'rejected' ? 'current_user()' : null,
+          verified_by: ['validated', 'rejected', 'needs_revision'].includes(canonicalStatus) ? 'current_user()' : null,
           verified_at:
-            status === 'approved' || status === 'rejected' ? new Date().toISOString() : null,
+            ['validated', 'rejected', 'needs_revision'].includes(canonicalStatus) ? new Date().toISOString() : null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', projectId)
@@ -615,25 +626,40 @@ export class ProjectService {
   }
 
   /**
+   * Set a project's risk/feasibility assessment scores (verifier action).
+   * @param {string} projectId
+   * @param {{feasibility_score?:number, social_impact_score?:number, climate_risk_rating?:string}} scores
+   */
+  async setProjectScores(projectId, scores = {}) {
+    const payload = { updated_at: new Date().toISOString() }
+    if (scores.feasibility_score !== undefined && scores.feasibility_score !== '') {
+      payload.feasibility_score = Number(scores.feasibility_score)
+    }
+    if (scores.social_impact_score !== undefined && scores.social_impact_score !== '') {
+      payload.social_impact_score = Number(scores.social_impact_score)
+    }
+    if (scores.climate_risk_rating !== undefined) {
+      payload.climate_risk_rating = scores.climate_risk_rating || null
+    }
+
+    const { data, error } = await this.supabase
+      .from('projects')
+      .update(payload)
+      .eq('id', projectId)
+      .select()
+      .single()
+
+    if (error) throw new Error(error.message || 'Failed to save assessment')
+    return data
+  }
+
+  /**
    * Get available project categories
    * @returns {Array} List of categories
    */
   getProjectCategories() {
-    return [
-      'Renewable Energy',
-      'Environmental Conservation',
-      'Waste Management',
-      'Water Conservation',
-      'Air Quality',
-      'Biodiversity',
-      'Sustainable Agriculture',
-      'Green Technology',
-      'Climate Action',
-      'Community Development',
-      'Education',
-      'Health & Wellness',
-      'Other',
-    ]
+    // Single source of truth: Philippine-eligible project types
+    return PROJECT_TYPES.map((type) => type.value)
   }
 
   /**
@@ -642,9 +668,10 @@ export class ProjectService {
    */
   getProjectStatuses() {
     return [
-      { value: 'pending', label: 'Pending', color: 'yellow' },
-      { value: 'under_review', label: 'Under Review', color: 'blue' },
-      { value: 'approved', label: 'Approved', color: 'green' },
+      { value: 'submitted', label: 'Submitted', color: 'yellow' },
+      { value: 'in_review', label: 'In Review', color: 'blue' },
+      { value: 'needs_revision', label: 'Needs Revision', color: 'orange' },
+      { value: 'validated', label: 'Validated', color: 'green' },
       { value: 'rejected', label: 'Rejected', color: 'red' },
     ]
   }
@@ -664,6 +691,7 @@ export const updateProjectStatus = projectService.updateProjectStatus.bind(proje
 export const assignProjectToVerifier = projectService.assignProjectToVerifier.bind(projectService)
 export const getAvailableVerifiers = projectService.getAvailableVerifiers.bind(projectService)
 export const getProjectStats = projectService.getProjectStats.bind(projectService)
+export const setProjectScores = projectService.setProjectScores.bind(projectService)
 export const getProjectCategories = projectService.getProjectCategories.bind(projectService)
 export const getProjectStatuses = projectService.getProjectStatuses.bind(projectService)
 

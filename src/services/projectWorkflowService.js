@@ -225,9 +225,9 @@ export class ProjectWorkflowService {
         throw new Error(updateError.message || 'Failed to approve project')
       }
 
-      // Generate project credits (this will be handled by the database trigger)
-      // But we can also manually create credits if needed
-      const creditsData = await this.generateProjectCredits(projectId)
+      // NOTE: Credits are NOT generated at approval time under the decoupled
+      // MRV model. They are minted only when a verifier approves a monitoring
+      // report's VERs (see monitoringService.approveReport).
 
       // Send approval notification
       try {
@@ -239,12 +239,11 @@ export class ProjectWorkflowService {
       // Log the approval
       await logUserAction('PROJECT_APPROVED', 'project', user.id, projectId, {
         verifier_notes: verifierNotes,
-        credits_generated: creditsData?.total_credits,
       })
 
       return {
         project: updatedProject,
-        credits: creditsData,
+        credits: null,
       }
     } catch (error) {
       console.error('Error approving project:', error)

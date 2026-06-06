@@ -48,6 +48,14 @@
             <h3>Audit Logs</h3>
             <p>View system activity and user actions</p>
           </router-link>
+
+          <router-link to="/admin/kyc" class="admin-tool-card">
+            <div class="tool-icon" aria-hidden="true">
+              <span class="material-symbols-outlined">verified_user</span>
+            </div>
+            <h3>KYC Review</h3>
+            <p>Approve identity verification applications</p>
+          </router-link>
         </div>
       </div>
 

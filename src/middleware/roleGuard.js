@@ -251,6 +251,37 @@ export function createProjectDeveloperGuard(userStore) {
 }
 
 /**
+ * Route guard restricting access to LGU users.
+ * @param {Object} userStore - User store instance
+ * @returns {Function} Route guard function
+ */
+export function createLguGuard(userStore) {
+  return async (to) => {
+    if (!userStore.isAuthenticated) {
+      return { name: 'login', query: { redirect: to.fullPath } }
+    }
+
+    if (!userStore.profile || !userStore.role || userStore.role === ROLES.GENERAL_USER) {
+      try {
+        await userStore.fetchUserProfile()
+        await new Promise((resolve) => setTimeout(resolve, 200))
+      } catch (error) {
+        console.error('Error fetching profile in LGU guard:', error)
+      }
+    }
+
+    // Admins may also access LGU tools.
+    if (!userStore.isLguUser && !userStore.isAdmin) {
+      console.warn(`❌ LGU access denied: role '${userStore.role}' cannot access LGU routes`)
+      const path = getRoleDefaultRoute(userStore.role)
+      return { path }
+    }
+
+    return undefined
+  }
+}
+
+/**
  * Permission-based route guard
  * @param {string|string[]} requiredPermissions - Required permissions
  * @param {Object} userStore - User store instance

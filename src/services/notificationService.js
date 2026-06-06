@@ -444,18 +444,19 @@ export async function notifyProjectDecision(project, status, notes = '') {
   if (!project?.id || !project?.user_id) return
 
   const normalizedStatus = normalizeRole(status)
-  if (!['approved', 'rejected'].includes(normalizedStatus)) return
+  const canonicalStatus = normalizedStatus === 'approved' ? 'validated' : normalizedStatus
+  if (!['validated', 'needs_revision', 'rejected'].includes(canonicalStatus)) return
 
-  await notifyProjectSubmitterDecision(project, normalizedStatus, notes)
+  await notifyProjectSubmitterDecision(project, canonicalStatus, notes)
 
   await createNotificationsForRoles(['admin'], {
     type: 'project_status_admin',
-    title: `Project ${normalizedStatus}`,
-    message: `Project "${project.title || 'Untitled Project'}" was ${normalizedStatus}.`,
+    title: `Project ${canonicalStatus}`,
+    message: `Project "${project.title || 'Untitled Project'}" was ${canonicalStatus}.`,
     link: '/admin',
     metadata: {
       project_id: project.id,
-      status: normalizedStatus,
+      status: canonicalStatus,
     },
   })
 
@@ -463,12 +464,12 @@ export async function notifyProjectDecision(project, status, notes = '') {
     ['admin', 'verifier'],
     {
       type: 'project_review_activity',
-      title: `Project ${normalizedStatus}`,
-      message: `A reviewer marked "${project.title || 'Untitled Project'}" as ${normalizedStatus}.`,
+      title: `Project ${canonicalStatus}`,
+      message: `A reviewer marked "${project.title || 'Untitled Project'}" as ${canonicalStatus}.`,
       link: '/verifier',
       metadata: {
         project_id: project.id,
-        status: normalizedStatus,
+        status: canonicalStatus,
         reviewer_id: project.verified_by || null,
       },
     },
@@ -482,20 +483,30 @@ export async function notifyProjectSubmitterDecision(project, status, notes = ''
   if (!project?.id || !project?.user_id) return
 
   const normalizedStatus = normalizeRole(status)
-  if (!['approved', 'rejected'].includes(normalizedStatus)) return
+  const canonicalStatus = normalizedStatus === 'approved' ? 'validated' : normalizedStatus
+  if (!['validated', 'needs_revision', 'rejected'].includes(canonicalStatus)) return
 
-  const isApproved = normalizedStatus === 'approved'
-  const title = isApproved ? 'Your project was approved' : 'Your project was rejected'
+  const isValidated = canonicalStatus === 'validated'
+  const title = isValidated
+    ? 'Your project was validated'
+    : canonicalStatus === 'needs_revision'
+      ? 'Project requires revisions'
+      : 'Your project was rejected'
   const noteSuffix = notes?.trim() ? ` Notes: ${notes.trim()}` : ''
 
   await createNotificationsForUsers([project.user_id], {
     type: 'project_status',
     title,
-    message: `Project "${project.title || 'Untitled Project'}" is now ${normalizedStatus}.${noteSuffix}`,
+    message:
+      canonicalStatus === 'validated'
+        ? `Project "${project.title || 'Untitled Project'}" was validated and moved to the active pool.${noteSuffix}`
+        : canonicalStatus === 'needs_revision'
+          ? `Project "${project.title || 'Untitled Project'}" needs revisions before validation.${noteSuffix}`
+          : `Project "${project.title || 'Untitled Project'}" was rejected.${noteSuffix}`,
     link: '/developer/projects',
     metadata: {
       project_id: project.id,
-      status: normalizedStatus,
+      status: canonicalStatus,
     },
   })
 }

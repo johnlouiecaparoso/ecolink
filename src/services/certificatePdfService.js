@@ -29,6 +29,19 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     const walletAddress = certificate.wallet_address || certData.wallet_address || ''
     const purchaseDateTime = certificate.purchase_date || certificate.purchase_datetime || certData.purchase_date || certData.purchase_datetime || certificate.timestamp || certData.timestamp || transaction?.created_at || certificate.issued_at || new Date().toISOString()
 
+    // Verification URL + QR code (graceful fallback if the qrcode lib is absent)
+    const origin = typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://ecolink.com'
+    const verifyUrl = `${origin}/verify/${certificate.certificate_number}`
+    let qrDataUrl = null
+    try {
+      const QRCode = (await import('qrcode')).default
+      qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 256 })
+    } catch (qrError) {
+      console.warn('QR code generation unavailable:', qrError?.message)
+    }
+
     // Colors
     const primaryColor = [6, 158, 45]
     const textColor = [26, 32, 44]
@@ -51,6 +64,20 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.setFontSize(11)
     doc.setFont('helvetica', 'normal')
     doc.text('Carbon Credit Certificate', 18, 30)
+
+    // ── QR code (top-right of header) ──
+    if (qrDataUrl) {
+      const qrSize = 28
+      const qrX = 297 - qrSize - 10
+      const qrY = 6
+      // White backing so the QR stays scannable over the green band
+      doc.setFillColor(255, 255, 255)
+      doc.rect(qrX - 1.5, qrY - 1.5, qrSize + 3, qrSize + 3, 'F')
+      doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize)
+      doc.setFontSize(6)
+      doc.setTextColor(255, 255, 255)
+      doc.text('Scan to verify', qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center' })
+    }
 
     // ── Title ──
     doc.setFontSize(16)
@@ -154,6 +181,8 @@ export async function generateCertificatePDF(certificate, transaction = null) {
     doc.setFontSize(8)
     doc.setTextColor(...mutedColor)
     const details = []
+    const creditSerial = certificate.credit_serial || certData.credit_serial
+    if (creditSerial) details.push(`Carbon Unit Serial: ${toPdfText(creditSerial)}`)
     if (certificate.project_category) details.push(`Category: ${toPdfText(certificate.project_category)}`)
     if (certificate.project_location) details.push(`Location: ${toPdfText(certificate.project_location)}`)
     if (certificate.vintage_year) details.push(`Vintage: ${certificate.vintage_year}`)
@@ -188,7 +217,11 @@ export async function generateCertificatePDF(certificate, transaction = null) {
       align: 'center',
       maxWidth: 257,
     })
-    doc.text('For verification, visit: https://ecolink.com/verify', 148, footerY + 12, { align: 'center' })
+    doc.text(`For verification, scan the QR code or visit: ${verifyUrl}`, 148, footerY + 12, { align: 'center' })
+    if (certificate.signature_hash) {
+      doc.setFontSize(7)
+      doc.text(`Digital signature: ${certificate.signature_hash.slice(0, 32)}…`, 148, footerY + 17, { align: 'center' })
+    }
 
     const filename = `certificate-${certificate.certificate_number}.pdf`
     doc.save(filename)

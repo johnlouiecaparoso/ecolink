@@ -3,6 +3,29 @@ import { getCurrentUserId } from '@/utils/authHelper'
 import { isTestAccount } from '@/utils/testAccounts'
 import { notifyProjectSubmitted } from '@/services/emailService'
 
+const PROJECT_WORKFLOW_STATUS = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  IN_REVIEW: 'in_review',
+  NEEDS_REVISION: 'needs_revision',
+  VALIDATED: 'validated',
+  REJECTED: 'rejected',
+}
+
+function normalizeProjectWorkflowStatus(status) {
+  const normalized = String(status || '').toLowerCase().trim()
+
+  if (normalized === 'pending') return PROJECT_WORKFLOW_STATUS.SUBMITTED
+  if (normalized === 'under_review') return PROJECT_WORKFLOW_STATUS.IN_REVIEW
+  if (normalized === 'approved') return PROJECT_WORKFLOW_STATUS.VALIDATED
+
+  if (Object.values(PROJECT_WORKFLOW_STATUS).includes(normalized)) {
+    return normalized
+  }
+
+  return normalized
+}
+
 /**
  * Simplified Project Approval Service
  * Handles project approval and credit generation for immediate functionality
@@ -43,13 +66,13 @@ export class ProjectApprovalService {
         throw new Error('User not authenticated')
       }
 
-      // Update project status to approved
-      console.log('🔄 Approving project:', { projectId, userId })
+      // Update project status to validated
+      console.log('🔄 Validating project:', { projectId, userId })
       
       const { data: updatedProject, error: updateError } = await this.supabase
         .from('projects')
         .update({
-          status: 'approved',
+          status: PROJECT_WORKFLOW_STATUS.VALIDATED,
           verification_notes: notes,
           verified_by: userId,
           verified_at: new Date().toISOString(),
@@ -61,17 +84,19 @@ export class ProjectApprovalService {
 
       if (updateError) {
         console.error('❌ Update failed:', updateError)
-        throw new Error(updateError.message || 'Failed to approve project')
+        throw new Error(updateError.message || 'Failed to validate project')
       }
       
-      console.log('✅ Project approved successfully')
+      console.log('✅ Project validated successfully')
 
-      // Generate credits manually (in case trigger doesn't work)
-      const creditsResult = await this.generateCreditsForProject(projectId)
-
+      // NOTE: Credits are intentionally NOT issued at validation time.
+      // Under the decoupled MRV model, carbon credits are minted only when a
+      // verifier approves a monitoring report's Verified Emission Reductions
+      // (see monitoringService.approveReport + the mint_credits_on_ver_approval
+      // DB trigger). Validation just marks the project eligible to begin MRV.
       return {
         project: updatedProject,
-        credits: creditsResult,
+        credits: null,
         success: true,
       }
     } catch (error) {
@@ -81,7 +106,7 @@ export class ProjectApprovalService {
   }
 
   /**
-   * Update project status (pending -> approved/rejected, etc.)
+  * Update project status (submitted -> in_review / needs_revision / validated / rejected)
    * @param {string} projectId
    * @param {string} status
    * @param {string} notes
@@ -91,14 +116,18 @@ export class ProjectApprovalService {
       throw new Error('Status must be a string')
     }
 
-    const normalizedStatus = status.toLowerCase()
+    const normalizedStatus = normalizeProjectWorkflowStatus(status)
 
-    if (normalizedStatus === 'rejected' && (!notes || notes.trim().length < 5)) {
+    if (normalizedStatus === PROJECT_WORKFLOW_STATUS.REJECTED && (!notes || notes.trim().length < 5)) {
       throw new Error('Please add a rejection note (at least 5 characters).')
     }
 
-    if (normalizedStatus === 'approved') {
+    if (normalizedStatus === PROJECT_WORKFLOW_STATUS.VALIDATED) {
       return this.approveProject(projectId, notes)
+    }
+
+    if (!Object.values(PROJECT_WORKFLOW_STATUS).includes(normalizedStatus)) {
+      throw new Error('Invalid status')
     }
 
     if (!this.supabase) {

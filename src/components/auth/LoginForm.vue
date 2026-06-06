@@ -3,7 +3,8 @@ import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/store/userStore'
 import { ROLES } from '@/constants/roles'
-import { loginWithEmail } from '@/services/authService'
+import { loginWithEmail, signOut } from '@/services/authService'
+import { isMfaRequired, challengeAndVerify } from '@/services/mfaService'
 import { getTestAccountByEmail } from '@/utils/testAccounts'
 import UiInput from '@/components/ui/Input.vue'
 import UiButton from '@/components/ui/Button.vue'
@@ -17,6 +18,57 @@ const loading = ref(false)
 const errorMessage = ref('')
 const emailError = ref('')
 const passwordError = ref('')
+
+// MFA step-up state
+const mfaRequired = ref(false)
+const mfaFactorId = ref(null)
+const mfaCode = ref('')
+const mfaError = ref('')
+const mfaLoading = ref(false)
+
+async function finishLogin() {
+  // Fetch user profile to get role for redirect
+  await store.fetchUserProfile()
+  if (!store.role || store.role === ROLES.GENERAL_USER) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  const returnTo = route.query.returnTo
+  if (returnTo) {
+    router.replace(decodeURIComponent(returnTo))
+  } else {
+    router.replace({ name: 'home' })
+  }
+}
+
+async function verifyMfa() {
+  mfaError.value = ''
+  if (!mfaCode.value || mfaCode.value.trim().length < 6) {
+    mfaError.value = 'Enter the 6-digit code from your authenticator app.'
+    return
+  }
+  mfaLoading.value = true
+  try {
+    await challengeAndVerify(mfaFactorId.value, mfaCode.value.trim())
+    await finishLogin()
+  } catch (err) {
+    mfaError.value = err?.message || 'Invalid code. Please try again.'
+  } finally {
+    mfaLoading.value = false
+  }
+}
+
+async function cancelMfa() {
+  try {
+    await signOut()
+  } catch {
+    /* ignore */
+  }
+  store.session = null
+  mfaRequired.value = false
+  mfaFactorId.value = null
+  mfaCode.value = ''
+  mfaError.value = ''
+}
 
 // Real-time validation
 function validateEmail() {
@@ -92,21 +144,21 @@ async function handleSubmit() {
     // Set session immediately to avoid guard race conditions
     if (session) {
       store.session = session
-      // Fetch user profile to get role for redirect
-      // Wait for profile to be fully loaded before redirecting
-      await store.fetchUserProfile()
-
-      // Give store time to update role (if needed)
-      if (!store.role || store.role === ROLES.GENERAL_USER) {
-        // Wait a bit more if role isn't set yet
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
     } else {
       await store.fetchSession()
     }
 
-    // Redirect to Home
-    router.replace({ name: 'home' })
+    // If the user has 2FA enabled, the session is still at aal1 — require a
+    // TOTP code before continuing (step up to aal2).
+    const { required, factorId } = await isMfaRequired()
+    if (required && factorId) {
+      mfaFactorId.value = factorId
+      mfaRequired.value = true
+      loading.value = false
+      return
+    }
+
+    await finishLogin()
   } catch (err) {
     const msg = String(err?.message || '')
     if (/email_not_confirmed|confirm your email/i.test(msg)) {
@@ -132,7 +184,33 @@ async function handleSubmit() {
       <h2 class="login-title">Welcome back</h2>
       <p class="login-subtitle">Sign in to access your EcoLink dashboard.</p>
     </div>
-    <form class="form-grid" @submit.prevent="handleSubmit">
+    <!-- MFA step (shown after password if 2FA is enabled) -->
+    <form v-if="mfaRequired" class="form-grid" @submit.prevent="verifyMfa">
+      <div class="form-field">
+        <label for="mfaCode" class="form-label">
+          <span class="material-symbols-outlined label-icon" aria-hidden="true">password</span>
+          Authentication code
+        </label>
+        <UiInput
+          id="mfaCode"
+          type="text"
+          inputmode="numeric"
+          placeholder="6-digit code"
+          v-model="mfaCode"
+        />
+        <p class="mfa-hint">Enter the 6-digit code from your authenticator app.</p>
+      </div>
+
+      <div v-if="mfaError" class="error-message">{{ mfaError }}</div>
+
+      <UiButton type="submit" :loading="mfaLoading" block class="sign-in-button">
+        <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+        <span>Verify</span>
+      </UiButton>
+      <button type="button" class="link-button" @click="cancelMfa">Cancel</button>
+    </form>
+
+    <form v-else class="form-grid" @submit.prevent="handleSubmit">
       <!-- Email Input -->
       <div class="form-field">
         <label for="email" class="form-label">
@@ -164,6 +242,10 @@ async function handleSubmit() {
           @blur="validatePassword"
           @input="passwordError = ''"
         />
+      </div>
+
+      <div class="forgot-password-row">
+        <router-link to="/forgot-password" class="forgot-link">Forgot your password?</router-link>
       </div>
 
       <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
@@ -329,6 +411,44 @@ async function handleSubmit() {
   border: 1px solid rgba(239, 68, 68, 0.2);
   border-radius: 8px;
   text-align: center;
+}
+
+.forgot-password-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -0.5rem;
+}
+
+.forgot-link {
+  font-size: 0.8rem;
+  color: var(--primary-color, #069e2d);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
+}
+
+.mfa-hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin: 0.4rem 0 0;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: center;
+  width: 100%;
+}
+
+.link-button:hover {
+  color: #374151;
+  text-decoration: underline;
 }
 
 button[disabled] {
